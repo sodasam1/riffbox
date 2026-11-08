@@ -4,7 +4,7 @@ Pure (no Flask): the request arguments come in as a plain mapping, so every rule
 against a real database. Nothing from the request is ever pasted into the SQL text: values go in as
 parameters, and the sort column comes from a fixed table.
 """
-from .intake import Invalid, KEY_MODES, KEY_ROOTS, STATUSES, TEMPOS, normalize_tag
+from .intake import BPM_RANGE, Invalid, KEY_MODES, KEY_ROOTS, STATUSES, TEMPOS, normalize_tag
 
 SORTS = {
     "recorded": "r.recorded_at",
@@ -59,6 +59,21 @@ def parse_filters(args):
             raise Invalid(f"tempo must be one of {', '.join(TEMPOS)}")
     f["tempos"] = tempos
 
+    for field in ("bpm_min", "bpm_max"):          # a BPM range; recordings with no BPM never match it
+        raw = args.get(field)
+        if raw is None or str(raw).strip() == "":
+            f[field] = None
+            continue
+        try:
+            value = int(str(raw).strip())
+        except ValueError:
+            raise Invalid(f"{field} must be a whole number") from None
+        if not BPM_RANGE[0] <= value <= BPM_RANGE[1]:
+            raise Invalid(f"{field} must be between {BPM_RANGE[0]} and {BPM_RANGE[1]}")
+        f[field] = value
+    if f["bpm_min"] is not None and f["bpm_max"] is not None and f["bpm_min"] > f["bpm_max"]:
+        raise Invalid("bpm_min cannot be higher than bpm_max")
+
     for field, allowed in (("key_root", KEY_ROOTS), ("key_mode", KEY_MODES)):
         value = args.get(field) or None
         if value is not None and value not in allowed:
@@ -108,6 +123,12 @@ def build_query(f):
     if f["tempos"]:
         where.append(f"r.tempo IN ({','.join('?' * len(f['tempos']))})")
         params += f["tempos"]
+    if f["bpm_min"] is not None:
+        where.append("r.bpm >= ?")                # a missing BPM (NULL) fails the comparison, so it is excluded
+        params.append(f["bpm_min"])
+    if f["bpm_max"] is not None:
+        where.append("r.bpm <= ?")
+        params.append(f["bpm_max"])
     for field in ("key_root", "key_mode"):
         if f[field]:
             where.append(f"r.{field} = ?")

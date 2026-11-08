@@ -188,7 +188,8 @@ let loadSeq = 0;               // numbers each load so a slow, older response ca
 
 // What the Library sidebar is asking for. Sort and the preview switch are remembered between visits
 // (a per-device convenience only: everything still works if the browser refuses to store them).
-const filters = { q: "", tags: [], match: "all", tempo: [], key_root: "", key_mode: "", sort: "recorded", order: "desc" };
+const filters = { q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "", sort: "recorded", order: "desc" };
+const BPM_LO = 40, BPM_HI = 240;   // the slider's ends; a thumb sitting at an end means "no limit" on that side
 let autoPreview = true;
 const stored = {
   get(k) { try { return localStorage.getItem("riffbox." + k); } catch (e) { return null; } },
@@ -234,7 +235,8 @@ function updateTabs() {
   $("#tab-library").setAttribute("aria-pressed", String(view === "library"));
 }
 
-const filtersActive = () => Boolean(filters.q.trim() || filters.tags.length || filters.tempo.length ||
+const bpmActive = () => filters.bpm_min !== null || filters.bpm_max !== null;
+const filtersActive = () => Boolean(filters.q.trim() || filters.tags.length || bpmActive() ||
                                     filters.key_root || filters.key_mode);
 
 function render() {
@@ -423,7 +425,8 @@ function libraryQuery() {
   const p = new URLSearchParams({ status: "tagged", sort: filters.sort, order: filters.order });
   if (filters.q.trim()) p.set("q", filters.q.trim());
   if (filters.tags.length) { p.set("tags", filters.tags.join(",")); p.set("match", filters.match); }
-  if (filters.tempo.length) p.set("tempo", filters.tempo.join(","));
+  if (filters.bpm_min !== null) p.set("bpm_min", filters.bpm_min);
+  if (filters.bpm_max !== null) p.set("bpm_max", filters.bpm_max);
   if (filters.key_root) p.set("key_root", filters.key_root);
   if (filters.key_mode) p.set("key_mode", filters.key_mode);
   return p.toString();
@@ -720,7 +723,8 @@ function updateFilterUI() {
   $("#f-sort").value = filters.sort;
   $("#f-preview").checked = autoPreview;
   $("#f-clear").disabled = !filtersActive();
-  const n = [filters.q.trim(), filters.tags.length, filters.tempo.length, filters.key_root, filters.key_mode].filter(Boolean).length;
+  const n = [filters.q.trim(), filters.tags.length, bpmActive(), filters.key_root, filters.key_mode].filter(Boolean).length;
+  syncBpmUI();
   $("#filters-toggle").textContent = n ? "Filters (" + n + " active)" : "Filters";
   $("#f-count").textContent = libTotal === 0 ? ""
     : filtersActive() ? libRecs.length + " of " + libTotal + " recordings" : libTotal + (libTotal === 1 ? " recording" : " recordings");
@@ -738,12 +742,35 @@ $("#f-q").addEventListener("input", (e) => { filters.q = e.target.value; filters
 for (const r of document.querySelectorAll('input[name="f-match"]')) {
   r.addEventListener("change", () => { filters.match = r.value; if (filters.tags.length > 1) filtersChanged(0); else updateFilterUI(); });
 }
-for (const c of document.querySelectorAll('[id^="f-tempo-"]')) {
-  c.addEventListener("change", () => {
-    filters.tempo = [...document.querySelectorAll('[id^="f-tempo-"]')].filter((x) => x.checked).map((x) => x.value);
-    filtersChanged(0);
-  });
+// BPM range: two thumbs on one track. A thumb at its end of the track means "no limit" on that side.
+const bpmMin = $("#f-bpm-min"), bpmMax = $("#f-bpm-max");
+function syncBpmUI() {
+  bpmMin.value = filters.bpm_min === null ? BPM_LO : filters.bpm_min;
+  bpmMax.value = filters.bpm_max === null ? BPM_HI : filters.bpm_max;
+  const lo = Number(bpmMin.value), hi = Number(bpmMax.value), span = BPM_HI - BPM_LO;
+  $("#f-bpm-fill").style.left = ((lo - BPM_LO) / span) * 100 + "%";
+  $("#f-bpm-fill").style.right = (1 - (hi - BPM_LO) / span) * 100 + "%";
+  $("#f-bpm-readout").textContent = !bpmActive() ? "Any BPM"
+    : filters.bpm_min !== null && filters.bpm_max !== null ? lo + "–" + hi + " BPM"
+    : filters.bpm_min !== null ? lo + " BPM and up" : "Up to " + hi + " BPM";
+  bpmMin.setAttribute("aria-valuetext", filters.bpm_min === null ? "No lower limit" : lo + " BPM");
+  bpmMax.setAttribute("aria-valuetext", filters.bpm_max === null ? "No upper limit" : hi + " BPM");
+  $("#f-bpm-note").hidden = !bpmActive();
+  // whichever thumb is nearer the middle of the track stays underneath, so overlapping thumbs can both be grabbed
+  bpmMin.style.zIndex = lo > (BPM_LO + BPM_HI) / 2 ? 3 : 2;
+  bpmMax.style.zIndex = lo > (BPM_LO + BPM_HI) / 2 ? 2 : 3;
 }
+function bpmInput(which) {
+  let lo = Number(bpmMin.value), hi = Number(bpmMax.value);
+  if (which === "min" && lo > hi) lo = hi;                  // the thumbs cannot cross
+  if (which === "max" && hi < lo) hi = lo;
+  filters.bpm_min = lo > BPM_LO ? lo : null;
+  filters.bpm_max = hi < BPM_HI ? hi : null;
+  syncBpmUI();
+  filtersChanged(150);
+}
+bpmMin.addEventListener("input", () => bpmInput("min"));
+bpmMax.addEventListener("input", () => bpmInput("max"));
 $("#f-root").addEventListener("change", (e) => { filters.key_root = e.target.value; filtersChanged(0); });
 $("#f-mode").addEventListener("change", (e) => { filters.key_mode = e.target.value; filtersChanged(0); });
 $("#f-sort").addEventListener("change", (e) => {
@@ -759,10 +786,9 @@ $("#f-order").addEventListener("click", () => {
 });
 $("#f-preview").addEventListener("change", (e) => { autoPreview = e.target.checked; stored.set("preview", autoPreview ? "1" : "0"); });
 $("#f-clear").addEventListener("click", () => {
-  Object.assign(filters, { q: "", tags: [], match: "all", tempo: [], key_root: "", key_mode: "" });
+  Object.assign(filters, { q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "" });
   $("#f-q").value = ""; $("#f-root").value = ""; $("#f-mode").value = "";
   $("#f-match-all").checked = true;
-  for (const c of document.querySelectorAll('[id^="f-tempo-"]')) c.checked = false;
   filtersChanged(0);
 });
 $("#filters-toggle").addEventListener("click", () => {

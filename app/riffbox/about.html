@@ -3,7 +3,7 @@
      Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model.
      UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
 
-<p class="meta">Last updated: 8 Nov 2026, after building Phase 5. Written from what was checked on your server and
+<p class="meta">Last updated: 8 Nov 2026, after Phase 5 and its follow-up fixes. Written from what was checked on your server and
 in the tests, not from assumptions; anything unverified is marked as such.</p>
 
 <h2>Planned features</h2>
@@ -52,7 +52,7 @@ phone, a check by you) before the next one starts. That keeps any problem confin
       <td><span class="status done">Done</span></td></tr>
     <tr><td>5</td><td><strong>Library browser</strong> in the style of a DAW sample browser: a table with a
       filter sidebar (on a phone the filters fold behind a button). Filter by tags (has all or has any of the
-      selected), by tempo and by key; search across titles, notes and tag names; sort by date recorded, date
+      selected), by a BPM range (a two-thumb slider; recordings with no BPM are hidden while it is set) and by key; search across titles, notes and tag names; sort by date recorded, date
       uploaded, title or BPM (recordings with no BPM always go last). Click a recording or Tab to the list, then
       use the up and down arrows to move through it, auditioning each one as you land on it (switchable), and
       Space to play or pause. Sorting by length or by last played arrives with Phase 6, once those are
@@ -208,7 +208,7 @@ shown in your browser's local time.</p>
     <tr><td><code>sha256</code></td><td>Fingerprint, used to refuse duplicate uploads.</td><td>Yes</td></tr>
     <tr><td><code>recorded_at</code>, <code>uploaded_at</code></td><td>When it was recorded (the file's timestamp) and when it was uploaded.</td><td>Yes</td></tr>
     <tr><td><code>status</code></td><td><code>inbox</code> (not yet looked at) or <code>tagged</code> (saved to the Library).</td><td>Yes</td></tr>
-    <tr><td><code>tempo</code>, <code>bpm</code></td><td>slow / medium / fast, and an optional number from 20 to 400.</td><td>Yes</td></tr>
+    <tr><td><code>tempo</code>, <code>bpm</code></td><td>slow / medium / fast, and an optional number from 20 to 400. The Library filters by the BPM number, not by the words.</td><td>Yes</td></tr>
     <tr><td><code>key_root</code>, <code>key_mode</code></td><td>Note (C, C#, D, Eb, E, F, F#, G, Ab, A, Bb, B) and major or minor.</td><td>Yes</td></tr>
     <tr><td><code>notes</code></td><td>Free text, up to 5,000 characters.</td><td>Yes</td></tr>
     <tr><td><code>codec</code></td><td>What audio format the file holds (for example <code>alac</code> or <code>aac</code>), read from the file itself.</td><td>Yes</td></tr>

@@ -170,6 +170,23 @@ form.edit .error { margin: 0; }
 .sortrow select { flex: 1; min-width: 0; }
 #f-count { margin: 0; }
 
+/* BPM range: two range inputs laid over one track. Only the thumbs take clicks, so both stay draggable. */
+.bpm-readout { font-weight: 600; font-variant-numeric: tabular-nums; }
+.dual { position: relative; height: 34px; margin: 2px 0; }
+.dual .track { position: absolute; left: 13px; right: 13px; top: 15px; height: 4px; background: var(--line); border-radius: 2px; }
+.dual .fill { position: absolute; top: 0; bottom: 0; background: var(--accent); border-radius: 2px; }
+.dual input[type=range] { position: absolute; left: 0; top: 0; width: 100%; height: 34px; margin: 0; padding: 0;
+                          background: none; border: 0; min-height: 0; pointer-events: none;
+                          -webkit-appearance: none; appearance: none; }
+.dual input[type=range]::-webkit-slider-runnable-track { background: transparent; height: 34px; }
+.dual input[type=range]::-moz-range-track { background: transparent; height: 34px; }
+.dual input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; pointer-events: auto; cursor: pointer;
+  width: 26px; height: 26px; margin-top: 4px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); box-shadow: 0 0 0 1px var(--accent); }
+.dual input[type=range]::-moz-range-thumb { pointer-events: auto; cursor: pointer;
+  width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); box-shadow: 0 0 0 1px var(--accent); }
+.dual input[type=range]:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--text); outline-offset: 2px; }
+.dual input[type=range]:focus-visible::-moz-range-thumb { outline: 2px solid var(--text); outline-offset: 2px; }
+
 #colhead { display: none; }
 @media (min-width: 900px) {
   #browser.with-filters { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: 28px; align-items: start; }

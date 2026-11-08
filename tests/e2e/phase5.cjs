@@ -129,18 +129,50 @@ async function waitUp() {
     await clearFilters();
     console.log("ok  tag filters: all-selected narrows, any-selected widens, toggling off restores");
 
-    // tempo and key
-    await page.check("#f-tempo-fast"); await waitSet(["Funky bass riff", "Full demo", "Guitar lick"], "fast");
-    await page.check("#f-tempo-slow"); await waitSet(["Funky bass riff", "Full demo", "Guitar lick", "Dreamy keys"], "fast or slow");
-    await page.uncheck("#f-tempo-fast"); await page.uncheck("#f-tempo-slow"); await waitSet(SEED.slice(0, 6).map((s) => s[0]), "tempo cleared");
+    // BPM range slider (two thumbs; a thumb at its end of the track means "no limit" on that side)
+    const setRange = (sel, v) => page.$eval(sel, (el, val) => { el.value = String(val); el.dispatchEvent(new Event("input", { bubbles: true })); }, v);
+    const readout = async () => (await page.textContent("#f-bpm-readout")).trim();
+    assert.strictEqual(await readout(), "Any BPM");
+    assert.ok(await page.isHidden("#f-bpm-note"));
+    await setRange("#f-bpm-min", 100);
+    await waitSet(["Funky bass riff", "Drum loop", "Full demo", "Guitar lick"], "100 BPM and up");
+    assert.strictEqual(await readout(), "100 BPM and up");
+    assert.ok(await page.isVisible("#f-bpm-note"), "note says recordings with no BPM are hidden");
+    await setRange("#f-bpm-max", 120);
+    await waitSet(["Funky bass riff", "Drum loop"], "100 to 120 BPM");
+    assert.strictEqual(await readout(), "100–120 BPM");
+    await setRange("#f-bpm-min", 130);                                    // pushing the low thumb past the high one
+    assert.strictEqual(await page.inputValue("#f-bpm-min"), "120", "the thumbs cannot cross");
+    await setRange("#f-bpm-min", 118); await setRange("#f-bpm-max", 118);
+    await waitSet(["Funky bass riff"], "exactly 118 (both ends are inclusive)");
+    await setRange("#f-bpm-min", 40); await setRange("#f-bpm-max", 80);
+    await waitSet(["Dreamy keys"], "up to 80 BPM");
+    assert.strictEqual(await readout(), "Up to 80 BPM");
+    await setRange("#f-bpm-max", 240);
+    await waitSet(SEED.slice(0, 6).map((s) => s[0]), "both thumbs at the ends = no limit");
+    assert.strictEqual(await readout(), "Any BPM");
+    assert.ok(await page.locator("#f-clear").isDisabled(), "nothing is filtered, so Clear is disabled");
+    // keyboard: the thumbs are real range inputs
+    await page.focus("#f-bpm-min");
+    for (let i = 0; i < 60; i++) await page.keyboard.press("ArrowRight");
+    await waitSet(["Funky bass riff", "Drum loop", "Full demo", "Guitar lick"], "keyboard: 100 and up from the arrow keys (100 is included)");
+    assert.strictEqual(await readout(), "100 BPM and up");
+    await page.keyboard.press("Home");
+    await waitSet(SEED.slice(0, 6).map((s) => s[0]), "Home returns the thumb to 'no limit'");
+
+    // key
     await page.selectOption("#f-root", "D"); await waitSet(["Funky bass riff", "Vocal hook"], "key D");
     await page.selectOption("#f-mode", "minor"); await waitSet(["Funky bass riff"], "D minor");
     assert.match((await page.textContent("#filters-toggle")), /Filters \(2 active\)/);
     await clearFilters();
-    await tag("melody").click(); await page.check("#f-tempo-medium"); await page.fill("#f-q", "hook");
-    await waitSet(["Vocal hook"], "tag + tempo + search together");
+    await tag("melody").click(); await setRange("#f-bpm-min", 120); await page.fill("#f-q", "lick");
+    await waitSet(["Guitar lick"], "tag + BPM + search together");
+    assert.match((await page.textContent("#filters-toggle")), /Filters \(3 active\)/);
     await clearFilters();
-    console.log("ok  tempo (several at once), key, and combined filters");
+    assert.strictEqual(await page.inputValue("#f-bpm-min"), "40"); assert.strictEqual(await page.inputValue("#f-bpm-max"), "240");
+    assert.strictEqual(await readout(), "Any BPM");
+    assert.strictEqual(await page.locator("#filters input[id^='f-tempo']").count(), 0, "the slow/medium/fast filters are gone");
+    console.log("ok  BPM range slider (mouse-free and by script), key, and combined filters; tempo-word filters removed");
 
     // sorting
     await page.selectOption("#f-sort", "title");
@@ -204,6 +236,14 @@ async function waitUp() {
     const form = page.locator("#list form.edit");
     await form.waitFor();
     const hold = await state();
+    const gaps = await page.evaluate(() => {          // the highlighted row's bar must not sit on the form's left edge
+      const li = document.querySelector("#list > li.selected");
+      const l = li.getBoundingClientRect().left;
+      return { selected: li.classList.contains("selected"),
+               field: document.querySelector("#list form.edit input[type=text]").getBoundingClientRect().left - l,
+               play: li.querySelector(".play").getBoundingClientRect().left - l };
+    });
+    assert.ok(gaps.selected && gaps.field >= 8 && gaps.play >= 8, "content is inset from the highlight bar: " + JSON.stringify(gaps));
     await form.locator('input[type=radio][value="medium"]').check();
     await form.locator('input[type=radio][value="medium"]').press("ArrowDown");   // radio groups use the arrows
     assert.ok(await form.locator('input[type=radio][value="fast"]').isChecked(), "arrow key changed the radio, not the list");

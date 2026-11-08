@@ -43,6 +43,10 @@ Do not start a phase until the previous gate is ticked.
             open form, phone layout with collapsible filters and no sideways scroll. Phases 3, 4 and the how-to page
             tests still pass.
       - [x] Deploy gate: routine deploy; owner tried it with the few recordings they have (high volume not yet tried).
+      - Follow-ups after the owner's phone test: the highlight bar of a selected row no longer sits on top of the
+        left edge of an open form (rows now have inner padding; regression-tested at phone width); the
+        slow/medium/fast filters were replaced by a BPM range slider (`bpm_min` / `bpm_max`, inclusive; recordings
+        without a BPM are excluded while it is set). The Tempo words remain in the edit form.
       - Deviation from the original plan: sorting by length and by last played is deferred to Phase 6, because
         neither value is recorded until then (`duration_s` is filled by the waveform step; `last_played_at` needs
         the player to report plays).
