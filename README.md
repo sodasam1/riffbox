@@ -60,6 +60,20 @@ tool is needed to detect it.
 - **Weekly email digest** of a few forgotten hearted ideas, sent through the server's
   existing `smtpd` and smtp2go relay.
 - Shuffle button and a "not played in 30+ days" list.
+- **Serve the page from `htdocs` instead of the app (owner's preferred direction).** Today the
+  Python app serves the page files (`static/index.html`, `app.js`, `style.css`) along with the
+  API, and relayd sends everything under `/ideas` to the app. The plan is to let httpd serve the
+  page like the rest of the site, so the site stays plain files in `htdocs`:
+  - Put the page files in `/var/www/htdocs/ideas/` (uploaded with FreeFileSync like the rest of
+    the site). The URL stays `https://sanjaysubramanian.com/ideas/`.
+  - Narrow the relayd rules from `path "/ideas/*"` to `path "/ideas/api/*"` so only the API goes
+    to the app. The page already uses relative URLs, so it needs no change to work from there.
+  - Trade-offs accepted: two upload destinations (page files to `htdocs`, app code to
+    `/usr/local/riffbox`); the page and the API can get out of step if only one is uploaded, so
+    deploys must always do both; the page files are no longer removed by the Riffbox-only
+    uninstall (`deploy/UNINSTALL.md` would gain a step to delete `htdocs/ideas`).
+  - Not started. Do it as its own phase, with a deploy gate that checks the page loads from httpd
+    and that the old and new routes don't both answer.
 - Possible later: waveform thumbnails in the list, export-all zip.
 
 ## Layout
