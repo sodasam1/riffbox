@@ -88,7 +88,8 @@ def test_zip_matches_the_command_line_export_and_flags_damage(lib, tmp_path):
     disk = {p.relative_to(cli).as_posix(): p.read_bytes() for p in cli.rglob("*") if p.is_file()}
     assert web.keys() == disk.keys()
     assert all(web[k] == disk[k] for k in web)
-    victim = next((data / "audio").glob("*.wav"))
+    import sqlite3
+    victim = data / "audio" / sqlite3.connect(data / "riffbox.db").execute("SELECT filename FROM recordings WHERE id = 1").fetchone()[0]
     victim.write_bytes(victim.read_bytes() + b"x")
     z = zipfile.ZipFile(io.BytesIO(c.get("/api/export.zip").data))
     assert any(n.endswith("PROBLEMS.txt") and b"checksum differs" in z.read(n) for n in z.namelist())
