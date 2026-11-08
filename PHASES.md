@@ -55,7 +55,7 @@ Do not start a phase until the previous gate is ticked.
       - Deviation from the original plan: sorting by length and by last played is deferred to Phase 6, because
         neither value is recorded until then (`duration_s` is filled by the waveform step; `last_played_at` needs
         the player to report plays).
-- [ ] **Phase 6** Player polish (branch `phase-6`; not merged to `main` until the owner asks).
+- [ ] **Phase 6** Player polish (merged to `main` at the owner's request; the deploy check below is still to be done).
       - Design change from the original plan: the waveform and length are measured on the server with ffmpeg
         (once per upload, in the background worker; older recordings at the next restart) instead of decoding in
         the browser, which would load whole files into a phone's memory and cannot read Apple Lossless in Chrome.
