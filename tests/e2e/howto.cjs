@@ -97,6 +97,8 @@ async function waitUp() {
     for (const [w, h] of [[390, 844], [1280, 800]]) {
       await page.setViewportSize({ width: w, height: h });
       await page.waitForSelector("#playerbar:not([hidden])");
+      // just after logging in on a phone the bar is still folded away from typing the passphrase; let it settle
+      await page.waitForFunction(() => !document.querySelector("#playerbar").classList.contains("mini"), null, { timeout: 5000 });
       const g = await page.evaluate(() => {
         const r = document.querySelector("#playerbar").getBoundingClientRect();
         const top = document.querySelector(".pb-top").getBoundingClientRect();

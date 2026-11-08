@@ -48,7 +48,17 @@
       <button id="tab-inbox" type="button" aria-pressed="true">Inbox</button>
       <button id="tab-library" type="button" aria-pressed="false">Library</button>
     </div>
+    <button id="triage-start" type="button" class="primary" hidden>Triage the Inbox</button>
     <p id="notice" role="status" aria-live="polite" hidden></p>
+    <section id="triage" aria-labelledby="triage-h" tabindex="-1" hidden>
+      <div class="triage-head">
+        <h3 id="triage-h">Triage</h3>
+        <span id="triage-pos" class="meta" aria-live="polite"></span>
+        <button id="triage-exit" type="button" class="link">Exit (Esc)</button>
+      </div>
+      <div id="triage-card"></div>
+      <p id="triage-help" class="meta">1–9 tags · h ♥ · c ✓ · x ✗ · u song name · n notes · Space play or pause · → or Enter save and next · s skip · ← back · Esc exit</p>
+    </section>
     <div id="browser">
       <aside id="filters" aria-label="Filter and sort the Library" hidden>
         <button id="filters-toggle" type="button" aria-expanded="false" aria-controls="filters-panel">Filters</button>
@@ -57,6 +67,14 @@
             <label for="f-q">Search</label>
             <input id="f-q" type="search" placeholder="Title, notes or tag" autocomplete="off" maxlength="200">
           </div>
+          <fieldset class="showfilter">
+            <legend>Show</legend>
+            <span class="radio"><input type="radio" name="f-show" id="f-show-all" value="all" checked><label for="f-show-all" data-base="All (hides ✗)">All</label></span>
+            <span class="radio"><input type="radio" name="f-show" id="f-show-heart" value="heart"><label for="f-show-heart" data-base="♥ Interesting">♥ Interesting</label></span>
+            <span class="radio"><input type="radio" name="f-show" id="f-show-check" value="check"><label for="f-show-check" data-base="✓ Used in a song">✓ Used in a song</label></span>
+            <span class="radio"><input type="radio" name="f-show" id="f-show-x" value="x"><label for="f-show-x" data-base="✗ No longer interesting">✗ No longer interesting</label></span>
+            <span class="radio"><input type="radio" name="f-show" id="f-show-none" value="none"><label for="f-show-none" data-base="No mark">No mark</label></span>
+          </fieldset>
           <fieldset>
             <legend>Tags</legend>
             <div id="f-tags" class="tagbox" role="group" aria-label="Filter by tag"></div>
@@ -117,6 +135,7 @@
     <span id="pb-title" class="pb-title">Nothing playing</span>
     <span id="pb-time" class="pb-time">0:00 / 0:00</span>
     <a id="pb-dl" class="dl" href="#" hidden>Download</a>
+    <button id="pb-toggle" type="button" aria-label="Collapse the player" aria-expanded="true">▾</button>
   </div>
   <canvas id="wave" tabindex="0" role="slider" aria-label="Playback position. Arrow keys skip 5 seconds, Home and End jump to the ends."
           aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="Nothing playing"></canvas>

@@ -56,7 +56,7 @@ def test_blank_title_falls_back_to_default():
     {"key_root": "H"}, {"key_root": "c"}, {"key_mode": "dorian"}, {"status": "done"}, {"status": None},
     {"title": 5}, {"title": "t" * 201}, {"notes": ["x"]}, {"notes": "n" * 5001},
     {"tags": "bass"}, {"tags": ["nonexistent"]}, {"tags": [None]}, {"tags": ["bass"] * 2 + [f"t{i}" for i in range(31)]},
-    {"rating": "heart"}, {"id": 4}, {"sha256": "x"}, {"filename": "../x"},
+    {"id": 4}, {"sha256": "x"}, {"filename": "../x"}, {"last_played_at": "2026-01-01T00:00:00Z"}, {"play_status": "ready"},
 ])
 def test_rejects_bad_values_and_unknown_fields(body):
     with pytest.raises(Invalid):
@@ -176,7 +176,7 @@ def test_patch_error_cases(c, client):
     assert c.patch("/api/recordings/9999", json={"notes": "x"}).status_code == 404
     assert c.patch(f"/api/recordings/{rid}", data="not json", content_type="text/plain").status_code == 400
     assert c.patch(f"/api/recordings/{rid}", json=["list"]).status_code == 400
-    assert c.patch(f"/api/recordings/{rid}", json={"rating": "heart"}).status_code == 400   # phase 7, not yet
+    assert c.patch(f"/api/recordings/{rid}", json={"rating": "love"}).status_code == 400     # not one of the three marks
     assert c.patch(f"/api/recordings/{rid}", json={"sha256": "x"}).status_code == 400
 
 
@@ -283,3 +283,64 @@ def test_recorded_sort_follows_the_date_recorded(c, client):
     assert order() == ["t2", "t1", "t3"]
     assert order(sort="recorded", order="asc") == ["t3", "t1", "t2"]
     assert order(sort="uploaded").count("t1") == 1                                      # the upload date is a separate sort
+
+
+# ---- ratings: heart / check / x, "used in" for a check, and filtering by mark ----------------------------
+def test_rating_and_used_in_rules():
+    for r in ("heart", "check", "x", None):
+        assert check({"rating": r})[0] == {"rating": r}
+    for bad in ("love", "HEART", "", 1, True, ["heart"]):
+        with pytest.raises(Invalid):
+            check({"rating": bad})
+    assert check({"used_in": "  Song A  "})[0] == {"used_in": "Song A"}
+    assert check({"used_in": "   "})[0] == {"used_in": None}
+    assert check({"used_in": None})[0] == {"used_in": None}
+    for bad in (5, ["x"], "s" * 201):
+        with pytest.raises(Invalid):
+            check({"used_in": bad})
+
+
+def test_a_new_recording_has_no_mark(c, client):
+    upload(client)
+    rec = c.get("/api/recordings").get_json()["recordings"][0]
+    assert (rec["rating"], rec["used_in"]) == (None, None)
+
+
+def test_marking_round_trip(c, client):
+    rid = upload(client)
+    for mark in ("heart", "check", "x"):
+        assert c.patch(f"/api/recordings/{rid}", json={"rating": mark}).get_json()["recording"]["rating"] == mark
+    assert c.get("/api/recordings").get_json()["recordings"][0]["rating"] == "x"
+    assert c.patch(f"/api/recordings/{rid}", json={"rating": None}).get_json()["recording"]["rating"] is None
+
+
+def test_used_in_belongs_to_a_check(c, client):
+    rid = upload(client)
+    both = c.patch(f"/api/recordings/{rid}", json={"rating": "check", "used_in": "Song A"}).get_json()["recording"]
+    assert (both["rating"], both["used_in"]) == ("check", "Song A")
+    # editing only the song name keeps the check
+    assert c.patch(f"/api/recordings/{rid}", json={"used_in": "Song B"}).get_json()["recording"]["used_in"] == "Song B"
+    # a song name without a check is refused, and nothing changes
+    c.patch(f"/api/recordings/{rid}", json={"rating": "heart"})
+    r = c.patch(f"/api/recordings/{rid}", json={"used_in": "Song C", "notes": "changed"})
+    assert r.status_code == 400 and "only applies" in r.get_json()["error"]
+    assert c.get("/api/recordings").get_json()["recordings"][0]["notes"] == ""
+
+
+def test_moving_away_from_check_clears_the_song_name(c, client):
+    rid = upload(client)
+    for away in ("heart", "x", None):
+        c.patch(f"/api/recordings/{rid}", json={"rating": "check", "used_in": "Song A"})
+        rec = c.patch(f"/api/recordings/{rid}", json={"rating": away}).get_json()["recording"]
+        assert (rec["rating"], rec["used_in"]) == (away, None), away
+    # ...unless a (blank) song name is sent with it
+    rec = c.patch(f"/api/recordings/{rid}", json={"rating": "check", "used_in": ""}).get_json()["recording"]
+    assert (rec["rating"], rec["used_in"]) == ("check", None)
+
+
+def test_ratings_need_a_session_and_the_token_cannot_set_them(c, client):
+    rid = upload(client)
+    tok = {"Authorization": f"Bearer {TOKEN}"}
+    fresh = client.application.test_client()
+    assert fresh.patch(f"/api/recordings/{rid}", json={"rating": "heart"}).status_code == 401
+    assert fresh.patch(f"/api/recordings/{rid}", json={"rating": "heart"}, headers=tok).status_code == 401

@@ -157,6 +157,53 @@ def test_bad_bpm_values_are_rejected(lib, query):
     assert len(lib()) == 8
 
 
+# ---- marks (heart / check / x / none) --------------------------------------------------------
+@pytest.fixture
+def marked(lib):
+    """Marks on the seeded library: Funky and Guitar hearted, Dreamy checked, Drum crossed out; the rest unmarked."""
+    for title, mark, used in (("Funky bass riff", "heart", None), ("Guitar lick", "heart", None),
+                              ("Dreamy keys", "check", "Song A"), ("Drum loop", "x", None)):
+        r = lib.client.patch(f"/api/recordings/{lib.ids[title]}", json={"rating": mark, "used_in": used} if used else {"rating": mark})
+        assert r.status_code == 200, r.get_json()
+    return lib
+
+
+def test_filter_by_each_mark(marked):
+    assert names(marked(rating="heart")) == ["Funky bass riff", "Guitar lick"]
+    assert marked(rating="check") == ["Dreamy keys"]
+    assert marked(rating="x") == ["Drum loop"]
+    assert names(marked(rating="none")) == ["Café melody", "Full demo", "Untagged scrap", "Vocal hook"]
+
+
+def test_all_without_the_crossed_out_ones_is_hearts_checks_and_unmarked(marked):
+    shown = marked(rating="heart,check,none")                    # what the page asks for by default
+    assert "Drum loop" not in shown and len(shown) == 7
+    assert names(marked(rating="heart,x")) == ["Drum loop", "Funky bass riff", "Guitar lick"]
+
+
+def test_no_rating_filter_means_everything(marked):
+    assert len(marked()) == 8 and "Drum loop" in marked()
+
+
+def test_rating_filter_combines_with_other_filters(marked):
+    assert marked(rating="heart", tags="bass") == ["Funky bass riff"]
+    assert marked(rating="heart,check", bpm_min="120") == ["Guitar lick"]
+    assert marked(rating="none", q="melody", status="tagged") == ["Vocal hook", "Café melody"]   # newest recorded first
+
+
+def test_mark_counts_are_unaffected_by_filters(marked):
+    body = marked.client.get("/api/recordings", query_string={"status": "tagged", "tags": "bass", "rating": "x"}).get_json()
+    assert body["ratings"] == {"heart": 2, "check": 1, "x": 1, "none": 3}      # all 7 tagged, before any filter
+    assert sum(body["ratings"].values()) == body["total"] == 7
+    inbox = marked.client.get("/api/recordings?status=inbox").get_json()
+    assert inbox["ratings"] == {"heart": 0, "check": 0, "x": 0, "none": 1}
+
+
+@pytest.mark.parametrize("value", ["love", "heart,love", "HEART", "heart;x", "1"])
+def test_bad_rating_filters_are_rejected(lib, value):
+    assert "error" in lib(expect=400, rating=value)
+
+
 # ---- search -----------------------------------------------------------------------------------
 def test_search_matches_title_notes_and_tag_names(lib):
     assert names(lib(q="bass")) == ["Café melody", "Full demo", "Funky bass riff"]   # notes, tag, title

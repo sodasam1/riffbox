@@ -70,5 +70,23 @@ Do not start a phase until the previous gate is ticked.
       - [ ] Deploy gate: routine deploy (no new package; ffmpeg is already installed and configured). After
             `sh ~/install-riffbox.sh` the restart measures existing recordings: waveforms should appear within a
             minute. Try the waveform, scrubbing, speed, loop and download on the phone and on the computer.
-- [ ] **Phase 7** Ratings + triage mode.
+- [ ] **Phase 7** Ratings + triage mode (branch `phase-7`; not merged to `main` until the owner asks).
+      - Design: three marks (`heart`, `check`, `x`) on `recordings.rating`; `used_in` only exists while the mark is a
+        check (the server refuses it otherwise and clears it when the mark changes). The Library's "Show" filter
+        sends `rating=heart,check,none` for "All", so ✗ is hidden by default; the response carries `ratings` counts.
+        Triage walks a snapshot of the Inbox; shortcuts are ignored while typing in a box.
+      - [x] Local gate: `pytest` 227 passed (mark validation, the used-in rules, the rating filter incl. unmarked,
+            counts, access; three deliberate breakages caught); `node tests/e2e/phase7.cjs`: the Show filter and
+            its counts, row buttons, h/c/x on the list, the form's marks and song box, and a full keyboard
+            triage (autoplay, tags by number, typing is safe, save/skip/back, summary, Esc). Three deliberate
+            breakages caught (typing guard, skip-saves, All showing ✗).
+      - [ ] Deploy gate: routine deploy (no new package, no database step, no config change). Mark a few recordings
+            on the phone, try the Show filter, and triage a few Inbox recordings on the computer.
+      - Also on this branch: the player collapse (see below).
 - [ ] **Phase 8** Hardening + backup + restore drill.
+
+## Player collapse (owner request: the player blocked a phone screen while typing)
+The player bar has a collapse button (▾/▴) that folds it to one slim row (play, title, time), remembered between
+visits; on a small or touch screen it also collapses by itself while a text box has focus and expands afterwards;
+the player's own speed menu does not count. Opening an edit form no longer puts the cursor in the Title box on a
+touch screen (that raised the keyboard at once). Checked by `tests/e2e/collapse.cjs` (breakages caught).

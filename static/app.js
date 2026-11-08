@@ -197,6 +197,7 @@ let view = "inbox";            // which list is showing: "inbox" | "library"
 let inboxRecs = [];            // everything not yet saved to the Library
 let libRecs = [];              // Library recordings matching the current filters (the server does the filtering)
 let libTotal = 0;              // Library size before any filter
+let libRatings = { heart: 0, check: 0, x: 0, none: 0 };   // how many Library recordings carry each mark
 let allTags = [];
 let openEditId = null;         // at most one edit form open at a time
 let selectedId = null;         // the highlighted row; arrow keys move it, Space plays it
@@ -205,7 +206,8 @@ let loadSeq = 0;               // numbers each load so a slow, older response ca
 
 // What the Library sidebar is asking for. Sort and the preview switch are remembered between visits
 // (a per-device convenience only: everything still works if the browser refuses to store them).
-const filters = { q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "", sort: "recorded", order: "desc" };
+const filters = { q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "", rating: "all",
+                  sort: "recorded", order: "desc" };
 const BPM_LO = 40, BPM_HI = 240;   // the slider's ends; a thumb sitting at an end means "no limit" on that side
 let autoPreview = true;
 const stored = {
@@ -225,6 +227,7 @@ function detailsText(rec) {
   const parts = [];
   if (rec.bpm) parts.push(rec.bpm + " BPM");
   if (rec.key_root || rec.key_mode) parts.push([rec.key_root, rec.key_mode].filter(Boolean).join(" "));
+  if (rec.rating === "check" && rec.used_in) parts.push("used in " + rec.used_in);
   return parts.join(" · ");
 }
 
@@ -235,6 +238,7 @@ function notify(text) {
 }
 
 function setView(next) {
+  if (triage) exitTriage();
   view = next;
   openEditId = null;
   notify("");
@@ -253,7 +257,7 @@ function updateTabs() {
 
 const bpmActive = () => filters.bpm_min !== null || filters.bpm_max !== null;
 const filtersActive = () => Boolean(filters.q.trim() || filters.tags.length || bpmActive() ||
-                                    filters.key_root || filters.key_mode);
+                                    filters.key_root || filters.key_mode || filters.rating !== "all");
 
 function render() {
   updateTabs();
@@ -275,6 +279,8 @@ function render() {
       : "No recordings match these filters. Use Clear filters to start over.";
   }
   $("#kbd-hint").hidden = !shown.length;
+  $("#triage-start").hidden = !(view === "inbox" && inboxRecs.length && !triage);
+  $("#triage-start").textContent = "Triage the Inbox (" + inboxRecs.length + ")";
   $("#count").textContent = shown.length ? "(" + shown.length + ")" : "";
   if (inLibrary) updateFilterUI();
   playStatus = new Map([...inboxRecs, ...libRecs].map((rec) => [rec.id, rec.play_status]));
@@ -307,11 +313,19 @@ function buildRow(rec) {
     render();
     if (openEditId !== null) {
       const first = document.querySelector("#list form.edit input");
-      if (first) first.focus();
+      // put the cursor in the Title box, except on a touch screen, where that would throw the keyboard up at once
+      if (first && !window.matchMedia("(pointer: coarse)").matches) first.focus();
     }
   });
+  const rate = el("div", { class: "rate", role: "group", "aria-label": "Mark this recording" });
+  for (const [key, glyph, label] of MARKS) {
+    const b = el("button", { type: "button", class: "ratebtn", "data-rating": key, title: label,
+                             "aria-label": label, "aria-pressed": String(rec.rating === key) }, glyph);
+    b.addEventListener("click", () => setMark(rec, rec.rating === key ? null : key));
+    rate.append(b);
+  }
   const side = el("div", { class: "side" }, edit,
-    el("a", { class: "dl", href: "api/audio/" + rec.id + "?download=1" }, "Download"));
+    el("a", { class: "dl", href: "api/audio/" + rec.id + "?download=1" }, "Download"), rate);
   const li = el("li", { "data-id": String(rec.id), "data-title": rec.title }, btn, info, side);
   if (rec.id === selectedId) { li.classList.add("selected"); li.setAttribute("aria-current", "true"); }
   if (openEditId === rec.id) li.append(buildForm(rec));
@@ -356,6 +370,25 @@ function buildForm(rec) {
   newTag.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); createTag(); } });
   form.append(el("fieldset", {}, el("legend", {}, "What's in it?"), tagBox,
     el("div", { class: "addtag" }, newTag, addBtn), tagErr));
+
+  // marks: ♥ interesting, ✓ used in a song (with its name), ✗ no longer interesting
+  let mark = rec.rating;
+  const markBox = el("div", { class: "rate", role: "group", "aria-label": "Mark this recording" });
+  const usedIn = el("input", { id: "f-used-" + id, type: "text", maxlength: "200", placeholder: "Which song? (optional)",
+                               value: rec.used_in || "" });
+  const usedField = field("Used in", usedIn, "f-used-" + id);
+  const syncMarks = () => {
+    for (const b of markBox.children) b.setAttribute("aria-pressed", String(b.dataset.rating === mark));
+    usedField.hidden = mark !== "check";
+  };
+  for (const [key, glyph, label] of MARKS) {
+    const b = el("button", { type: "button", class: "ratebtn", "data-rating": key, title: label, "aria-label": label,
+                             "aria-pressed": "false" }, glyph);
+    b.addEventListener("click", () => { mark = mark === key ? null : key; syncMarks(); });
+    markBox.append(b);
+  }
+  form.append(el("fieldset", {}, el("legend", {}, "Mark"), markBox), usedField);
+  syncMarks();
 
   // BPM: a number, with tap-along
   const bpm = el("input", { id: "f-bpm-" + id, type: "number", min: "20", max: "400", inputmode: "numeric",
@@ -418,6 +451,8 @@ function buildForm(rec) {
       key_mode: mode.value || null,
       notes: notes.value,
       status,
+      rating: mark,
+      used_in: mark === "check" ? (usedIn.value.trim() || null) : null,
     };
     if (dateChanged) payload.recorded_at = dateInput.value ? localNoon(dateInput.value) : null;   // null = use the upload date
     const r = await api("recordings/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -446,6 +481,8 @@ function libraryQuery() {
   if (filters.bpm_max !== null) p.set("bpm_max", filters.bpm_max);
   if (filters.key_root) p.set("key_root", filters.key_root);
   if (filters.key_mode) p.set("key_mode", filters.key_mode);
+  // "All" leaves out the ones marked ✗ (no longer interesting); pick ✗ to see them
+  p.set("rating", filters.rating === "all" ? "heart,check,none" : filters.rating);
   return p.toString();
 }
 
@@ -461,6 +498,7 @@ async function loadList() {
   inboxRecs = inboxBody.recordings;
   libRecs = libBody.recordings;
   libTotal = libBody.total;
+  libRatings = libBody.ratings;
   if (tags.ok) allTags = (await tags.json()).tags;
   if (openEditId !== null) updateTabs();     // never rebuild the list under a form someone is typing in
   else render();
@@ -702,6 +740,57 @@ $("#pb-clear").addEventListener("click", () => { loopA = loopB = null; loopOn = 
 
 new ResizeObserver(drawWave).observe(wave);
 
+// Collapse the player to one slim row: by the button (remembered), and automatically while typing on a small or
+// touch screen, so a phone keyboard doesn't leave the form with a sliver of screen.
+const playerBar = $("#playerbar"), barToggle = $("#pb-toggle");
+let barMini = stored.get("mini") === "1";
+let typing = false;
+const isTextField = (n) => Boolean(n && n.matches && !n.closest("#playerbar") &&
+  n.matches('textarea, select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"])'));
+const smallScreen = () => window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
+function applyBar() {
+  const collapsed = barMini || typing;
+  playerBar.classList.toggle("mini", collapsed);
+  barToggle.textContent = collapsed ? "▴" : "▾";
+  barToggle.setAttribute("aria-label", collapsed ? "Expand the player" : "Collapse the player");
+  barToggle.setAttribute("aria-expanded", String(!collapsed));
+  if (!collapsed) drawWave();
+}
+// Collapse at once when a text box gets the cursor; expand only after it has been gone for a moment and no finger or
+// mouse button is down. Expanding the instant focus moved (e.g. onto a button being pressed) made the bar jump up over
+// the very spot being tapped, so the tap landed on the player and the button never got its click.
+let typingTimer = null, pointerDown = false;
+function syncTyping() {
+  const now = smallScreen() && isTextField(document.activeElement);
+  if (now) {
+    clearTimeout(typingTimer); typingTimer = null;
+    if (!typing) { typing = true; applyBar(); }
+    return;
+  }
+  if (!typing || typingTimer) return;
+  typingTimer = setTimeout(function settle() {
+    typingTimer = null;
+    if (smallScreen() && isTextField(document.activeElement)) return;
+    if (pointerDown) { typingTimer = setTimeout(settle, 150); return; }
+    typing = false; applyBar();
+  }, 300);
+}
+document.addEventListener("pointerdown", () => { pointerDown = true; }, true);
+for (const ev of ["pointerup", "pointercancel"]) document.addEventListener(ev, () => { pointerDown = false; }, true);
+barToggle.addEventListener("click", () => {
+  const collapsedNow = barMini || typing;                 // collapsed for either reason: the button expands it
+  if (typing && document.activeElement && document.activeElement.blur) document.activeElement.blur();   // also puts the keyboard away
+  clearTimeout(typingTimer); typingTimer = null;
+  typing = false;
+  barMini = !collapsedNow;
+  stored.set("mini", barMini ? "1" : "0");
+  applyBar();
+});
+document.addEventListener("focusin", syncTyping);
+document.addEventListener("focusout", syncTyping);
+setInterval(syncTyping, 1000);                                                // safety net: a field removed while focused
+applyBar();
+
 // ---- Library sidebar: search, tag/tempo/key filters, sorting ----------------------------------------
 const SORT_WORDS = {      // what the direction button says, per sort
   recorded: { desc: "Newest first", asc: "Oldest first" },
@@ -740,11 +829,21 @@ function updateFilterUI() {
   $("#f-sort").value = filters.sort;
   $("#f-preview").checked = autoPreview;
   $("#f-clear").disabled = !filtersActive();
-  const n = [filters.q.trim(), filters.tags.length, bpmActive(), filters.key_root, filters.key_mode].filter(Boolean).length;
+  const n = [filters.q.trim(), filters.tags.length, bpmActive(), filters.key_root, filters.key_mode,
+             filters.rating !== "all"].filter(Boolean).length;
   syncBpmUI();
+  const counts = { all: libTotal - libRatings.x, heart: libRatings.heart, check: libRatings.check, x: libRatings.x, none: libRatings.none };
+  for (const r of document.querySelectorAll('input[name="f-show"]')) {
+    r.checked = r.value === filters.rating;
+    const label = $('label[for="' + r.id + '"]');
+    label.textContent = label.dataset.base + " · " + counts[r.value];
+  }
   $("#filters-toggle").textContent = n ? "Filters (" + n + " active)" : "Filters";
+  const hiddenX = filters.rating === "all" ? libRatings.x : 0;     // ✗ ones that "All" leaves out
+  const otherFilters = Boolean(filters.q.trim() || filters.tags.length || bpmActive() || filters.key_root || filters.key_mode);
   $("#f-count").textContent = libTotal === 0 ? ""
-    : filtersActive() ? libRecs.length + " of " + libTotal + " recordings" : libTotal + (libTotal === 1 ? " recording" : " recordings");
+    : otherFilters || filters.rating !== "all" ? libRecs.length + " of " + libTotal + " recordings"
+    : libRecs.length + (libRecs.length === 1 ? " recording" : " recordings") + (hiddenX ? " (" + hiddenX + " marked ✗ hidden)" : "");
 }
 
 let filterTimer = null;
@@ -756,6 +855,9 @@ function filtersChanged(delay) {
 }
 
 $("#f-q").addEventListener("input", (e) => { filters.q = e.target.value; filtersChanged(200); });
+for (const r of document.querySelectorAll('input[name="f-show"]')) {
+  r.addEventListener("change", () => { filters.rating = r.value; filtersChanged(0); });
+}
 for (const r of document.querySelectorAll('input[name="f-match"]')) {
   r.addEventListener("change", () => { filters.match = r.value; if (filters.tags.length > 1) filtersChanged(0); else updateFilterUI(); });
 }
@@ -803,7 +905,7 @@ $("#f-order").addEventListener("click", () => {
 });
 $("#f-preview").addEventListener("change", (e) => { autoPreview = e.target.checked; stored.set("preview", autoPreview ? "1" : "0"); });
 $("#f-clear").addEventListener("click", () => {
-  Object.assign(filters, { q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "" });
+  Object.assign(filters, { q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "", rating: "all" });
   $("#f-q").value = ""; $("#f-root").value = ""; $("#f-mode").value = "";
   $("#f-match-all").checked = true;
   filtersChanged(0);
@@ -811,6 +913,190 @@ $("#f-clear").addEventListener("click", () => {
 $("#filters-toggle").addEventListener("click", () => {
   const open = $("#filters").classList.toggle("open");
   $("#filters-toggle").setAttribute("aria-expanded", String(open));
+});
+
+// ---- marks: ♥ interesting, ✓ used in a song, ✗ no longer interesting ---------------------------------
+const MARKS = [["heart", "♥", "Interesting"], ["check", "✓", "Used in a song"], ["x", "✗", "No longer interesting"]];
+
+async function setMark(rec, value) {
+  const r = await api("recordings/" + rec.id, { method: "PATCH", headers: { "Content-Type": "application/json" },
+                                                body: JSON.stringify({ rating: value }) });
+  if (r.status === 401) { show("login"); return; }
+  if (!r.ok) { notify("Could not save that mark (error " + r.status + ")."); return; }
+  const saved = (await r.json()).recording;
+  rec.rating = saved.rating; rec.used_in = saved.used_in;
+  for (const li of document.querySelectorAll('#list > li[data-id="' + rec.id + '"] .side .ratebtn')) {
+    li.setAttribute("aria-pressed", String(li.dataset.rating === rec.rating));     // update in place: keeps any open form
+  }
+  await loadList();      // a mark can change what a filter shows (✗ leaves "All"); this refreshes lists and counts
+}
+
+// ---- triage: work through the Inbox one recording at a time, keyboard first ---------------------
+// Each card autoplays (if "play as I move" is on). Number keys toggle tags, h / c / x mark it, n or u jump to
+// the notes or the song name, and Right arrow or Enter saves it to the Library and moves on; s skips it.
+let triage = null;       // null, or { recs, queue, index, savedIds, skippedIds, drafts }
+
+function startTriage() {
+  if (!inboxRecs.length) return;
+  triage = { recs: new Map(inboxRecs.map((r) => [r.id, r])), queue: inboxRecs.map((r) => r.id), index: 0,
+             savedIds: new Set(), skippedIds: new Set(), drafts: new Map() };
+  openEditId = null;
+  notify("");
+  $("#browser").hidden = true;
+  $("#triage").hidden = false;
+  $("#triage-start").hidden = true;
+  renderTriage();
+}
+
+function exitTriage() {
+  if (!triage) return;
+  triage = null;
+  $("#triage").hidden = true;
+  $("#browser").hidden = false;
+  player.pause();
+  loadList();
+}
+
+function readCard() {            // what is on the card right now (null on the "done" screen)
+  if (!$("#t-notes")) return null;
+  const card = $("#triage-card");
+  const mark = card.querySelector('.ratebtn[aria-pressed="true"]');
+  return { tags: [...card.querySelectorAll('.tagbtn[aria-pressed="true"]')].map((b) => b.dataset.tag),
+           rating: mark ? mark.dataset.rating : null, used_in: $("#t-used").value.trim(), notes: $("#t-notes").value };
+}
+
+function setCardMark(key, forceOn) {
+  const buttons = [...document.querySelectorAll("#triage-card .ratebtn")];
+  const current = buttons.find((b) => b.getAttribute("aria-pressed") === "true");
+  const turnOn = forceOn || !current || current.dataset.rating !== key;      // pressing the same mark again removes it
+  for (const b of buttons) b.setAttribute("aria-pressed", String(turnOn && b.dataset.rating === key));
+  $("#t-used-wrap").hidden = !(turnOn && key === "check");
+}
+
+function renderTriage() {
+  const card = $("#triage-card");
+  card.replaceChildren();
+  if (triage.index >= triage.queue.length) {
+    const skipped = [...triage.skippedIds].filter((id) => !triage.savedIds.has(id)).length;
+    const done = el("button", { type: "button", class: "primary" }, "Back to the Inbox");
+    done.addEventListener("click", exitTriage);
+    $("#triage-pos").textContent = "Done";
+    card.append(el("h4", {}, "That's the whole Inbox."),
+      el("p", {}, "Saved " + triage.savedIds.size + (triage.savedIds.size === 1 ? " recording" : " recordings") +
+                  " to the Library" + (skipped ? ", left " + skipped + " in the Inbox." : ".")), done);
+    $("#triage").focus({ preventScroll: true });
+    return;
+  }
+  const id = triage.queue[triage.index];
+  const rec = triage.recs.get(id);
+  const draft = triage.drafts.get(id) || { tags: rec.tags, rating: rec.rating, used_in: rec.used_in || "", notes: rec.notes || "" };
+  $("#triage-pos").textContent = (triage.index + 1) + " of " + triage.queue.length;
+  card.append(el("h4", {}, rec.title),
+    el("div", { class: "meta" }, whenText(rec) + (rec.duration_s ? " · " + fmtTime(rec.duration_s) : "")));
+
+  const tagBox = el("div", { class: "tagbox", role: "group", "aria-label": "Instruments and ideas (keys 1 to 9)" });
+  allTags.forEach((t, i) => {
+    const b = el("button", { type: "button", class: "tagbtn", "data-tag": t, "aria-pressed": String(draft.tags.includes(t)) });
+    if (i < 9) b.append(el("span", { class: "key", "aria-hidden": "true" }, String(i + 1)));
+    b.append(t);
+    b.addEventListener("click", () => b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true")));
+    tagBox.append(b);
+  });
+  const hints = { heart: "h", check: "c", x: "x" };
+  const markBox = el("div", { class: "rate", role: "group", "aria-label": "Mark this recording" });
+  for (const [key, glyph, label] of MARKS) {
+    const b = el("button", { type: "button", class: "ratebtn", "data-rating": key, title: label + " (" + hints[key] + ")",
+                             "aria-label": label, "aria-pressed": String(draft.rating === key) }, glyph);
+    b.addEventListener("click", () => setCardMark(key));
+    markBox.append(b);
+  }
+  const used = el("input", { id: "t-used", type: "text", maxlength: "200", placeholder: "Which song? (optional)", value: draft.used_in });
+  const usedWrap = el("div", { id: "t-used-wrap" }, el("label", { for: "t-used" }, "Used in (u)"), used);
+  usedWrap.hidden = draft.rating !== "check";
+  const notes = el("textarea", { id: "t-notes", rows: "3", maxlength: "5000" });
+  notes.value = draft.notes;
+  const error = el("p", { id: "t-error", class: "error", role: "alert", hidden: "" });
+  const back = el("button", { type: "button" }, "← Back");
+  const skip = el("button", { type: "button" }, "Skip (s)");
+  const save = el("button", { type: "button", class: "primary" }, "Save and next (→)");
+  back.addEventListener("click", triageBack); skip.addEventListener("click", triageSkip); save.addEventListener("click", triageSave);
+  card.append(tagBox, markBox, usedWrap,
+    el("div", {}, el("label", { for: "t-notes" }, "Notes (n)"), notes), error,
+    el("div", { class: "actions" }, back, skip, save));
+  if (autoPreview) startPlay(rec);
+  $("#triage").focus({ preventScroll: true });
+}
+
+async function triageSave() {
+  const data = readCard();
+  if (!data) return;
+  const id = triage.queue[triage.index];
+  const err = $("#t-error");
+  err.hidden = true;
+  const r = await api("recordings/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tags: data.tags, rating: data.rating, notes: data.notes, status: "tagged",
+                           used_in: data.rating === "check" ? (data.used_in || null) : null }) });
+  if (r.status === 401) { show("login"); return; }
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    err.textContent = body.error || "Could not save (error " + r.status + ").";
+    err.hidden = false;
+    return;
+  }
+  triage.recs.set(id, (await r.json()).recording);
+  triage.drafts.delete(id);
+  triage.savedIds.add(id);
+  triage.index++;
+  renderTriage();
+}
+
+function triageSkip() {
+  const data = readCard();
+  if (!data) return;
+  const id = triage.queue[triage.index];
+  triage.drafts.set(id, data);
+  triage.skippedIds.add(id);
+  triage.index++;
+  renderTriage();
+}
+
+function triageBack() {
+  const data = readCard();
+  if (data) triage.drafts.set(triage.queue[triage.index], data);
+  triage.index = Math.max(0, triage.index - 1);
+  renderTriage();
+}
+
+$("#triage-start").addEventListener("click", startTriage);
+$("#triage-exit").addEventListener("click", exitTriage);
+
+document.addEventListener("keydown", (e) => {
+  if (!triage || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  const target = e.target;
+  if (target.closest && target.closest("input, textarea, select")) {      // typing: only Escape and Enter-in-a-box are ours
+    if (e.key === "Escape") { e.preventDefault(); target.blur(); $("#triage").focus({ preventScroll: true }); }
+    else if (e.key === "Enter" && target.tagName === "INPUT") { e.preventDefault(); triageSave(); }
+    return;
+  }
+  const onControl = target.closest && target.closest("button, a");      // Space and Enter already press a focused button
+  const k = e.key;
+  if (k === "Escape") { e.preventDefault(); exitTriage(); return; }
+  if (!$("#t-notes")) return;                                             // the "done" screen has no card
+  const rec = triage.recs.get(triage.queue[triage.index]);
+  if (k >= "1" && k <= "9") {
+    const b = $("#triage-card").querySelectorAll(".tagbtn")[Number(k) - 1];
+    if (b) { e.preventDefault(); b.click(); }
+  } else if (k === "h" || k === "c" || k === "x") { e.preventDefault(); setCardMark({ h: "heart", c: "check", x: "x" }[k]); }
+  else if (k === "u") { e.preventDefault(); setCardMark("check", true); $("#t-used").focus(); }
+  else if (k === "n") { e.preventDefault(); $("#t-notes").focus(); }
+  else if (k === "s") { e.preventDefault(); triageSkip(); }
+  else if (k === "ArrowLeft") { e.preventDefault(); triageBack(); }
+  else if (k === "ArrowRight" || (k === "Enter" && !onControl)) { e.preventDefault(); triageSave(); }
+  else if (k === " " && !onControl) {
+    e.preventDefault();
+    if (playingId === rec.id && !player.error) { if (player.paused) player.play().catch(() => {}); else player.pause(); }
+    else startPlay(rec);
+  }
 });
 
 // ---- moving through the list with the keyboard -----------------------------------------------------
@@ -844,6 +1130,11 @@ listEl.addEventListener("keydown", (e) => {
     e.preventDefault();
     const next = at < 0 ? 0 : Math.min(rows.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)));
     previewIfWanted(Number(rows[next].dataset.id));
+  } else if ((e.key === "h" || e.key === "c" || e.key === "x") && selectedId !== null) {
+    e.preventDefault();                                                  // h = ♥, c = ✓, x = ✗; again to remove the mark
+    const rec = recById(selectedId);
+    const key = { h: "heart", c: "check", x: "x" }[e.key];
+    if (rec) setMark(rec, rec.rating === key ? null : key);
   } else if (e.key === " " && !e.target.closest("button, a")) {      // on a button, Space already means "press it"
     e.preventDefault();
     const rec = recById(selectedId !== null ? selectedId : Number(rows[0].dataset.id));

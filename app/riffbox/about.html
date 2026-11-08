@@ -3,7 +3,7 @@
      Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model.
      UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
 
-<p class="meta">Last updated: 8 Nov 2026, after Phase 6 and the date-recorded changes. Written from what was checked on your server and
+<p class="meta">Last updated: 8 Nov 2026, after building Phase 7. Written from what was checked on your server and
 in the tests, not from assumptions; anything unverified is marked as such.</p>
 
 <h2>Planned features</h2>
@@ -67,13 +67,19 @@ phone, a check by you) before the next one starts. That keeps any problem confin
       time the service restarts. Lengths now show in the list, the player records when you last <em>really</em>
       listened to a recording (not when you skip past it), and the Library can be sorted by length and by last
       played.</td><td><span class="status done">Built; awaiting your check</span></td></tr>
-    <tr><td>7</td><td><strong>Ratings and triage</strong>: heart, check ("used in a song") and X ("no longer
-      interesting") marks with filters (X hidden from "All" by default), a "used in" note for checks, and a
-      card-by-card triage mode for working through the Inbox with keyboard shortcuts.</td>
-      <td><span class="status next">Next</span></td></tr>
+    <tr><td>7</td><td><strong>Ratings and triage</strong>: three marks &mdash; &hearts; interesting, &check; used in a
+      song (with a box for which song) and &cross; no longer interesting &mdash; set from buttons on each row, with
+      <code>h</code>, <code>c</code> and <code>x</code> on the highlighted row, or in the edit form. The Library's
+      &ldquo;Show&rdquo; filter has All (which leaves out the &cross; ones), each mark on its own, and No mark, each
+      with a count. <strong>Triage</strong> takes the Inbox one recording at a time, keyboard first: it plays, number
+      keys toggle tags, <code>h</code>/<code>c</code>/<code>x</code> mark, <code>n</code> and <code>u</code> jump to the notes
+      and song name, Right arrow or Enter saves it to the Library and moves on, <code>s</code> skips, Left arrow goes
+      back, Esc leaves. Also added: the player can be collapsed to one slim row (by a button, and automatically while
+      you type on a phone), and opening the form no longer raises the keyboard on a touch screen.</td>
+      <td><span class="status done">Built; awaiting your check</span></td></tr>
     <tr><td>8</td><td><strong>Hardening and backup</strong>: delete with restore, a mobile layout pass, a
       nightly backup of the database and audio, and a practice restore to prove it works. (Login attempt
-      limiting was pulled forward and is already live.)</td><td><span class="status">Planned</span></td></tr>
+      limiting was pulled forward and is already live.)</td><td><span class="status next">Next</span></td></tr>
   </tbody>
 </table>
 </div>
@@ -224,7 +230,7 @@ shown in your browser's local time.</p>
     <tr><td><code>codec</code></td><td>What audio format the file holds (for example <code>alac</code> or <code>aac</code>), read from the file itself.</td><td>Yes</td></tr>
     <tr><td><code>play_status</code>, <code>play_filename</code>, <code>play_error</code></td><td>State of the FLAC playback copy (<code>pending</code>, <code>ready</code>, <code>failed</code>), its file name, and the last error (for the server log only, never shown on the page).</td><td>Yes</td></tr>
     <tr><td><code>duration_s</code>, <code>peaks</code></td><td>Length in seconds, and 200 points used to draw the waveform (empty if the file could not be measured). Measured once by the server.</td><td>Yes</td></tr>
-    <tr><td><code>rating</code>, <code>used_in</code></td><td>Heart, check or X, and which song a checked idea became.</td><td>Phase 7</td></tr>
+    <tr><td><code>rating</code>, <code>used_in</code></td><td>Heart, check or X, and which song a checked idea became (the song name only exists while the mark is a check; changing the mark clears it).</td><td>Yes</td></tr>
     <tr><td><code>last_played_at</code></td><td>When it was last played.</td><td>Yes (set once you've really listened; the "not played in a while" list is still planned)</td></tr>
     <tr><td><code>deleted_at</code></td><td>Marks a recording as deleted without erasing it. The app already hides these.</td><td>Phase 8 adds the delete and restore buttons</td></tr>
   </tbody>

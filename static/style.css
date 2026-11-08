@@ -105,6 +105,18 @@ a.dl { color: var(--accent); font-size: .9rem; }
 .pb-loop button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .pb-loop button.set { border-color: var(--accent); color: var(--accent); }
 .pb-loop button:disabled, #pb-play:disabled { opacity: .45; cursor: default; }
+#pb-toggle { min-width: 36px; min-height: 36px; padding: 0 .5rem; flex: none; }
+
+/* Collapsed ("mini") player: a single slim row with play, title, time and the expand button. The waveform and
+   the other controls fold away, so the form being typed in (and the phone keyboard) keep the screen. */
+#playerbar.mini { grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; column-gap: 10px; row-gap: 0;
+                  padding: 8px 10px; }
+#playerbar.mini .pb-top, #playerbar.mini .pb-controls { display: contents; }
+#playerbar.mini #wave, #playerbar.mini #pb-speed, #playerbar.mini .pb-loop, #playerbar.mini #pb-dl { display: none; }
+#playerbar.mini #pb-play { order: -1; width: 40px; height: 40px; }
+#playerbar.mini .pb-title { order: 0; }
+#playerbar.mini .pb-time { order: 1; }
+#playerbar.mini #pb-toggle { order: 2; }
 
 /* ---- phase 4: inbox/library switch, details, intake form ---- */
 #views { display: flex; gap: 8px; margin: .2rem 0 .8rem; }
@@ -212,3 +224,30 @@ form.edit .error { margin: 0; }
   #list.library .notes { grid-column: 2 / 6; grid-row: 2; -webkit-line-clamp: 1; }
   #list.library form.edit { grid-row: 3; }
 }
+
+/* ---- phase 7: marks (heart / check / x) and the triage card ---- */
+:root { --ok: #1a7f37; --ok-text: #fff; }
+@media (prefers-color-scheme: dark) { :root { --ok: #3fb950; --ok-text: #0d1117; } }
+.rate { display: flex; gap: 6px; }
+.ratebtn { min-width: 36px; min-height: 36px; padding: 0 .4rem; border-radius: 8px; font-size: 1.05rem; line-height: 1; }
+.ratebtn[aria-pressed="true"][data-rating="heart"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.ratebtn[aria-pressed="true"][data-rating="check"] { background: var(--ok); color: var(--ok-text); border-color: var(--ok); }
+.ratebtn[aria-pressed="true"][data-rating="x"] { background: var(--muted); color: var(--bg); border-color: var(--muted); }
+#list .side .rate { justify-self: end; }
+.showfilter .radio { display: flex; }
+#filters-panel .showfilter .radio label { font-size: .95rem; }
+
+#triage-start { margin: 0 0 .8rem; }
+#triage { background: var(--panel); border-radius: 12px; padding: 14px 16px; margin: 0 0 1rem; outline: none; }
+.triage-head { display: flex; align-items: baseline; gap: 12px; }
+.triage-head h3 { margin: 0; flex: 1; font-size: 1.05rem; }
+#triage-card { display: grid; gap: 14px; margin: 12px 0; }
+#triage-card h4 { margin: 0; font-size: 1.2rem; overflow-wrap: anywhere; }
+#triage-card .key { display: inline-block; min-width: 1.2em; margin-right: .35em; padding: 0 .25em; border-radius: 4px;
+                    background: var(--bg); color: var(--muted); font-size: .8em; text-align: center; }
+#triage-card .tagbtn[aria-pressed="true"] .key { background: transparent; color: inherit; }
+#triage-card .hint { color: var(--muted); font-size: .8rem; margin-left: .4rem; }
+#triage-card textarea, #triage-card input[type=text] { font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: .5rem .6rem; width: 100%; }
+#triage-card .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+#triage-help { margin: 0; }
