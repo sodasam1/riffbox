@@ -16,6 +16,7 @@ certificates, DNS or firewall, because Riffbox never changes them.
 | 6 | The code | `/usr/local/riffbox` | step 3 / deploys | No |
 | 7 | **Your recordings and database** | `/var/riffbox` | step 3 / use | No. **This is your data** |
 | 8 | Python packages (Flask, waitress and their helpers) | `/usr/local` via `pkg_add` | step 2 | Possibly some helpers (see below) |
+| 8b | `ffmpeg` and its libraries (only if you did `deploy/PHASE3_5.md`) | `/usr/local` via `pkg_add` | phase 3.5 | Possibly some libraries (see below) |
 | 9 | Upload leftovers in your home directory | `~/riffbox-incoming`, `~/install-riffbox.sh`, `~/riffbox.tgz` | step 5 | No |
 
 Later phases may add more (a nightly backup job in Phase 8, a digest e-mail if built). This file is
@@ -95,18 +96,23 @@ First remove the two you installed:
 ```sh
 doas pkg_delete py3-flask py3-waitress
 ```
+If you installed ffmpeg for the FLAC play copies, remove it too:
+```sh
+doas pkg_delete ffmpeg
+```
 Then see which leftover helper packages nothing needs any more. **Dry run first (`-n` changes nothing):**
 ```sh
 doas pkg_delete -a -n
 ```
 It should list only Flask's helpers (names such as Werkzeug, Jinja2, MarkupSafe, itsdangerous, click,
-blinker). **If it lists anything else, stop and don't continue.** If it only lists those:
+blinker) and, if you removed ffmpeg, its libraries. **If it lists anything that isn't one of those, stop and
+don't continue.** If it only lists those:
 ```sh
 doas pkg_delete -a
 ```
 Never use `pkg_delete -aa`: that deletes far more. Helpers that Radicale also needs are kept
 automatically, because something still depends on them.
-CHECK: `pkg_info | grep -iE 'flask|waitress'` prints nothing, and `rcctl check radicale` still says ok.
+CHECK: `pkg_info | grep -iE 'flask|waitress|ffmpeg'` prints nothing, and `rcctl check radicale` still says ok.
 
 ## Check that nothing is left
 ```sh

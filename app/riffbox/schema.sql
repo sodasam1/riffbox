@@ -21,7 +21,12 @@ CREATE TABLE IF NOT EXISTS recordings (
   rating        TEXT CHECK (rating IN ('heart','check','x')),
   used_in       TEXT,
   last_played_at TEXT,
-  deleted_at    TEXT
+  deleted_at    TEXT,
+  -- Playback copy (added in phase 3.5; databases created earlier get these via migrate() in __init__)
+  codec         TEXT,                      -- 'alac','aac', other sample-entry name, 'unknown' or 'n/a'; NULL = not examined yet
+  play_status   TEXT,                      -- NULL = original plays as is; 'pending','ready','failed'
+  play_filename TEXT,                      -- FLAC copy on disk when play_status = 'ready'
+  play_error    TEXT                       -- last conversion error (server log use only; never sent to the UI)
 );
 CREATE INDEX IF NOT EXISTS idx_recordings_sha256 ON recordings(sha256);
 CREATE INDEX IF NOT EXISTS idx_recordings_status ON recordings(status, deleted_at);

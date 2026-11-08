@@ -33,6 +33,15 @@ Configuration is by environment variables: `RIFFBOX_DATA_DIR`, `RIFFBOX_SECRET`,
 `RIFFBOX_PASSPHRASE`, `RIFFBOX_UPLOAD_TOKEN`. The app refuses to start without a secret.
 `RIFFBOX_INSECURE_COOKIES=1` is for local http only.
 
+## Apple Lossless memos (phase 3.5)
+
+Voice Memos set to *Lossless* records Apple Lossless (ALAC), which Safari plays but Chrome, Edge and
+Firefox do not. With `ffmpeg` installed the server keeps the original untouched and makes a lossless
+FLAC play copy in the background (`/api/play/<id>`; Download still returns the original). Without
+ffmpeg everything still works; ALAC memos just have no browser-friendly copy. Setup:
+`deploy/PHASE3_5.md`. The codec is read from the MP4 file itself (`app/riffbox/media.py`), so no
+tool is needed to detect it.
+
 ## Security notes
 
 - Logins are throttled: 5 wrong passphrases per client (30 from anyone) within 15 minutes returns

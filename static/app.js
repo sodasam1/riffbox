@@ -74,14 +74,17 @@ function markPlaying() {
   }
 }
 
+let playStatus = new Map();    // recording id -> play_status from the latest list ("pending", "failed", ...)
+
 function togglePlay(rec) {
   $("#audio-error").hidden = true;
-  if (playingId === rec.id) {
+  // After an error, clicking again reloads the source (a FLAC play copy may be ready by now).
+  if (playingId === rec.id && !player.error) {
     if (player.paused) player.play(); else player.pause();
     return;
   }
   playingId = rec.id;
-  player.src = "api/audio/" + rec.id;
+  player.src = "api/play/" + rec.id;     // the FLAC play copy if there is one, else the original
   player.play().catch(() => {});
   markPlaying();
 }
@@ -98,13 +101,18 @@ player.addEventListener("error", async () => {
   const msg = $("#audio-error");
   let text;
   try {
-    const r = await fetch("api/audio/" + id, { headers: { Range: "bytes=0-0" }, credentials: "same-origin" });
+    const r = await fetch("api/play/" + id, { headers: { Range: "bytes=0-0" }, credentials: "same-origin" });
+    const status = playStatus.get(id);
     if (r.status === 401) { show("login"); return; }
     if (r.status === 404) text = "That recording's audio file is missing on the server.";
     else if (!r.ok) text = "The server could not send this file (error " + r.status + ").";
     else if (mediaCode === 2) text = "A network problem interrupted loading the audio. Try again.";
+    else if (status === "pending") text = "This recording is still being prepared for playback in your browser. " +
+                "Try again in a few seconds.";
     else text = "This browser can't decode this file's audio format. It is probably Apple Lossless " +
                 "(Voice Memos set to Lossless quality), which Safari plays but Chrome, Edge and Firefox do not. " +
+                (status === "failed" ? "The server tried to make a playable copy and could not. "
+                                     : "The server has no playable copy of it. ") +
                 "Use Download to play it in VLC or another player, or open this page in Safari.";
   } catch (e) {
     text = "Could not reach the server. Check your connection and try again.";
@@ -114,7 +122,10 @@ player.addEventListener("error", async () => {
   msg.hidden = false;
 });
 
+let pollTimer = null;
+
 async function loadList() {
+  clearTimeout(pollTimer);
   const r = await api("recordings");
   if (r.status === 401) { show("login"); return; }
   const { recordings } = await r.json();
@@ -122,17 +133,22 @@ async function loadList() {
   ul.replaceChildren();
   $("#empty").hidden = recordings.length > 0;
   $("#count").textContent = recordings.length ? "(" + recordings.length + ")" : "";
+  playStatus = new Map(recordings.map((rec) => [rec.id, rec.play_status]));
   for (const rec of recordings) {
     const btn = el("button", { class: "play", type: "button" }, "▶");
     btn.addEventListener("click", () => togglePlay(rec));
     const meta = el("div", { class: "meta" }, fmtDate(rec.recorded_at) + " · " + fmtSize(rec.size));
     if (rec.status === "inbox") meta.append(el("span", { class: "chip" }, "inbox"));
+    if (rec.play_status === "pending") meta.append(el("span", { class: "chip" }, "preparing playback…"));
+    if (rec.play_status === "failed") meta.append(el("span", { class: "chip" }, "no play copy"));
     const dl = el("a", { class: "dl", href: "api/audio/" + rec.id + "?download=1" }, "Download");
     const li = el("li", { "data-id": String(rec.id), "data-title": rec.title },
       btn, el("div", {}, el("div", { class: "title" }, rec.title), meta), dl);
     ul.append(li);
   }
   markPlaying();
+  // While the server is still converting something, check again shortly so the chip clears itself.
+  if (recordings.some((rec) => rec.play_status === "pending")) pollTimer = setTimeout(loadList, 3000);
 }
 
 // ---- upload ------------------------------------------------------------------

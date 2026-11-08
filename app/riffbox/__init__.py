@@ -8,7 +8,8 @@ import hashlib
 import hmac
 import mimetypes
 import os
-import secrets
+import queue
+import shutil
 import sqlite3
 import tempfile
 import threading
@@ -17,14 +18,24 @@ import uuid
 from collections import deque
 from functools import wraps
 from pathlib import Path
+from types import SimpleNamespace
 
 from flask import (Blueprint, Flask, abort, g, jsonify, redirect, request,
                    send_file, send_from_directory, session)
+
+from .media import convert_to_flac, mp4_audio_codec
 
 ALLOWED_EXT = {
     ".m4a", ".mp3", ".wav", ".aac", ".caf", ".aif", ".aiff", ".ogg", ".flac", ".mp4",
 }
 FALLBACK_MIME = {".m4a": "audio/mp4", ".caf": "audio/x-caf", ".aac": "audio/aac"}
+MP4_EXT = (".m4a", ".mp4")        # containers whose audio codec we can read
+NEW_COLUMNS = ("codec", "play_status", "play_filename", "play_error")
+
+
+def default_ffmpeg():
+    return (os.environ.get("RIFFBOX_FFMPEG") or shutil.which("ffmpeg")
+            or ("/usr/local/bin/ffmpeg" if os.access("/usr/local/bin/ffmpeg", os.X_OK) else ""))
 
 SCHEMA = Path(__file__).with_name("schema.sql")
 
@@ -76,6 +87,10 @@ def create_app(config=None):
         MAX_CONTENT_LENGTH=300 * 1024 * 1024,
         # URL prefix the app is served under, e.g. "/ideas" ("" at the root, for dev/tests).
         BASE_PATH=os.environ.get("RIFFBOX_BASE_PATH", ""),
+        # ffmpeg is optional: without it ALAC memos still upload and download, they just have no
+        # browser-friendly FLAC play copy.
+        FFMPEG=default_ffmpeg(),
+        CONVERT_TIMEOUT=900,
         STATIC_DIR=os.environ.get("RIFFBOX_STATIC_DIR", str(Path(__file__).resolve().parents[2] / "static")),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
@@ -106,9 +121,21 @@ def create_app(config=None):
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
-    with connect() as conn:
-        conn.execute("PRAGMA journal_mode = WAL")
-        conn.executescript(SCHEMA.read_text())
+    def migrate(conn):
+        """Databases created before phase 3.5 lack the playback-copy columns: add them in place."""
+        have = {r["name"] for r in conn.execute("PRAGMA table_info(recordings)")}
+        for col in NEW_COLUMNS:
+            if col not in have:
+                conn.execute(f"ALTER TABLE recordings ADD COLUMN {col} TEXT")
+        conn.commit()
+
+    boot = connect()
+    try:
+        boot.execute("PRAGMA journal_mode = WAL")
+        boot.executescript(SCHEMA.read_text())
+        migrate(boot)
+    finally:
+        boot.close()
 
     def db():
         if "db" not in g:
@@ -120,6 +147,82 @@ def create_app(config=None):
         conn = g.pop("db", None)
         if conn is not None:
             conn.close()
+
+    # ---- FLAC play copies (background, one at a time: this is a 1 vCPU / 1 GB server) -----------
+    jobs = queue.Queue()
+
+    def run_conversion(rec_id):
+        conn = connect()
+        try:
+            row = conn.execute("SELECT filename FROM recordings WHERE id = ?", (rec_id,)).fetchone()
+            if row is None:
+                return
+            out_name = f"{uuid.uuid4().hex}.flac"
+            tmp_out = audio_dir / f".incoming-{out_name}"
+            ok, err = convert_to_flac(app.config["FFMPEG"], audio_dir / row["filename"], tmp_out,
+                                      app.config["CONVERT_TIMEOUT"])
+            if ok:
+                os.replace(tmp_out, audio_dir / out_name)
+                os.chmod(audio_dir / out_name, 0o640)
+                conn.execute("UPDATE recordings SET play_status='ready', play_filename=?, play_error=NULL"
+                             " WHERE id=?", (out_name, rec_id))
+            else:
+                if tmp_out.exists():
+                    tmp_out.unlink()
+                app.logger.error("riffbox: FLAC conversion failed for recording %s: %s", rec_id, err)
+                conn.execute("UPDATE recordings SET play_status='failed', play_error=? WHERE id=?",
+                             (err, rec_id))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def worker():
+        while True:
+            rec_id = jobs.get()
+            try:
+                if rec_id is None:
+                    return
+                run_conversion(rec_id)
+            except Exception:                      # never let one bad file kill the worker
+                app.logger.exception("riffbox: conversion job crashed (recording %s)", rec_id)
+            finally:
+                jobs.task_done()
+
+    worker_thread = threading.Thread(target=worker, name="riffbox-convert", daemon=True)
+    worker_thread.start()
+
+    def detect_codec(filename):
+        if filename.lower().endswith(MP4_EXT):
+            return mp4_audio_codec(audio_dir / filename) or "unknown"
+        return "n/a"
+
+    def backfill():
+        """Examine recordings from before phase 3.5, and (re)queue ALAC ones that need a play copy.
+        Runs at start-up, so deploying new code and restarting converts what is already uploaded."""
+        conn = connect()
+        try:
+            rows = conn.execute(
+                "SELECT id, filename, codec, play_status FROM recordings WHERE deleted_at IS NULL AND"
+                " (codec IS NULL OR (codec = 'alac' AND (play_status IS NULL OR play_status = 'pending')))"
+            ).fetchall()
+            for r in rows:
+                codec = r["codec"] or detect_codec(r["filename"])
+                if r["codec"] is None:
+                    conn.execute("UPDATE recordings SET codec=? WHERE id=?", (codec, r["id"]))
+                if codec == "alac" and app.config["FFMPEG"]:
+                    conn.execute("UPDATE recordings SET play_status='pending' WHERE id=?", (r["id"],))
+                    conn.commit()
+                    jobs.put(r["id"])
+            conn.commit()
+        finally:
+            conn.close()
+
+    backfill()
+
+    app.extensions["riffbox"] = SimpleNamespace(
+        jobs=jobs,
+        stop=lambda: (jobs.put(None), worker_thread.join(timeout=10)),
+    )
 
     # ---- auth ----------------------------------------------------------
     def token_ok():
@@ -225,7 +328,7 @@ def create_app(config=None):
     def row_to_dict(row):
         keys = ("id", "title", "orig_filename", "mime", "size", "duration_s",
                 "recorded_at", "uploaded_at", "status", "tempo", "bpm",
-                "key_root", "key_mode", "notes", "rating", "used_in")
+                "key_root", "key_mode", "notes", "rating", "used_in", "codec", "play_status")
         return {k: row[k] for k in keys}
 
     @bp.post("/api/upload")
@@ -271,12 +374,17 @@ def create_app(config=None):
             stored = f"{uuid.uuid4().hex}{ext}"
             os.replace(tmp_path, audio_dir / stored)
             os.chmod(audio_dir / stored, 0o640)
+            codec = detect_codec(stored)
+            needs_copy = codec == "alac" and bool(app.config["FFMPEG"])
             cur = db().execute(
                 "INSERT INTO recordings (title, filename, orig_filename, mime, size, sha256,"
-                " recorded_at, uploaded_at) VALUES (?,?,?,?,?,?,?,?)",
-                (title, stored, orig, mime, size, digest, recorded_at, now),
+                " recorded_at, uploaded_at, codec, play_status) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (title, stored, orig, mime, size, digest, recorded_at, now, codec,
+                 "pending" if needs_copy else None),
             )
             db().commit()
+            if needs_copy:
+                jobs.put(cur.lastrowid)             # convert in the background; the upload returns now
             return jsonify(id=cur.lastrowid, duplicate=False), 201
         finally:
             if tmp_path.exists():
@@ -290,30 +398,44 @@ def create_app(config=None):
         ).fetchall()
         return jsonify(recordings=[row_to_dict(r) for r in rows])
 
-    @bp.get("/api/audio/<int:rec_id>")
-    @require_auth()
-    def audio(rec_id):
+    def live_row(rec_id):
         row = db().execute(
             "SELECT * FROM recordings WHERE id = ? AND deleted_at IS NULL", (rec_id,)
         ).fetchone()
         if row is None:
             abort(404)
-        path = audio_dir / row["filename"]
+        return row
+
+    def send_audio(path, mime, download_name, as_attachment, cache):
         if not path.is_file():
             abort(404)
-        download = request.args.get("download") == "1"
         # conditional=True makes werkzeug honor Range (206) and If-Range/ETag.
-        resp = send_file(
-            path,
-            mimetype=row["mime"],
-            as_attachment=download,
-            download_name=row["orig_filename"],
-            conditional=True,
-            max_age=3600,
-        )
+        resp = send_file(path, mimetype=mime, as_attachment=as_attachment,
+                         download_name=download_name, conditional=True, max_age=0)
         resp.headers["Accept-Ranges"] = "bytes"
-        resp.headers["Cache-Control"] = "private, max-age=3600"
+        resp.headers["Cache-Control"] = cache
         return resp
+
+    @bp.get("/api/audio/<int:rec_id>")
+    @require_auth()
+    def audio(rec_id):
+        """The original file, byte for byte (what Download gives you)."""
+        row = live_row(rec_id)
+        return send_audio(audio_dir / row["filename"], row["mime"], row["orig_filename"],
+                          request.args.get("download") == "1", "private, max-age=3600")
+
+    @bp.get("/api/play/<int:rec_id>")
+    @require_auth()
+    def play(rec_id):
+        """What the player streams: the FLAC play copy once it exists, otherwise the original.
+        The answer changes over time, so browsers must revalidate rather than cache it."""
+        row = live_row(rec_id)
+        copy = row["play_filename"] if row["play_status"] == "ready" else None
+        if copy and (audio_dir / copy).is_file():
+            return send_audio(audio_dir / copy, "audio/flac", Path(row["orig_filename"]).stem + ".flac",
+                              False, "private, no-cache")
+        return send_audio(audio_dir / row["filename"], row["mime"], row["orig_filename"],
+                          False, "private, no-cache")
 
     @bp.get("/")
     def index():

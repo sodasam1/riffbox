@@ -14,6 +14,11 @@ Do not start a phase until the previous gate is ticked.
       - [x] Local gate: `pytest` 42 passed; `node tests/e2e/phase3.cjs` (Chromium, served under `/ideas`):
             login, upload + duplicate detection, play/pause, download, logout, login lockout, no unexpected console errors.
       - [ ] Deploy gate: a real `.m4a` from your iPhone uploads and plays in Safari (needs Phase 2 first).
+- [ ] **Phase 3.5** FLAC play copies for Apple Lossless memos (Chrome cannot play ALAC).
+      - [x] Local gate: `pytest` 56 passed (MP4 parser on synthetic and real files, lossless round trip,
+            failure fallback, migration of a pre-3.5 database, backfill after installing ffmpeg later);
+            browser test: ALAC upload plays in Chromium via FLAC, Download returns the original bytes.
+      - [ ] Deploy gate: follow `deploy/PHASE3_5.md`; your existing ALAC memo plays in Chrome.
 - [ ] **Phase 4** Inbox + intake form.
 - [ ] **Phase 5** Library browser (filters, search, sort, keyboard preview).
 - [ ] **Phase 6** Player polish (waveform, scrub, speed, loop, download).

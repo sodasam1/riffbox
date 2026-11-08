@@ -95,11 +95,44 @@ async function waitUp() {
     assert.match(dl.headers()["content-disposition"], /attachment/);
     console.log("ok  download link returns attachment");
 
+    // Apple Lossless (what Voice Memos "Lossless" records): Chrome cannot decode it, so playback must
+    // come from the server's FLAC play copy, while Download still returns the untouched original.
+    const hasFfmpeg = require("child_process").spawnSync("ffmpeg", ["-version"]).status === 0;
+    if (hasFfmpeg) {
+      const alac = path.join(tmp, "Lossless memo.m4a");
+      const mk = require("child_process").spawnSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i",
+        "sine=frequency=330:duration=3", "-ac", "2", "-c:a", "alac", alac]);
+      assert.strictEqual(mk.status, 0, "ffmpeg could not make the ALAC test file");
+      assert.strictEqual(await page.evaluate(() => new Audio().canPlayType('audio/mp4; codecs="alac"')), "",
+        "premise: this browser cannot play ALAC natively");
+      await page.setInputFiles("#file", [alac]);
+      await page.waitForFunction(() => document.querySelectorAll("#list li").length === 3);
+      // the list polls while the server converts; the "preparing playback" chip must clear by itself
+      await page.waitForFunction(
+        () => ![...document.querySelectorAll("#list .chip")].some((c) => c.textContent.startsWith("preparing")),
+        null, { timeout: 15000 });
+      const alacRow = page.locator("#list li").first();
+      await alacRow.locator(".play").click();
+      await page.waitForFunction(() => { const a = document.querySelector("#player"); return !a.paused && a.currentTime > 0.2; }, null, { timeout: 8000 });
+      assert.ok(await page.isHidden("#audio-error"), "no error message for a convertible ALAC file");
+      const playUrl = await page.evaluate(() => document.querySelector("#player").currentSrc);
+      assert.match(playUrl, /api\/play\/\d+$/);
+      assert.strictEqual((await ctx.request.get(playUrl)).headers()["content-type"], "audio/flac");
+      const dlHref = await alacRow.locator("a.dl").getAttribute("href");
+      const original = await (await ctx.request.get(new URL(dlHref, BASE).toString())).body();
+      assert.ok(original.equals(fs.readFileSync(alac)), "Download returns the original ALAC bytes");
+      await page.evaluate(() => document.querySelector("#player").pause());
+      console.log("ok  ALAC upload: preparing chip clears, plays in Chromium via FLAC, Download is the original");
+    } else {
+      console.log("skip ALAC scenario (ffmpeg not installed here)");
+    }
+    const rows = hasFfmpeg ? 3 : 2;
+
     // a file the browser cannot decode (random bytes named .m4a) must give the specific message
     const broken = path.join(tmp, "Undecodable.m4a");
     fs.writeFileSync(broken, require("crypto").randomBytes(20000));
     await page.setInputFiles("#file", [broken]);
-    await page.waitForFunction(() => document.querySelectorAll("#list li").length === 3);
+    await page.waitForFunction((n) => document.querySelectorAll("#list li").length === n, rows + 1);
     await page.locator("#list li").first().locator(".play").click();
     await page.waitForFunction(() => /can't decode this file's audio format/.test(document.querySelector("#audio-error").textContent), null, { timeout: 8000 });
     assert.ok(await page.isVisible("#audio-error"));
@@ -111,7 +144,7 @@ async function waitUp() {
 
     // persistence + logout
     await page.reload(); await page.waitForSelector("#app:not([hidden])");
-    await page.waitForFunction(() => document.querySelectorAll("#list li").length === 3);
+    await page.waitForFunction((n) => document.querySelectorAll("#list li").length === n, rows + 1);
     await page.screenshot({ path: path.join(tmp, "mobile.png") });
     await page.click("#logout"); await page.waitForSelector("#login:not([hidden])");
     assert.strictEqual((await ctx.request.get(BASE + "api/recordings")).status(), 401);
