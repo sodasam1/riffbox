@@ -74,21 +74,16 @@ New shortcut, name it **Send to Riffbox**. In its settings (the *i* button): tur
 under accepted types keep **Audio** and **Files** (untick the rest). **(check)**: confirm it appears when sharing
 from Voice Memos.
 
-Actions:
-1. **Date** (*Current Date*), then **Format Date**: *Date Format* `Custom`, format string `MMM d h:mm`
-   → this makes `Nov 8 3:42`.
-2. **Date** (*Current Date*), then **Format Date**: custom format string `a`, then **Change Case** → `lowercase`
-   → `pm`.
-3. **Text**: `Idea, ` then the first result, then the second result, with no space between them → `Idea, Nov 8 3:42pm`.
-   (This is the same name the website gives a memo uploaded at that moment. The `am`/`pm` wording follows your phone's
-   language setting.)
-4. **Rename File**: *Shortcut Input* to the **Text** from step 3. **(check)**: some versions keep the old extension
-   and some drop it; both work, the server identifies the audio by its content.
-5. **Save File**: the renamed file to the folder *Riffbox Outbox*; turn **Ask Where to Save** off.
-6. **Run Shortcut**: **Flush Riffbox Outbox**.
+Actions (only two):
+1. **Save File**: the **Shortcut Input** to the folder *Riffbox Outbox*; turn **Ask Where to Save** off. (Turn
+   *Overwrite If File Exists* off too, so two memos with the same name cannot replace each other. **(check)** what
+   your iOS does when a name is already there.)
+2. **Run Shortcut**: **Flush Riffbox Outbox**.
 
-The date is read at the moment you share, and the name is stored in the saved file. A memo that sits in the Outbox
-for a day therefore still gets its own, correct name when it finally uploads.
+The memo keeps the name Voice Memos gave it, and Flush sends that name as the title (without `.m4a`). So a memo you
+renamed to "Chorus idea" shows up in Riffbox as "Chorus idea"; a default "New Recording 12" shows up with that name,
+which you can change in Riffbox (clear the Title box in the edit form to get a time-based name instead). The name
+stays with the file in the Outbox, so a memo that waits there still uploads under its own name.
 
 Add it to your favourites in the share sheet (scroll to the bottom of the share sheet, *Edit Actions*, add *Send to
 Riffbox* to *Favorites*) so it sits near the top.

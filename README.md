@@ -68,8 +68,8 @@ ffmpeg the bar still works but shows a plain line and no lengths. `app/riffbox/m
 ## Planned features (not built yet)
 
 - **iPhone "Outbox" Shortcuts** (server side built; the Shortcuts themselves must be built and tried on the
-  phone: see `deploy/SHORTCUT.md`). Share a memo from Voice Memos to *Send to Riffbox*; it is saved with a
-  local-time name into an Outbox folder and uploaded, and stays there until the server confirms it.
+  phone: see `deploy/SHORTCUT.md`). Share a memo from Voice Memos to *Send to Riffbox*; it is saved with its
+  own name into an Outbox folder and uploaded, and stays there until the server confirms it.
 - **Record-and-send Shortcut** (Action Button / Back Tap / Lock Screen) that records and
   uploads directly, skipping the Voice Memos app.
 - **Weekly email digest** of a few forgotten hearted ideas, sent through the server's
