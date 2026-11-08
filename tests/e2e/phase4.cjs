@@ -91,9 +91,18 @@ async function waitUp() {
     console.log("ok  automatic names use the same local time as the date line (4:50pm = 03:50 UTC + 13h)");
 
     // --- tag one recording using every field
+    await rows().first().locator(".title").click();              // highlight the row first, as a person would by playing it
     await rows().first().locator("button.edit-btn").click();
     const form = page.locator("#list form.edit");
     await form.waitFor();
+    // regression: the highlighted row's left bar once sat on top of the form's left edge on a phone
+    const gaps = await page.evaluate(() => {
+      const li = document.querySelector("#list > li.selected");
+      const l = li.getBoundingClientRect().left;
+      return { selected: Boolean(li), field: document.querySelector("#list form.edit input[type=text]").getBoundingClientRect().left - l,
+               play: li.querySelector(".play").getBoundingClientRect().left - l };
+    });
+    assert.ok(gaps.selected && gaps.field >= 8 && gaps.play >= 8, "content is inset from the highlight bar: " + JSON.stringify(gaps));
     assert.strictEqual(await form.locator("button.tagbtn").count(), 9, "nine seeded tags offered");
     assert.strictEqual(await page.evaluate(() => document.activeElement.id.startsWith("f-title-")), true, "title gets focus");
     await form.locator("input[type=text][id^=f-title-]").fill("Funky bass riff");

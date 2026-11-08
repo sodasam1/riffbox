@@ -116,6 +116,47 @@ def test_filters_combine_with_and_between_kinds(lib):
     assert lib(tags="rhythmic idea", tempo="fast", key_mode="minor", q="riff") == ["Funky bass riff"]
 
 
+# ---- BPM range --------------------------------------------------------------------------------
+def test_bpm_min_only(lib):
+    assert names(lib(bpm_min="118")) == ["Full demo", "Funky bass riff", "Guitar lick"]     # 118 itself is included
+
+
+def test_bpm_max_only(lib):
+    assert names(lib(bpm_max="100")) == ["Dreamy keys", "Drum loop"]                          # 100 itself is included
+
+
+def test_bpm_range_is_inclusive_at_both_ends(lib):
+    assert names(lib(bpm_min="100", bpm_max="118")) == ["Drum loop", "Funky bass riff"]
+    assert lib(bpm_min="118", bpm_max="118") == ["Funky bass riff"]
+    assert lib(bpm_min="119", bpm_max="129") == []
+
+
+def test_recordings_with_no_bpm_never_match_a_bpm_filter(lib):
+    wide = lib(bpm_min="20", bpm_max="400")
+    assert "Vocal hook" not in wide and "Café melody" not in wide and "Untagged scrap" not in wide
+    assert len(wide) == 5
+    assert len(lib()) == 8                                       # ...but they are all there with no filter
+
+
+def test_bpm_range_combines_with_other_filters(lib):
+    assert lib(bpm_min="120", tags="melody") == ["Guitar lick"]
+    assert lib(bpm_min="100", key_mode="minor", status="tagged", sort="bpm") == ["Full demo", "Guitar lick", "Funky bass riff"]
+    assert lib(bpm_max="120", q="loop") == ["Drum loop"]
+
+
+def test_blank_bpm_values_mean_no_limit(lib):
+    assert len(lib(bpm_min="", bpm_max="")) == 8
+
+
+@pytest.mark.parametrize("query", [
+    {"bpm_min": "abc"}, {"bpm_max": "12.5"}, {"bpm_min": "19"}, {"bpm_max": "401"}, {"bpm_min": "-5"},
+    {"bpm_min": "120", "bpm_max": "100"}, {"bpm_min": "1e2"}, {"bpm_max": "100; DROP TABLE recordings"},
+])
+def test_bad_bpm_values_are_rejected(lib, query):
+    assert "error" in lib(expect=400, **query)
+    assert len(lib()) == 8
+
+
 # ---- search -----------------------------------------------------------------------------------
 def test_search_matches_title_notes_and_tag_names(lib):
     assert names(lib(q="bass")) == ["Café melody", "Full demo", "Funky bass riff"]   # notes, tag, title
