@@ -164,7 +164,12 @@ CHECK: `{"status":"ok"}`. If not: `doas tail -20 /var/log/daemon` shows the Pyth
 
 ## Public access: relayd only
 
-Only start this after Gate A. Back up first:
+Only start this after Gate A. This is the first step that edits a file shared with your main site,
+so first record a baseline of the shared files (commands in `deploy/UNINSTALL.md`, section
+"Optional: record a baseline before step 7"). `deploy/UNINSTALL.md` is also the complete,
+step-by-step way to remove Riffbox and return the server to how it was.
+
+Then back up relayd:
 ```sh
 doas cp -p /etc/relayd.conf /etc/relayd.conf.bak
 ```
@@ -227,6 +232,8 @@ CHECK: `ls /var/riffbox/audio` prints nothing.
 **Gate C (Phase 2 done): a 50 MB upload passes through relayd, dedupe works, 401 without the token.**
 
 ## Rollback
+To remove **all** of Riffbox, not just undo the relayd change, use `deploy/UNINSTALL.md`.
+Quick undo of only the public routing:
 ```sh
 doas cp -p /etc/relayd.conf.bak /etc/relayd.conf
 doas rcctl reload relayd
