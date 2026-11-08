@@ -33,7 +33,8 @@ Do not start a phase until the previous gate is ticked.
             wipes an open form. `phase3.cjs` still passes.
       - [x] Deploy gate: routine deploy (no new package, no database step, no config change); tag and save one of your
             real memos on the phone and on the computer.
-- [ ] **Phase 5** Library browser (branch `phase-5`; not merged to `main` until the owner asks).
+- [x] **Phase 5** Library browser (merged to `main`). Owner confirmed they like the play-as-you-move behaviour;
+      behaviour with many recordings is untested because only a few are uploaded so far.
       - [x] Local gate: `pytest` 166 passed (`app/tests/test_library.py`: every filter, AND/OR tags, tempo, key,
             search over title/notes/tag names with literal `%` and `_`, sorts incl. BPM nulls last, validation,
             SQL-injection attempts, auth; also checked by deliberately breaking the filter code three ways);
@@ -41,8 +42,7 @@ Do not start a phase until the previous gate is ticked.
             reload, click/arrow/Space with auto-preview on and off, keys inside a form left alone, filters wait for an
             open form, phone layout with collapsible filters and no sideways scroll. Phases 3, 4 and the how-to page
             tests still pass.
-      - [ ] Deploy gate: routine deploy (no new package, no database step, no config change); try it on a few dozen
-            real recordings on the computer and the phone.
+      - [x] Deploy gate: routine deploy; owner tried it with the few recordings they have (high volume not yet tried).
       - Deviation from the original plan: sorting by length and by last played is deferred to Phase 6, because
         neither value is recorded until then (`duration_s` is filled by the waveform step; `last_played_at` needs
         the player to report plays).
