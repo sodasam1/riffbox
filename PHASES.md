@@ -10,16 +10,16 @@ Do not start a phase until the previous gate is ticked.
       correct `Content-Range` and identical bytes (tested with a real AAC `.m4a`).
 - [x] **Phase 2** First deploy. Gates A (runs on loopback), B (public HTTPS), C (50 MB upload) passed on the real server
       (reported by owner; steps 1-11 of `deploy/PHASE2.md` completed).
-- [ ] **Phase 3** Minimal UI: login, uploader, list, player.
+- [x] **Phase 3** Minimal UI: login, uploader, list, player.
       - [x] Local gate: `pytest` 42 passed; `node tests/e2e/phase3.cjs` (Chromium, served under `/ideas`):
             login, upload + duplicate detection, play/pause, download, logout, login lockout, no unexpected console errors.
-      - [ ] Deploy gate: a real `.m4a` from your iPhone uploads and plays in Safari (needs Phase 2 first).
-- [ ] **Phase 3.5** FLAC play copies for Apple Lossless memos (Chrome cannot play ALAC).
+      - [x] Deploy gate: a real iPhone memo uploads and plays in Safari (reported by owner).
+- [x] **Phase 3.5** FLAC play copies for Apple Lossless memos (Chrome cannot play ALAC).
       - [x] Local gate: `pytest` 56 passed (MP4 parser on synthetic and real files, lossless round trip,
             failure fallback, migration of a pre-3.5 database, backfill after installing ffmpeg later);
             browser test: ALAC upload plays in Chromium via FLAC, Download returns the original bytes.
-      - [ ] Deploy gate: follow `deploy/PHASE3_5.md`; your existing ALAC memo plays in Chrome.
-- [ ] **Phase 4** Inbox + intake form (branch `phase-4`, not merged to `main` until the Phase 3.5 deploy gate is confirmed).
+      - [x] Deploy gate: ffmpeg installed per `deploy/PHASE3_5.md`; the existing ALAC memo plays in Chrome (reported by owner).
+- [ ] **Phase 4** Inbox + intake form (merged to `main`; waiting on the deploy gate).
       - [x] Local gate: `pytest` 122 passed (validation rules, tags, PATCH round trips, inbox/tagged filter, auth);
             `node tests/e2e/phase4.cjs` (Chromium): uploads land in the Inbox with a count, every field saves and moves the
             recording to the Library, an empty form saves, details persist across reload, edit form is prefilled,
