@@ -9,7 +9,7 @@ from .intake import BPM_RANGE, Invalid, KEY_MODES, KEY_ROOTS, RATINGS, STATUSES,
 SORTS = {
     "recorded": "r.recorded_at",
     "uploaded": "r.uploaded_at",
-    "title": "LOWER(r.title)",
+    "title": "ulower(r.title)",
     "bpm": "r.bpm",
     "length": "r.duration_s",
     "played": "r.last_played_at",
@@ -110,7 +110,7 @@ def build_query(f):
         params.append(f["status"])
 
     for term in f["terms"]:          # every word must appear in the title, the notes or a tag name
-        where.append("(LOWER(r.title) LIKE ? ESCAPE '\\' OR LOWER(r.notes) LIKE ? ESCAPE '\\'"
+        where.append("(ulower(r.title) LIKE ? ESCAPE '\\' OR ulower(r.notes) LIKE ? ESCAPE '\\'"
                      " OR EXISTS (SELECT 1 FROM recording_tags t WHERE t.recording_id = r.id"
                      " AND t.tag LIKE ? ESCAPE '\\'))")
         params += [_like(term)] * 3

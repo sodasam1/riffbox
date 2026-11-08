@@ -90,3 +90,12 @@ The player bar has a collapse button (▾/▴) that folds it to one slim row (pl
 visits; on a small or touch screen it also collapses by itself while a text box has focus and expands afterwards;
 the player's own speed menu does not count. Opening an edit form no longer puts the cursor in the Title box on a
 touch screen (that raised the keyboard at once). Checked by `tests/e2e/collapse.cjs` (breakages caught).
+
+## Whole-code review (bugs and optimisations)
+Fixed: an extreme "date recorded" (year 1 or 9999 with a time-zone offset) crashed the server with a 500 on save
+and upload; search and title sort ignored case for non-English letters (été vs Été); holding the Save key in triage
+saved the same card repeatedly and skipped the next one; half-written upload files were never cleaned up and a failed
+database insert left an orphan audio file; no message when the network was down at login or when loading the lists.
+Faster: the list endpoint runs one count query instead of two; the player no longer reads computed styles or
+rewrites the time text every animation frame. Added `X-Content-Type-Options: nosniff`.
+Tests: `app/tests/test_review.py` and `tests/e2e/review.cjs` (each fails on the old code).

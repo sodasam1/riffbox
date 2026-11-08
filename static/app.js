@@ -56,11 +56,18 @@ $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const err = $("#login-error");
   err.hidden = true;
-  const r = await api("login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ passphrase: $("#pass").value }),
-  });
+  let r;
+  try {
+    r = await api("login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ passphrase: $("#pass").value }),
+    });
+  } catch (e) {
+    err.textContent = "Could not reach the server. Check your connection and try again.";
+    err.hidden = false;
+    return;
+  }
   if (r.ok) { $("#pass").value = ""; boot(); }
   else if (r.status === 429) {
     const secs = Number(r.headers.get("Retry-After")) || 900;
@@ -489,8 +496,14 @@ function libraryQuery() {
 async function loadList() {
   clearTimeout(pollTimer);
   const seq = ++loadSeq;
-  const [inbox, lib, tags] = await Promise.all([
-    api("recordings?status=inbox"), api("recordings?" + libraryQuery()), api("tags")]);
+  let inbox, lib, tags;
+  try {
+    [inbox, lib, tags] = await Promise.all([
+      api("recordings?status=inbox"), api("recordings?" + libraryQuery()), api("tags")]);
+  } catch (e) {
+    if (seq === loadSeq) { notify("Could not reach the server. Check your connection and try again."); schedulePoll(); }
+    return;
+  }
   if (inbox.status === 401 || lib.status === 401) { if (seq === loadSeq) show("login"); return; }
   if (!inbox.ok || !lib.ok) { notify("Could not load your recordings (error " + (lib.ok ? inbox.status : lib.status) + ")."); return; }
   const [inboxBody, libBody] = await Promise.all([inbox.json(), lib.json()]);
@@ -548,6 +561,7 @@ applySpeed();
 
 function loadTransport(rec) {
   current = rec;
+  lastTimeText = "";
   peaks = null;
   knownDuration = rec.duration_s || 0;
   loopA = loopB = null; loopOn = false; pendingSeek = null; reported = false;
@@ -577,12 +591,26 @@ async function loadAnalysis(rec, attempt) {
   } catch (e) { /* offline: the plain line is fine */ }
 }
 
-function updateTime() {
+let lastTimeText = "";
+function updateTime() {       // runs every animation frame while playing: only touch the page when the text changes
   const total = totalTime();
-  $("#pb-time").textContent = fmtTime(player.currentTime) + " / " + fmtTime(total);
+  const text = fmtTime(player.currentTime) + " / " + fmtTime(total);
+  if (text === lastTimeText && current) return;
+  lastTimeText = text;
+  $("#pb-time").textContent = text;
   wave.setAttribute("aria-valuemax", String(Math.round(total)));
   wave.setAttribute("aria-valuenow", String(Math.round(player.currentTime)));
   wave.setAttribute("aria-valuetext", current ? fmtTime(player.currentTime) + " of " + fmtTime(total) : "Nothing playing");
+}
+
+let colorCache = null;       // reading computed styles every frame is wasteful; the colours only change with the theme
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { colorCache = null; drawWave(); });
+function waveColors() {
+  if (!colorCache) {
+    const css = getComputedStyle(document.documentElement);
+    colorCache = { accent: css.getPropertyValue("--accent").trim() || "#d9480f", muted: css.getPropertyValue("--muted").trim() || "#888" };
+  }
+  return colorCache;
 }
 
 function drawWave() {
@@ -594,9 +622,7 @@ function drawWave() {
   }
   wctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   wctx.clearRect(0, 0, w, h);
-  const css = getComputedStyle(document.documentElement);
-  const accent = css.getPropertyValue("--accent").trim() || "#d9480f";
-  const muted = css.getPropertyValue("--muted").trim() || "#888";
+  const { accent, muted } = waveColors();
   const total = totalTime();
   const progress = total > 0 ? Math.min(1, player.currentTime / total) : 0;
 
@@ -1028,14 +1054,30 @@ function renderTriage() {
 }
 
 async function triageSave() {
+  if (!triage || triage.saving) return;       // a held-down key or a double press must not save (and skip) twice
   const data = readCard();
   if (!data) return;
+  triage.saving = true;
+  const session = triage;
+  try { await saveCard(data); } finally { session.saving = false; }
+}
+
+async function saveCard(data) {
   const id = triage.queue[triage.index];
   const err = $("#t-error");
   err.hidden = true;
-  const r = await api("recordings/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" },
+  const session = triage;
+  let r;
+  try {
+    r = await api("recordings/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tags: data.tags, rating: data.rating, notes: data.notes, status: "tagged",
                            used_in: data.rating === "check" ? (data.used_in || null) : null }) });
+  } catch (e) {
+    err.textContent = "Could not reach the server. Check your connection and try again.";
+    err.hidden = false;
+    return;
+  }
+  if (session !== triage) return;               // triage was closed while this was saving
   if (r.status === 401) { show("login"); return; }
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));
@@ -1043,7 +1085,9 @@ async function triageSave() {
     err.hidden = false;
     return;
   }
-  triage.recs.set(id, (await r.json()).recording);
+  const saved = (await r.json()).recording;
+  if (session !== triage) return;
+  triage.recs.set(id, saved);
   triage.drafts.delete(id);
   triage.savedIds.add(id);
   triage.index++;
@@ -1051,6 +1095,7 @@ async function triageSave() {
 }
 
 function triageSkip() {
+  if (triage.saving) return;
   const data = readCard();
   if (!data) return;
   const id = triage.queue[triage.index];
@@ -1061,6 +1106,7 @@ function triageSkip() {
 }
 
 function triageBack() {
+  if (triage.saving) return;
   const data = readCard();
   if (data) triage.drafts.set(triage.queue[triage.index], data);
   triage.index = Math.max(0, triage.index - 1);

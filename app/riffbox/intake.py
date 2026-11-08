@@ -51,7 +51,10 @@ def parse_instant(raw):
         raise Invalid("recorded_at must be a timestamp like 2026-03-01T12:00:00Z (or null)") from None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=dt.timezone.utc)
-    parsed = parsed.astimezone(dt.timezone.utc)
+    try:
+        parsed = parsed.astimezone(dt.timezone.utc)
+    except OverflowError:                 # e.g. year 1 with a positive offset
+        raise Invalid("recorded_at must be a timestamp like 2026-03-01T12:00:00Z (or null)") from None
     if parsed.date() < EARLIEST_DATE:
         raise Invalid("the date recorded cannot be before 1950")
     if parsed > dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1):      # a day of slack for time zones

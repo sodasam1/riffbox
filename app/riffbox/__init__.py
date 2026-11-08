@@ -70,7 +70,10 @@ def parse_iso(value):
         return None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=dt.timezone.utc)
-    return parsed.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        return parsed.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except OverflowError:         # e.g. year 1 with a positive offset: not representable in UTC
+        return None
 
 
 def default_title(iso):
@@ -123,6 +126,8 @@ def create_app(config=None):
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
+        # SQLite's own LOWER() only handles A-Z, so searching "été" would miss a title "Été"
+        conn.create_function("ulower", 1, lambda v: v.lower() if isinstance(v, str) else v, deterministic=True)
         return conn
 
     def migrate(conn):
@@ -133,6 +138,8 @@ def create_app(config=None):
                 conn.execute(f"ALTER TABLE recordings ADD COLUMN {col} TEXT")
         conn.commit()
 
+    for stale in audio_dir.glob(".incoming-*"):      # half-written files from a crash or a restart mid-upload
+        stale.unlink(missing_ok=True)
     boot = connect()
     try:
         boot.execute("PRAGMA journal_mode = WAL")
@@ -392,15 +399,20 @@ def create_app(config=None):
         # Stream to a temp file inside the data dir (same filesystem for rename).
         h = hashlib.sha256()
         size = 0
+        stored_path = None
         with tempfile.NamedTemporaryFile(dir=audio_dir, prefix=".incoming-", delete=False) as tmp:
             tmp_path = Path(tmp.name)
-            while True:
-                chunk = f.stream.read(1024 * 1024)
-                if not chunk:
-                    break
-                h.update(chunk)
-                size += len(chunk)
-                tmp.write(chunk)
+            try:
+                while True:
+                    chunk = f.stream.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    h.update(chunk)
+                    size += len(chunk)
+                    tmp.write(chunk)
+            except BaseException:
+                tmp_path.unlink(missing_ok=True)       # an upload cut off half way leaves nothing behind
+                raise
         try:
             if size == 0:
                 return jsonify(error="empty file"), 400
@@ -414,13 +426,11 @@ def create_app(config=None):
             now = utcnow_iso()
             recorded_at = parse_iso(request.form.get("recorded_at")) or now
             title = (request.form.get("title") or "").strip() or default_title(recorded_at)
-            mime = (mimetypes.guess_type(orig)[0] or FALLBACK_MIME.get(ext)
-                    or "application/octet-stream")
-            if ext in FALLBACK_MIME:
-                mime = FALLBACK_MIME[ext]
+            mime = FALLBACK_MIME.get(ext) or mimetypes.guess_type(orig)[0] or "application/octet-stream"
             stored = f"{uuid.uuid4().hex}{ext}"
             os.replace(tmp_path, audio_dir / stored)
-            os.chmod(audio_dir / stored, 0o640)
+            stored_path = audio_dir / stored
+            os.chmod(stored_path, 0o640)
             codec = detect_codec(stored)
             needs_copy = codec == "alac" and bool(app.config["FFMPEG"])
             cur = db().execute(
@@ -430,14 +440,16 @@ def create_app(config=None):
                  "pending" if needs_copy else None),
             )
             db().commit()
+            stored_path = None                          # recorded in the database: keep the file
             if needs_copy:
                 jobs.put(("convert", cur.lastrowid))   # convert in the background; the upload returns now
             if app.config["FFMPEG"] and ext in INPUT_FORMAT:
                 jobs.put(("analyze", cur.lastrowid))   # and measure it (length + waveform)
             return jsonify(id=cur.lastrowid, duplicate=False), 201
         finally:
-            if tmp_path.exists():
-                tmp_path.unlink()
+            tmp_path.unlink(missing_ok=True)
+            if stored_path is not None:                 # the database insert failed: don't leave an orphan file
+                stored_path.unlink(missing_ok=True)
 
     @bp.get("/api/recordings")
     @require_auth()      # the upload token is add-only: it must not be able to read the library
@@ -450,17 +462,15 @@ def create_app(config=None):
             return bad_request(str(exc))
         sql, params = build_query(filters)
         rows = db().execute(sql, params).fetchall()
-        total_sql = "SELECT COUNT(*) FROM recordings WHERE deleted_at IS NULL"
-        total_params = []
+        count_sql, count_params = "SELECT rating, COUNT(*) AS n FROM recordings WHERE deleted_at IS NULL", []
         if filters["status"]:
-            total_sql += " AND status = ?"
-            total_params.append(filters["status"])
-        total = db().execute(total_sql, total_params).fetchone()[0]
-        tags = tags_for([r["id"] for r in rows])
+            count_sql += " AND status = ?"
+            count_params.append(filters["status"])
         counts = {"heart": 0, "check": 0, "x": 0, "none": 0}      # how many carry each mark, before any filter
-        for r in db().execute("SELECT rating, COUNT(*) AS n FROM" + total_sql.split("FROM", 1)[1]
-                              + " GROUP BY rating", total_params):
+        for r in db().execute(count_sql + " GROUP BY rating", count_params):
             counts[r["rating"] or "none"] = r["n"]
+        total = sum(counts.values())
+        tags = tags_for([r["id"] for r in rows])
         return jsonify(recordings=[row_to_dict(r, tags.get(r["id"], ())) for r in rows],
                        count=len(rows), total=total, ratings=counts)
 
@@ -601,6 +611,11 @@ def create_app(config=None):
     if base:
         # "/ideas" (no slash) -> "/ideas/". Relative redirect, so the scheme stays https.
         app.add_url_rule(base, "base_redirect", lambda: redirect(base + "/"))
+
+    @app.after_request
+    def harden(resp):
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        return resp
 
     @app.errorhandler(413)
     def too_large(_e):
