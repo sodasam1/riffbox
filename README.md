@@ -17,6 +17,12 @@ export RIFFBOX_DATA_DIR=/tmp/riffbox-data RIFFBOX_SECRET=dev RIFFBOX_UPLOAD_TOKE
 .venv/bin/waitress-serve --listen=127.0.0.1:8100 wsgi:app
 ```
 
+Browser test (needs Node + Playwright; serves the app under `/ideas` like production):
+
+```sh
+RIFFBOX_PY=app/.venv/bin/python node tests/e2e/phase3.cjs
+```
+
 Quick manual check:
 
 ```sh

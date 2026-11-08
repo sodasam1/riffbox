@@ -1,3 +1,45 @@
 <!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Riffbox</title>
-<p>Riffbox is running. UI arrives in Phase 3.</p>
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+<main id="login" hidden>
+  <h1>Riffbox</h1>
+  <form id="login-form">
+    <label for="pass">Passphrase</label>
+    <input id="pass" type="password" autocomplete="current-password" required autofocus>
+    <button type="submit">Log in</button>
+    <p id="login-error" class="error" role="alert" hidden></p>
+  </form>
+</main>
+
+<div id="app" hidden>
+  <header>
+    <h1>Riffbox</h1>
+    <button id="logout" class="link">Log out</button>
+  </header>
+
+  <section aria-labelledby="up-h">
+    <h2 id="up-h">Upload</h2>
+    <div id="drop" tabindex="0">
+      <p>Drop audio files here, or <label for="file" class="pick">choose files</label></p>
+      <input id="file" type="file" multiple accept="audio/*,.m4a,.caf,.aac,.wav,.mp3,.aif,.aiff,.flac,.ogg">
+    </div>
+    <ul id="queue"></ul>
+  </section>
+
+  <section aria-labelledby="lib-h">
+    <h2 id="lib-h">Recordings <span id="count"></span></h2>
+    <p id="empty" hidden>Nothing yet. Upload a voice memo above.</p>
+    <ul id="list"></ul>
+    <p id="audio-error" class="error" role="alert" hidden></p>
+    <audio id="player" controls preload="none"></audio>
+  </section>
+</div>
+<script src="static/app.js"></script>
+</body>
+</html>

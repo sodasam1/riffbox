@@ -136,6 +136,11 @@ def create_app(config=None):
             return jsonify(ok=True)
         return jsonify(error="bad passphrase"), 401
 
+    @bp.get("/api/session")
+    @require_auth()
+    def session_status():
+        return jsonify(ok=True)
+
     @bp.post("/api/logout")
     def logout():
         session.clear()
@@ -246,7 +251,7 @@ def create_app(config=None):
 
     @bp.get("/static/<path:name>")
     def static_files(name):
-        return send_from_directory(app.config["STATIC_DIR"], name, max_age=3600)
+        return send_from_directory(app.config["STATIC_DIR"], name, max_age=0)
 
     app.register_blueprint(bp, url_prefix=base)
     if base:
