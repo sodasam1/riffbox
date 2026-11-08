@@ -89,9 +89,28 @@ function togglePlay(rec) {
 player.addEventListener("play", markPlaying);
 player.addEventListener("pause", markPlaying);
 player.addEventListener("ended", markPlaying);
-player.addEventListener("error", () => {
+// When playback fails, ask the server what it actually returns, so the message names the real
+// cause: logged out, file missing, server trouble, or a format this browser cannot decode.
+player.addEventListener("error", async () => {
+  if (playingId === null) return;
+  const id = playingId;
+  const mediaCode = player.error ? player.error.code : 0;   // 2 = network, 3 = decode, 4 = unsupported
   const msg = $("#audio-error");
-  msg.textContent = "This browser could not play that file.";
+  let text;
+  try {
+    const r = await fetch("api/audio/" + id, { headers: { Range: "bytes=0-0" }, credentials: "same-origin" });
+    if (r.status === 401) { show("login"); return; }
+    if (r.status === 404) text = "That recording's audio file is missing on the server.";
+    else if (!r.ok) text = "The server could not send this file (error " + r.status + ").";
+    else if (mediaCode === 2) text = "A network problem interrupted loading the audio. Try again.";
+    else text = "This browser can't decode this file's audio format. It is probably Apple Lossless " +
+                "(Voice Memos set to Lossless quality), which Safari plays but Chrome, Edge and Firefox do not. " +
+                "Use Download to play it in VLC or another player, or open this page in Safari.";
+  } catch (e) {
+    text = "Could not reach the server. Check your connection and try again.";
+  }
+  if (playingId !== id) return;                            // user already moved on to another recording
+  msg.textContent = text;
   msg.hidden = false;
 });
 

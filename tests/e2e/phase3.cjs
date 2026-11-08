@@ -95,9 +95,23 @@ async function waitUp() {
     assert.match(dl.headers()["content-disposition"], /attachment/);
     console.log("ok  download link returns attachment");
 
+    // a file the browser cannot decode (random bytes named .m4a) must give the specific message
+    const broken = path.join(tmp, "Undecodable.m4a");
+    fs.writeFileSync(broken, require("crypto").randomBytes(20000));
+    await page.setInputFiles("#file", [broken]);
+    await page.waitForFunction(() => document.querySelectorAll("#list li").length === 3);
+    await page.locator("#list li").first().locator(".play").click();
+    await page.waitForFunction(() => /can't decode this file's audio format/.test(document.querySelector("#audio-error").textContent), null, { timeout: 8000 });
+    assert.ok(await page.isVisible("#audio-error"));
+    // a good file clears the message again
+    await page.locator("#list li").nth(1).locator(".play").click();
+    await page.waitForFunction(() => document.querySelector("#audio-error").hidden);
+    await page.evaluate(() => document.querySelector("#player").pause());
+    console.log("ok  undecodable file shows the format message; playing a good file clears it");
+
     // persistence + logout
     await page.reload(); await page.waitForSelector("#app:not([hidden])");
-    await page.waitForFunction(() => document.querySelectorAll("#list li").length === 2);
+    await page.waitForFunction(() => document.querySelectorAll("#list li").length === 3);
     await page.screenshot({ path: path.join(tmp, "mobile.png") });
     await page.click("#logout"); await page.waitForSelector("#login:not([hidden])");
     assert.strictEqual((await ctx.request.get(BASE + "api/recordings")).status(), 401);
