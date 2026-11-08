@@ -4,7 +4,7 @@ Pure (no Flask): the request arguments come in as a plain mapping, so every rule
 against a real database. Nothing from the request is ever pasted into the SQL text: values go in as
 parameters, and the sort column comes from a fixed table.
 """
-from .intake import BPM_RANGE, Invalid, KEY_MODES, KEY_ROOTS, STATUSES, TEMPOS, normalize_tag
+from .intake import BPM_RANGE, Invalid, KEY_MODES, KEY_ROOTS, RATINGS, STATUSES, TEMPOS, normalize_tag
 
 SORTS = {
     "recorded": "r.recorded_at",
@@ -58,6 +58,12 @@ def parse_filters(args):
         if t not in TEMPOS:
             raise Invalid(f"tempo must be one of {', '.join(TEMPOS)}")
     f["tempos"] = tempos
+
+    marks = _csv(args.get("rating"))                 # heart, check, x, and "none" for unmarked
+    for m in marks:
+        if m not in (*RATINGS, "none"):
+            raise Invalid("rating must be a comma-separated list of heart, check, x, none")
+    f["ratings"] = list(dict.fromkeys(marks))
 
     for field in ("bpm_min", "bpm_max"):          # a BPM range; recordings with no BPM never match it
         raw = args.get(field)
@@ -123,6 +129,15 @@ def build_query(f):
     if f["tempos"]:
         where.append(f"r.tempo IN ({','.join('?' * len(f['tempos']))})")
         params += f["tempos"]
+    if f["ratings"]:
+        real = [m for m in f["ratings"] if m != "none"]
+        clauses = []
+        if real:
+            clauses.append(f"r.rating IN ({','.join('?' * len(real))})")
+            params += real
+        if "none" in f["ratings"]:
+            clauses.append("r.rating IS NULL")
+        where.append("(" + " OR ".join(clauses) + ")")
     if f["bpm_min"] is not None:
         where.append("r.bpm >= ?")                # a missing BPM (NULL) fails the comparison, so it is excluded
         params.append(f["bpm_min"])

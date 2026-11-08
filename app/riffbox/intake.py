@@ -15,7 +15,10 @@ MAX_TITLE = 200
 MAX_NOTES = 5000
 MAX_TAGS_PER_RECORDING = 30
 MAX_TAGS_TOTAL = 100
-PATCHABLE = {"title", "tempo", "bpm", "key_root", "key_mode", "notes", "tags", "status", "recorded_at"}
+RATINGS = ("heart", "check", "x")           # interesting / used in a song / no longer interesting
+MAX_USED_IN = 200
+PATCHABLE = {"title", "tempo", "bpm", "key_root", "key_mode", "notes", "tags", "status", "recorded_at",
+             "rating", "used_in"}
 EARLIEST_DATE = dt.date(1950, 1, 1)
 
 _TAG_RE = re.compile(r"[\w][\w &'/+.\-]{0,29}")
@@ -88,6 +91,17 @@ def validate_patch(body, known_tags, default_title, uploaded_at=None):
 
     if "tempo" in body:
         cols["tempo"] = _one_of("tempo", body["tempo"], TEMPOS)
+
+    if "rating" in body:
+        cols["rating"] = _one_of("rating", body["rating"], RATINGS)
+    if "used_in" in body:
+        used = body["used_in"]
+        if used is not None and not isinstance(used, str):
+            raise Invalid("used_in must be text (or null)")
+        used = (used or "").strip()
+        if len(used) > MAX_USED_IN:
+            raise Invalid(f"used_in is longer than {MAX_USED_IN} characters")
+        cols["used_in"] = used or None
 
     if "recorded_at" in body:
         raw = body["recorded_at"]

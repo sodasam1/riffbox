@@ -457,8 +457,12 @@ def create_app(config=None):
             total_params.append(filters["status"])
         total = db().execute(total_sql, total_params).fetchone()[0]
         tags = tags_for([r["id"] for r in rows])
+        counts = {"heart": 0, "check": 0, "x": 0, "none": 0}      # how many carry each mark, before any filter
+        for r in db().execute("SELECT rating, COUNT(*) AS n FROM" + total_sql.split("FROM", 1)[1]
+                              + " GROUP BY rating", total_params):
+            counts[r["rating"] or "none"] = r["n"]
         return jsonify(recordings=[row_to_dict(r, tags.get(r["id"], ())) for r in rows],
-                       count=len(rows), total=total)
+                       count=len(rows), total=total, ratings=counts)
 
     @bp.patch("/api/recordings/<int:rec_id>")
     @require_auth()
@@ -474,6 +478,12 @@ def create_app(config=None):
             cols, tag_list = validate_patch(body, known, default_title(row["recorded_at"]), row["uploaded_at"])
         except Invalid as exc:
             return bad_request(str(exc))
+        # "used in" names the song a ✓ idea became, so it only belongs to a ✓
+        rating_after = cols["rating"] if "rating" in cols else row["rating"]
+        if "rating" in cols and rating_after != "check" and "used_in" not in cols:
+            cols["used_in"] = None
+        if cols.get("used_in") and rating_after != "check":
+            return bad_request("'used in' only applies to a recording marked ✓")
         conn = db()
         if cols:    # column names come from validate_patch's fixed set, never from the request
             conn.execute("UPDATE recordings SET " + ", ".join(f"{c} = ?" for c in cols) + " WHERE id = ?",
