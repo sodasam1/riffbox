@@ -47,14 +47,20 @@ New shortcut, name it exactly **Flush Riffbox Outbox**:
       with two fields:
       - type **File**, key `file`, value: *Repeat Item*
       - type **Text**, key `title`, value: the **Name** of *Repeat Item* (the server drops a trailing `.m4a` itself)
-   2. **Get Dictionary Value**: the value for `id` from the result of the previous action.
-   3. **If** that value *has any value*:
-      - **Show Notification**: the `message` value from the reply (it reads *Uploaded "Idea, Nov 8 3:42pm" to the
-        Riffbox Inbox.* or *Already in Riffbox as ...*).
+   2. **Get Dictionary Value**: get the **Value** for `id` in **Contents of URL** (choose that variable as the
+      input; the default is the previous action).
+   3. **Set Variable**: name it `replyId`, value: that **Dictionary Value**.
+   4. **Get Dictionary Value**: get the **Value** for `message` in **Contents of URL** (again choose *Contents of URL*
+      as the input).
+   5. **Set Variable**: name it `replyMessage`, value: that **Dictionary Value**. (The two Dictionary Value outputs
+      look identical in the variable list, so the named variables keep them apart.)
+   6. **If**: set its input to the variable **replyId** (not the default, which would now be the message, and every
+      reply has a message, including errors). Condition: *has any value*.
+      - **Show Notification**: **replyMessage** (it reads *Uploaded "Idea, Nov 8 3:42pm" to the Riffbox Inbox.* or
+        *Already in Riffbox as ...*).
       - **Delete Files**: *Repeat Item*; turn *Delete Immediately* on, or the file goes to Recently Deleted. **(check)**
-   4. **Otherwise**: **Show Notification**: the `message` value from the reply, or the text `Riffbox: no reply`.
-      Do not delete the file.
-   5. **End If**, then **End Repeat**.
+   7. **Otherwise**: **Show Notification**: **replyMessage** (or the text `Riffbox: no reply`). Do not delete the file.
+   8. **End If**, then **End Repeat**.
 
 Why the `id` test: Shortcuts cannot easily read the HTTP status, but the server only includes `id` when it has the
 recording (a new one or one it already had). Anything else leaves the file in the Outbox.
