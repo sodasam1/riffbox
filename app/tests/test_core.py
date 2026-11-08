@@ -83,7 +83,8 @@ def test_reupload_is_deduped(client, authed, app):
     first = upload(client, data).get_json()
     second = upload(client, data, name="renamed.m4a")
     assert second.status_code == 200
-    assert second.get_json() == {"id": first["id"], "duplicate": True}
+    body = second.get_json()
+    assert (body["id"], body["duplicate"]) == (first["id"], True) and body["message"].startswith("Already in Riffbox")
     assert len(authed.get("/api/recordings").get_json()["recordings"]) == 1
     assert len(list(app.config["AUDIO_DIR"].iterdir())) == 1
 

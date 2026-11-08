@@ -109,3 +109,11 @@ database insert left an orphan audio file; no message when the network was down 
 Faster: the list endpoint runs one count query instead of two; the player no longer reads computed styles or
 rewrites the time text every animation frame. Added `X-Content-Type-Options: nosniff`.
 Tests: `app/tests/test_review.py` and `tests/e2e/review.cjs` (each fails on the old code).
+
+## Phone upload: Outbox Shortcuts (owner request: fewer steps from Voice Memos to Riffbox)
+Server side built and tested: replies carry a `message` a Shortcut can show; a file whose name lost its extension is
+identified from its content (m4a, wav, mp3, flac, ogg, caf, aiff, aac) and non-audio is still refused; a title that is
+the file name loses its extension; `GET /api/token-check`; every 401 carries a message. `deploy/SHORTCUT.md` has the
+Shortcut recipes (Flush Riffbox Outbox, Send to Riffbox), the Control Center step and a phone test list.
+**Not verifiable from the build machine:** the Shortcuts themselves and how the iPhone behaves (uploads, locked phone,
+long memos). Deploy gate: routine deploy, then SHORTCUT.md section 6.

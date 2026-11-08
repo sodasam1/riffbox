@@ -3,7 +3,7 @@
      Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model, Keeping your data portable.
      UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
 
-<p class="meta">Last updated: 8 Nov 2026, after adding the Backup and export page. Written from what was checked on your server and
+<p class="meta">Last updated: 8 Nov 2026, after adding the phone upload Shortcuts' server side. Written from what was checked on your server and
 in the tests, not from assumptions; anything unverified is marked as such.</p>
 
 <h2>Planned features</h2>
@@ -17,8 +17,10 @@ committed build order; these are the extras that come after, or alongside, them.
     <code>/ideas/</code>. Accepted trade-offs: two upload destinations, the page and the data code can get
     out of step if only one is uploaded, and the page files are no longer removed by the Riffbox-only
     uninstall.</li>
-  <li><strong>iPhone Shortcut for one-tap upload</strong> from the Voice Memos share sheet, using the
-    add-only upload token. It should send a local-time title, because the server alone only knows UTC.</li>
+  <li><strong>iPhone "Outbox" Shortcuts</strong> &mdash; built, waiting for your phone test. In Voice Memos, Share
+    then <em>Send to Riffbox</em> saves the memo (named with the local time) into an Outbox folder and uploads it; a
+    memo stays in the Outbox until the server confirms it, and <em>Flush Riffbox Outbox</em> (also runnable from
+    Control Center) retries. Steps and the test list are in <code>deploy/SHORTCUT.md</code>.</li>
   <li><strong>Record-and-send Shortcut</strong> (Action Button, Back Tap or Lock Screen) that records and
     uploads directly, skipping the Voice Memos app.</li>
   <li><strong>Shuffle and "not played in a while"</strong>: a button that plays a random hearted idea, and a

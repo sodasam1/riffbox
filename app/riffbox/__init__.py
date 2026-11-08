@@ -39,6 +39,30 @@ MP4_EXT = (".m4a", ".mp4")        # containers whose audio codec we can read
 NEW_COLUMNS = ("codec", "play_status", "play_filename", "play_error")
 
 
+def sniff_audio_ext(head):
+    """The file extension an audio file's first bytes call for, or None. The iPhone Shortcuts app sometimes
+    hands over a file whose name has lost its extension; the content still says what it is."""
+    if len(head) < 12:
+        return None
+    if head[4:8] == b"ftyp":
+        return ".m4a"
+    if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
+        return ".wav"
+    if head[:4] == b"fLaC":
+        return ".flac"
+    if head[:4] == b"OggS":
+        return ".ogg"
+    if head[:4] == b"caff":
+        return ".caf"
+    if head[:4] == b"FORM" and head[8:12] in (b"AIFF", b"AIFC"):
+        return ".aiff"
+    if head[0] == 0xFF and head[1] & 0xF6 == 0xF0:      # ADTS frame header: raw AAC
+        return ".aac"
+    if head[:3] == b"ID3" or (head[0] == 0xFF and head[1] & 0xE0 == 0xE0):
+        return ".mp3"
+    return None
+
+
 def default_ffmpeg():
     return (os.environ.get("RIFFBOX_FFMPEG") or shutil.which("ffmpeg")
             or ("/usr/local/bin/ffmpeg" if os.access("/usr/local/bin/ffmpeg", os.X_OK) else ""))
@@ -288,7 +312,7 @@ def create_app(config=None):
             def wrapper(*a, **kw):
                 if session.get("ok") or (allow_token and token_ok()):
                     return fn(*a, **kw)
-                return jsonify(error="unauthorized"), 401
+                return jsonify(error="unauthorized", message="Riffbox: not allowed (wrong or missing token, or logged out)."), 401
             return wrapper
         return deco
 
@@ -405,11 +429,11 @@ def create_app(config=None):
     def upload():
         f = request.files.get("file")
         if f is None or not f.filename:
-            return jsonify(error="no file"), 400
+            return jsonify(error="no file", message="Riffbox: no file was sent."), 400
         orig = os.path.basename(f.filename)
         ext = Path(orig).suffix.lower()
-        if ext not in ALLOWED_EXT:
-            return jsonify(error=f"unsupported file type {ext or '(none)'}"), 415
+        if ext and ext not in ALLOWED_EXT:
+            return jsonify(error=f"unsupported file type {ext}", message=f"Riffbox: unsupported file type {ext}."), 415
 
         # Stream to a temp file inside the data dir (same filesystem for rename).
         h = hashlib.sha256()
@@ -430,19 +454,30 @@ def create_app(config=None):
                 raise
         try:
             if size == 0:
-                return jsonify(error="empty file"), 400
+                return jsonify(error="empty file", message="Riffbox: the file was empty."), 400
+            if not ext:                                 # no extension on the name: let the content decide
+                with open(tmp_path, "rb") as fh:
+                    ext = sniff_audio_ext(fh.read(16))
+                if ext is None:
+                    return jsonify(error="unsupported file type (none)",
+                                   message="Riffbox: that does not look like an audio file."), 415
+                orig += ext
             digest = h.hexdigest()
             db().execute("BEGIN IMMEDIATE")      # check-then-insert as one step: two identical uploads at once cannot both pass
             existing = db().execute(
-                "SELECT id FROM recordings WHERE sha256 = ? AND deleted_at IS NULL", (digest,)
+                "SELECT id, title FROM recordings WHERE sha256 = ? AND deleted_at IS NULL", (digest,)
             ).fetchone()
             if existing:
                 db().rollback()
-                return jsonify(id=existing["id"], duplicate=True), 200
+                return jsonify(id=existing["id"], duplicate=True,
+                               message=f"Already in Riffbox as \u201c{existing['title']}\u201d."), 200
 
             now = utcnow_iso()
             recorded_at = parse_iso(request.form.get("recorded_at")) or now
-            title = (request.form.get("title") or "").strip() or default_title(recorded_at)
+            title = (request.form.get("title") or "").strip()
+            if Path(title).suffix.lower() in ALLOWED_EXT:     # a client that sends the file name as the title
+                title = title[:-len(Path(title).suffix)].strip()
+            title = title or default_title(recorded_at)
             mime = FALLBACK_MIME.get(ext) or mimetypes.guess_type(orig)[0] or "application/octet-stream"
             stored = f"{uuid.uuid4().hex}{ext}"
             os.replace(tmp_path, audio_dir / stored)
@@ -462,11 +497,17 @@ def create_app(config=None):
                 jobs.put(("convert", cur.lastrowid))   # convert in the background; the upload returns now
             if app.config["FFMPEG"] and ext in INPUT_FORMAT:
                 jobs.put(("analyze", cur.lastrowid))   # and measure it (length + waveform)
-            return jsonify(id=cur.lastrowid, duplicate=False), 201
+            return jsonify(id=cur.lastrowid, duplicate=False, message=f"Uploaded \u201c{title}\u201d to the Riffbox Inbox."), 201
         finally:
             tmp_path.unlink(missing_ok=True)
             if stored_path is not None:                 # the database insert failed: don't leave an orphan file
                 stored_path.unlink(missing_ok=True)
+
+    @bp.get("/api/token-check")
+    @require_auth(allow_token=True)
+    def token_check():
+        """For setting up the phone Shortcut: answers 200 when the upload token (or a login) is right."""
+        return jsonify(ok=True, message="Riffbox: the upload token works.")
 
     @bp.get("/api/recordings")
     @require_auth()      # the upload token is add-only: it must not be able to read the library
