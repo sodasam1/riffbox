@@ -68,7 +68,7 @@ async function waitUp() {
       "What the guide and ti.sh already gave us", "Architecture", "Data model", "Keeping your data portable"]);
     const text = await page.locator("#how-body").innerText();
     for (const s of ["OpenBSD 7.9", "FreeFileSync", "SQLite", "Phase", "recorded_at"]) assert.ok(text.includes(s), "page mentions " + s);
-    assert.strictEqual(await page.locator("#how-body table").count(), 3, "roadmap, location and data tables render");
+    assert.strictEqual(await page.locator("#how-body table").count(), 4, "roadmap, location, data and dependency tables render");
     console.log("ok  page opens with the six sections in the requested order, tables included");
 
     // --- phone: tables must scroll inside their box, not widen the page
