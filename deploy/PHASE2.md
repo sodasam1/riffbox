@@ -62,23 +62,95 @@ doas chown root:_riffbox /etc/riffbox.conf; doas chmod 640 /etc/riffbox.conf
 ```
 CHECK: `ls -l /etc/riffbox.conf` shows `-rw-r----- ... root _riffbox`.
 
-## First code upload (run on your computer, in the riffbox folder)
+## First code upload (FreeFileSync, the same way you upload your website)
 
-### 5. Windows PowerShell
-```powershell
-.\deploy\deploy.ps1 -Target HOST
+How this works, in one paragraph: FreeFileSync copies the Riffbox folder from your computer to a
+**staging folder in your home directory** on the server (`~/riffbox-incoming`). It can't write
+straight to `/usr/local/riffbox` because that folder is owned by root, and FreeFileSync logs in as
+you. So a tiny script on the server then copies staging to `/usr/local/riffbox` and restarts the app.
+Every deployment, now and later, is the same two moves: **FreeFileSync, then one command.**
+Deployments never touch your secrets (`/etc/riffbox.conf`) or your recordings (`/var/riffbox`).
+
+### 5a. Get the code onto your computer (Windows)
+1. Open the repository page on GitHub and click the green **Code** button, then **Download ZIP**.
+2. Extract the ZIP. You get a folder named `riffbox-main`. **Rename it to `riffbox`** and put it
+   somewhere permanent, e.g. `C:\Users\YOURNAME\riffbox`. Inside it you should see the folders
+   `app`, `static`, `deploy` and `tests`. Remember this location; FreeFileSync will point at it.
+
+Use the ZIP rather than `git clone`. On Windows, git can silently convert line endings in the
+server script `deploy\rc.d\riffbox`, which then fails on OpenBSD. The ZIP keeps them correct.
+
+### 5b. One-time: create the staging folder (on the server)
+```sh
+ssh YOURUSER@sanjaysubramanian.com
 ```
-(Mac/Linux: `RIFFBOX_HOST=HOST sh deploy/deploy.sh`.)
-Expect it to fail at the very last step with "riffbox: not found" or similar, because the
-service doesn't exist yet. That is fine: the files are already copied.
-CHECK (on the server): `ls /usr/local/riffbox/app/riffbox` lists `__init__.py`, `config.py`, `schema.sql`.
+```sh
+mkdir -p ~/riffbox-incoming
+```
+CHECK: `ls -d ~/riffbox-incoming` prints `/home/YOURUSER/riffbox-incoming`. Leave this terminal open.
+
+### 5c. One-time: create the install script (on the server, same terminal)
+This is the "one command" you will run after every FreeFileSync upload. Copy and paste all of it:
+```sh
+cat > ~/install-riffbox.sh <<'EOF'
+#!/bin/sh
+set -e
+doas rsync -rlt --delete --chmod=D755,F644 --chown=root:wheel "$HOME/riffbox-incoming/" /usr/local/riffbox/
+doas rcctl restart riffbox || echo "(riffbox service not installed yet: normal on the very first deploy)"
+echo "deployed"
+EOF
+```
+CHECK: `cat ~/install-riffbox.sh` shows those 5 lines.
+What it does: copies the staging folder over `/usr/local/riffbox` (and removes anything there that
+you've since removed from the code), then restarts the app. It only ever touches `/usr/local/riffbox`.
+
+### 5d. Set up FreeFileSync (on your computer)
+Same settings you used for your website, with a different destination folder.
+1. Open FreeFileSync.
+2. Top-left folder box: click **[Browse]** and choose your `riffbox` folder from step 5a (the one
+   that contains `app`, `static` and `deploy`).
+3. Top-right folder box: click the white **cloud icon**, then **SFTP**, and fill in:
+   - Server name or IP address: `sanjaysubramanian.com`
+   - Select **(*) Key File**
+   - Username: your **server** username (the one you log in with)
+   - Key file: type `C:\Users\YOURNAME\.ssh\id_ed25519` (your Windows username here; the file
+     **without** `.pub`)
+   - Directory on server: `/home/YOURUSER/riffbox-incoming`
+   - Click **OK**.
+4. Top-right: click the **green gear wheel**, choose **MIRROR →**, click **OK**.
+   (Mirror makes the staging folder an exact copy of your local folder. That is safe here because it
+   only affects `riffbox-incoming`. **Never use Mirror pointed at your home directory, `/var/www`
+   or `/usr/local`.**)
+5. Click **COMPARE**. The first time, the left side should show everything as "create" and the right
+   side empty. If the right side lists lots of unrelated files, **stop**: the destination folder is wrong.
+6. Click **SYNCHRONIZE**, then **[Start]**.
+7. **Save this setup:** menu **File → Save as...**, name it `riffbox.ffs_gui`, and keep it in
+   Documents. Next time you just double-click that file.
+
+CHECK (on the server): `ls ~/riffbox-incoming` lists `app`, `deploy`, `static` and `tests`.
+
+### 5e. Install it (on the server)
+```sh
+sh ~/install-riffbox.sh
+```
+CHECK: it prints the "service not installed yet" note (normal this one time) and then `deployed`.
+```sh
+ls /usr/local/riffbox/app/riffbox
+```
+CHECK: lists `__init__.py`, `config.py` and `schema.sql`.
 
 ## Start the service (server)
 
 ### 6. Install the rc.d script and start it
-Copy `deploy/rc.d/riffbox` to the server (e.g. `scp deploy/rc.d/riffbox HOST:`), then:
+The script came along with your upload, so there's nothing more to copy:
 ```sh
-doas install -m 555 -o root -g bin riffbox /etc/rc.d/riffbox
+doas install -m 555 -o root -g bin /usr/local/riffbox/deploy/rc.d/riffbox /etc/rc.d/riffbox
+```
+Check it wasn't given Windows line endings (this should print `0`):
+```sh
+grep -c "$(printf '\r')" /etc/rc.d/riffbox
+```
+```sh
 doas rcctl enable riffbox
 doas rcctl start riffbox
 ```
@@ -161,5 +233,47 @@ doas rcctl reload relayd
 doas rcctl stop riffbox; doas rcctl disable riffbox
 ```
 
-## Routine deploys afterwards
-Just re-run step 5's command. It copies the code and restarts the service.
+## Routine deploys (every future code update)
+
+Whenever there is new code (a new phase, a fix), repeat the same steps. Nothing from the one-time
+setup (5b, 5c, steps 1 to 4, 6 to 8) is ever repeated.
+
+1. **Get the new code.** On the GitHub repository page: **Code → Download ZIP**.
+2. **Replace your local folder.** Delete the old `C:\Users\YOURNAME\riffbox` folder, extract the new
+   ZIP, and rename `riffbox-main` to `riffbox` at the **same location**. (Deleting first matters:
+   if you extract on top of the old folder, files I removed would stay behind and keep being uploaded.
+   Using the same location means your saved FreeFileSync setup still points at the right place.)
+3. **Upload.** Double-click your saved `riffbox.ffs_gui`, click **COMPARE**, and check the list. You
+   should see only the files that changed (for example a few "update" rows), not a wholesale
+   re-upload. Then **SYNCHRONIZE → Start**.
+4. **Install.** Log in to the server and run:
+   ```sh
+   sh ~/install-riffbox.sh
+   ```
+   CHECK: it ends with `deployed`.
+5. **Confirm it's alive**, from your computer:
+   ```powershell
+   curl.exe -s https://sanjaysubramanian.com/ideas/health
+   ```
+   CHECK: `{"status":"ok"}`. Then reload https://sanjaysubramanian.com/ideas/ in your browser
+   (Ctrl+F5 if the page looks unchanged).
+
+What a deploy does and does not touch:
+
+| Touched | Never touched |
+|---|---|
+| `/usr/local/riffbox` (the code) | `/var/riffbox` (your recordings and database) |
+| the Riffbox service (restarted, about a second of downtime) | `/etc/riffbox.conf` (your secrets) |
+| | relayd, httpd, certificates, mail, Radicale |
+
+If I tell you a release also needs something else (a new package, a new line in
+`/etc/riffbox.conf`, or a changed `deploy/rc.d/riffbox`), I'll say so explicitly, with the exact
+commands. For a changed rc.d script the extra step is the `doas install ... /etc/rc.d/riffbox` line
+from step 6, run before the final restart.
+
+**If an upload goes wrong:** re-run FreeFileSync (it is safe to repeat), then
+`sh ~/install-riffbox.sh` again. To go back to an older version, download that version's ZIP and
+repeat the routine above.
+
+(The repository also contains `deploy/deploy.sh` and `deploy/deploy.ps1`, scripts that do the same
+thing from a terminal. They are optional and untested; FreeFileSync is the supported route.)
