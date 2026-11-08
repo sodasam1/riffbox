@@ -68,11 +68,14 @@ progress { grid-column: 1 / -1; width: 100%; height: 6px; accent-color: var(--ac
 
 /* Rows have inner padding (cancelled by the negative margin, so the text still lines up with the page)
    so that the highlight of a selected or playing row sits *around* the content, never on top of it. */
-#list li { display: grid; grid-template-columns: 44px 1fr auto; gap: 0 12px; align-items: center;
+#list li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 0 12px; align-items: center;
            padding: .55rem 10px; margin: 0 -10px; border-bottom: 1px solid var(--line); }
 #list li.playing { background: var(--panel); }
 .play { width: 44px; height: 44px; border-radius: 50%; padding: 0; display: grid; place-items: center; }
-.title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#list .info { min-width: 0; }
+.title { font-weight: 600; overflow: hidden; overflow-wrap: anywhere;
+         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.meta { overflow-wrap: anywhere; }
 .meta { color: var(--muted); font-size: .85rem; }
 .chip { display: inline-block; border: 1px solid var(--line); border-radius: 99px; padding: 0 .5rem; font-size: .75rem; margin-left: .4rem; }
 a.dl { color: var(--accent); font-size: .9rem; }
@@ -113,9 +116,9 @@ a.dl { color: var(--accent); font-size: .9rem; }
 #list li .play { margin-top: 2px; }
 #list .side { display: grid; justify-items: end; gap: 6px; }
 .details { color: var(--text); }
-.notes { white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.notes { white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.chip.tag { margin-left: 0; background: var(--panel); }
+.chip.tag { margin-left: 0; background: var(--panel); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 
 form.edit { grid-column: 1 / -1; display: grid; gap: 14px; padding: 12px 0 6px; }
 form.edit .field { display: grid; gap: 4px; }
@@ -201,7 +204,7 @@ form.edit .error { margin: 0; }
   #list.library li { grid-template-columns: var(--cols); gap: 2px 12px; align-items: center; }
   #list.library .info { display: contents; }
   #list.library .play { grid-column: 1; grid-row: 1; margin-top: 0; }
-  #list.library .title { grid-column: 2; grid-row: 1; }
+  #list.library .title { grid-column: 2; grid-row: 1; display: block; white-space: nowrap; text-overflow: ellipsis; }
   #list.library .tags { grid-column: 3; grid-row: 1; margin-top: 0; }
   #list.library .details { grid-column: 4; grid-row: 1; }
   #list.library .when { grid-column: 5; grid-row: 1; }

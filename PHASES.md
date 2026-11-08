@@ -25,7 +25,12 @@ Do not start a phase until the previous gate is ticked.
       - [x] Deploy gate: ffmpeg installed per `deploy/PHASE3_5.md`; the existing ALAC memo plays in Chrome (reported by owner).
 - [x] **Phase 4** Inbox + intake form (deploy gate: owner reports it working well). Follow-up fixes shipped: automatic
       names use local time; player bar spacing; the private "How this works" page (`app/riffbox/about.html`,
-      checked by `tests/e2e/howto.cjs` and `app/tests/test_about.py`).
+      checked by `tests/e2e/howto.cjs` and `app/tests/test_about.py`). Later changes (owner requests, on `phase-6`):
+      the Slow/Medium/Fast words were removed from the edit form and the details line (the `tempo` column stays in
+      the database, unused); an optional "Date recorded" was added: both dates are always stored, a blank date
+      recorded means the date uploaded, entering one keeps the upload date beside it, and the page no longer sends
+      the file's own timestamp as the date recorded; very long titles, notes and tag names no longer stretch rows
+      or push Edit/Download off a phone screen (`tests/e2e/longtitles.cjs`, fails on the old CSS).
       - [x] Local gate: `pytest` 122 passed (validation rules, tags, PATCH round trips, inbox/tagged filter, auth);
             `node tests/e2e/phase4.cjs` (Chromium): uploads land in the Inbox with a count, every field saves and moves the
             recording to the Library, an empty form saves, details persist across reload, edit form is prefilled,

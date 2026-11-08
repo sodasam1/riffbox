@@ -18,15 +18,21 @@ function wav(freq, seconds = 2, rate = 8000) {
   for (let i = 0; i < n; i++) buf.writeInt16LE(Math.round(8000 * Math.sin(2 * Math.PI * freq * i / rate)), 44 + i * 2);
   return buf;
 }
-// Fixed modification times (the browser sends these as "recorded at"). The browser runs in Pacific/Auckland
-// (UTC+13 in November), where local time and UTC clearly differ: 03:42Z is 4:42pm there.
-const stamps = ["2026-11-08T03:42:00Z", "2026-11-08T03:50:00Z", "2026-11-08T04:05:00Z"];
 const files = [110, 220, 330].map((f, i) => {
   const p = path.join(tmp, `memo-${i}.wav`);
   fs.writeFileSync(p, wav(f));
-  fs.utimesSync(p, new Date(stamps[i]), new Date(stamps[i]));
   return p;
 });
+// The browser runs in Pacific/Auckland (UTC+13 in November), where local time and UTC clearly differ.
+const AKL = "Pacific/Auckland";
+const today = () => new Date().toLocaleDateString("en-US", { dateStyle: "medium", timeZone: AKL });
+const dayInAkl = (iso) => new Intl.DateTimeFormat("en-CA", { timeZone: AKL, dateStyle: "short" }).format(new Date(iso));   // 2026-03-01
+const autoTitleAt = (iso) => {                     // what the page should name a recording uploaded at this instant
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: AKL, month: "short", day: "numeric", hour: "numeric",
+                                                    minute: "2-digit", hour12: true }).formatToParts(new Date(iso));
+  const g = (t) => parts.find((p) => p.type === t).value;
+  return `Idea, ${g("month")} ${g("day")} ${g("hour")}:${g("minute")}${g("dayPeriod").toLowerCase()}`;
+};
 
 const server = spawn(PY, ["-m", "waitress", `--listen=127.0.0.1:${PORT}`, "wsgi:app"], {
   cwd: path.join(ROOT, "app"),
@@ -50,7 +56,7 @@ async function waitUp() {
     await waitUp();
     browser = await chromium.launch();
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1,
-                                           timezoneId: "Pacific/Auckland", locale: "en-US" });
+                                           timezoneId: AKL, locale: "en-US" });
     const page = await ctx.newPage();
     const problems = [];
     let n401 = 0, n400 = 0;                       // deliberate: logged-out session check; one rejected save
@@ -75,20 +81,21 @@ async function waitUp() {
     assert.strictEqual(await tabText("#tab-inbox"), "Inbox");
     console.log("ok  fresh start: empty Inbox, no counts");
 
-    // --- uploads land in the Inbox
+    // --- uploads land in the Inbox (the page's clock is pinned: 03:50 UTC is 4:50pm in Auckland)
+    await page.clock.setFixedTime(new Date("2026-11-08T03:50:00Z"));
     await page.setInputFiles("#file", files.slice(0, 2));
     await waitTab("#tab-inbox", "Inbox (2)");
     assert.strictEqual(await rows().count(), 2);
     assert.strictEqual(await tabText("#tab-library"), "Library");
     console.log("ok  two uploads appear in the Inbox with a count of 2");
 
-    // the automatic name and the date line must tell the same (local) time, not UTC
-    assert.deepStrictEqual(await page.locator("#list .title").allTextContents(),
-      ["Idea, Nov 8 4:50pm", "Idea, Nov 8 4:42pm"]);
+    // the automatic name is the local time (not UTC); the date line shows only the date, which starts as the upload date
+    assert.deepStrictEqual(await page.locator("#list .title").allTextContents(), ["Idea, Nov 8 4:50pm", "Idea, Nov 8 4:50pm"]);
     const shown = await page.locator("#list").innerText();
-    assert.match(shown, /4:50\s*PM/); assert.match(shown, /4:42\s*PM/);
-    assert.doesNotMatch(shown, /3:50|3:42/, "no UTC times anywhere");
-    console.log("ok  automatic names use the same local time as the date line (4:50pm = 03:50 UTC + 13h)");
+    assert.ok(shown.includes(today()), "the date line shows the upload date: " + today());
+    assert.doesNotMatch(shown, /\d:\d\d\s*[AP]M/, "the date line is date-only");
+    assert.doesNotMatch(shown, /uploaded/, "no '(uploaded ...)' note while the date recorded is the upload date");
+    console.log("ok  automatic names use local time (4:50pm = 03:50 UTC + 13h); the date line shows the upload date");
 
     // --- tag one recording using every field
     await rows().first().locator(".title").click();              // highlight the row first, as a person would by playing it
@@ -113,7 +120,7 @@ async function waitUp() {
     await newTag.press("Enter");                                  // Enter adds the tag, it must not submit the form
     await form.locator('button.tagbtn[data-tag="beat box"][aria-pressed="true"]').waitFor();
     assert.ok(await form.isVisible(), "form still open after Enter in the new-tag box");
-    await form.locator('input[type=radio][value="fast"]').check();
+    assert.strictEqual(await form.locator("input[type=radio]").count(), 0, "no Slow/Medium/Fast buttons in the form any more");
     const bpm = form.locator("input[type=number]");
     for (let i = 0; i < 4; i++) { await form.locator("button", { hasText: "Tap tempo" }).click(); await page.waitForTimeout(500); }
     const tapped = Number(await bpm.inputValue());
@@ -144,7 +151,8 @@ async function waitUp() {
     const funky = page.locator("#list > li", { hasText: "Funky bass riff" });
     const show = async () => {
       const text = await funky.innerText();
-      assert.match(text, /Fast · 118 BPM · D minor/);
+      assert.match(text, /118 BPM · D minor/);
+      assert.doesNotMatch(text, /Fast|Slow|Medium/, "no tempo words are shown");
       assert.match(text, /hummed over Dm/);
       assert.deepStrictEqual(await funky.locator(".chip.tag").allTextContents(), ["bass", "rhythmic idea", "beat box"]);
     };
@@ -153,7 +161,7 @@ async function waitUp() {
     await waitTab("#tab-library", "Library (2)");
     await page.click("#tab-library");
     await show();
-    console.log("ok  Library shows tags, tempo, BPM, key and notes, and they persist across a reload");
+    console.log("ok  Library shows tags, BPM, key and notes, and they persist across a reload");
 
     // --- editing prefills; move back to the Inbox
     await funky.locator("button.edit-btn").click();
@@ -162,7 +170,6 @@ async function waitUp() {
     assert.strictEqual(await f2.locator('button.tagbtn[data-tag="bass"]').getAttribute("aria-pressed"), "true");
     assert.strictEqual(await f2.locator('button.tagbtn[data-tag="drums"]').getAttribute("aria-pressed"), "false");
     assert.strictEqual(await f2.locator('button.tagbtn[data-tag="beat box"]').getAttribute("aria-pressed"), "true");  // custom tag persisted
-    assert.ok(await f2.locator('input[type=radio][value="fast"]').isChecked());
     assert.strictEqual(await f2.locator("input[type=number]").inputValue(), "118");
     assert.strictEqual(await f2.locator("select[id^=f-root-]").inputValue(), "D");
     assert.strictEqual(await f2.locator("select[id^=f-mode-]").inputValue(), "minor");
@@ -196,7 +203,7 @@ async function waitUp() {
 
     // clearing the Title box regenerates the name in local time (this also repairs older UTC-based names)
     await page.click("#tab-library");
-    const plain = page.locator("#list > li", { hasText: "Idea, Nov 8 4:42pm" });
+    const plain = page.locator("#list > li", { hasText: "Idea, Nov 8 4:50pm" });
     await plain.locator("button.edit-btn").click();
     await page.locator("#list form.edit input[id^=f-title-]").fill("temporary name");
     await page.locator("#list form.edit button[type=submit]").click();
@@ -204,8 +211,40 @@ async function waitUp() {
     await page.locator("#list > li", { hasText: "temporary name" }).locator("button.edit-btn").click();
     await page.locator("#list form.edit input[id^=f-title-]").fill("   ");
     await page.locator("#list form.edit button[type=submit]").click();
-    await page.locator("#list > li", { hasText: "Idea, Nov 8 4:42pm" }).waitFor();
+    const apiRows = async () => (await (await ctx.request.get(BASE + "api/recordings?status=tagged")).json()).recordings;
+    const plainRec = (await apiRows()).find((r) => r.notes === "" && r.tags.length === 0);   // the one saved with an empty form
+    const uploadedAt = plainRec.uploaded_at;
+    assert.strictEqual(plainRec.recorded_at, uploadedAt, "premise: its date recorded is its upload date");
+    await page.locator("#list > li", { hasText: autoTitleAt(uploadedAt) }).waitFor();
     console.log("ok  clearing the Title box regenerates the local-time name");
+
+    // --- date recorded: blank means the date uploaded; entering one stores both; clearing goes back
+    const row = () => page.locator("#list > li", { hasText: autoTitleAt(uploadedAt) });
+    await row().locator("button.edit-btn").click();
+    let f = page.locator("#list form.edit");
+    const dateBox = f.locator("input[type=date]");
+    assert.strictEqual(await dateBox.inputValue(), "", "the date recorded is blank by default");
+    assert.match(await f.innerText(), /Leave it blank to use the date it was uploaded \(/);
+    await dateBox.fill("2025-12-25");
+    await f.locator("button[type=submit]").click();
+    await page.waitForFunction((t) => [...document.querySelectorAll("#list > li")].some((li) => li.innerText.includes(t)), `Dec 25, 2025 (uploaded ${today()})`);
+    let after = (await apiRows()).find((r) => r.recorded_at.startsWith("2025-12-24") || r.recorded_at.startsWith("2025-12-25"));
+    assert.ok(after && after.uploaded_at !== after.recorded_at, "both dates are stored, and they differ");
+    assert.strictEqual(dayInAkl(after.recorded_at), "2025-12-25", "the entered day is the day it shows");
+    await page.locator("#list > li", { hasText: "Dec 25, 2025" }).locator("button.edit-btn").click();
+    f = page.locator("#list form.edit");
+    assert.strictEqual(await f.locator("input[type=date]").inputValue(), "2025-12-25", "the form shows the entered date");
+    await f.locator("input[id^=f-title-]").fill("");                              // a blank title now follows the entered date
+    await f.locator("button[type=submit]").click();
+    await page.locator("#list > li", { hasText: "Idea, Dec 25" }).waitFor();
+    await page.locator("#list > li", { hasText: "Idea, Dec 25" }).locator("button.edit-btn").click();
+    f = page.locator("#list form.edit");
+    await f.locator("input[type=date]").fill("");                                  // clear the date: back to the upload date
+    await f.locator("button[type=submit]").click();
+    await page.waitForFunction((t) => [...document.querySelectorAll("#list > li")].some((li) => li.innerText.includes(t) && !li.innerText.includes("(uploaded")), today());
+    after = (await apiRows()).find((r) => r.title === "Idea, Dec 25");
+    assert.strictEqual(after.recorded_at, after.uploaded_at, "cleared: the date recorded is the date uploaded again");
+    console.log("ok  date recorded: blank = date uploaded; an entered date is stored beside it; clearing restores it");
 
     assert.deepStrictEqual(problems, [], "browser errors: " + problems.join(" | "));
     assert.strictEqual(n401, 1, "exactly one expected 401 (logged-out session check), got " + n401);

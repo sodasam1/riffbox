@@ -4,7 +4,7 @@ import io
 import pytest
 
 from conftest import PASS, TOKEN, make_wav
-from riffbox.intake import Invalid, normalize_tag, validate_patch
+from riffbox.intake import Invalid, normalize_tag, parse_instant, validate_patch
 
 SEEDED = ["bass", "drums", "keys", "guitar", "harmony", "vocal", "melody", "rhythmic idea", "full song"]
 KNOWN = set(SEEDED)
@@ -208,3 +208,78 @@ def test_tags_survive_per_recording_independently(c, client):
     c.patch(f"/api/recordings/{b}", json={"tags": ["drums", "bass"]})
     by_id = {r["id"]: r["tags"] for r in c.get("/api/recordings").get_json()["recordings"]}
     assert by_id == {a: ["bass"], b: ["bass", "drums"]}
+
+
+# ---- date recorded: always stored, next to the date uploaded; blank means "same as uploaded" --------------
+def test_parse_instant_accepts_timestamps_and_normalises_to_utc():
+    assert parse_instant("2026-03-01T12:00:00Z") == "2026-03-01T12:00:00Z"
+    assert parse_instant("2026-03-01T12:00:00+13:00") == "2026-02-28T23:00:00Z"      # local noon in Auckland
+    assert parse_instant("2026-03-01T12:00:00.123Z") == "2026-03-01T12:00:00Z"
+    assert parse_instant("2026-03-01T12:00:00") == "2026-03-01T12:00:00Z"             # no zone given: taken as UTC
+    assert parse_instant("1950-01-02T00:00:00Z").startswith("1950")
+
+
+def test_parse_instant_rejects_nonsense():
+    import datetime as dt
+    soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    for bad in ["yesterday", "", "2026-02-30T12:00:00Z", "1949-12-31T00:00:00Z", soon, 5, None, ["2026-03-01"], "9" * 50]:
+        with pytest.raises(Invalid):
+            parse_instant(bad)
+
+
+def test_recorded_at_in_a_patch_body():
+    cols, _ = validate_patch({"recorded_at": "2026-03-01T12:00:00Z"}, KNOWN, "t", "2026-03-09T08:00:00Z")
+    assert cols == {"recorded_at": "2026-03-01T12:00:00Z"}
+    for blank in (None, ""):                                      # blank: the date recorded is the date uploaded
+        cols, _ = validate_patch({"recorded_at": blank}, KNOWN, "t", "2026-03-09T08:00:00Z")
+        assert cols == {"recorded_at": "2026-03-09T08:00:00Z"}
+    with pytest.raises(Invalid):
+        validate_patch({"recorded_at": None}, KNOWN, "t")          # nothing to fall back to
+
+
+def test_upload_fills_both_dates_with_the_upload_time(c, client):
+    upload(client)
+    rec = c.get("/api/recordings").get_json()["recordings"][0]
+    assert rec["recorded_at"] == rec["uploaded_at"] and rec["uploaded_at"].endswith("Z")
+
+
+def test_entering_a_date_recorded_stores_both_and_clearing_goes_back(c, client):
+    rid = upload(client)
+    first = c.get("/api/recordings").get_json()["recordings"][0]
+    rec = c.patch(f"/api/recordings/{rid}", json={"recorded_at": "2025-12-25T12:00:00Z"}).get_json()["recording"]
+    assert rec["recorded_at"] == "2025-12-25T12:00:00Z"
+    assert rec["uploaded_at"] == first["uploaded_at"]               # the upload date is kept separately, untouched
+    again = c.get("/api/recordings").get_json()["recordings"][0]
+    assert (again["recorded_at"], again["uploaded_at"]) == ("2025-12-25T12:00:00Z", first["uploaded_at"])
+    for blank in ("", None):
+        c.patch(f"/api/recordings/{rid}", json={"recorded_at": "2025-12-25T12:00:00Z"})
+        cleared = c.patch(f"/api/recordings/{rid}", json={"recorded_at": blank}).get_json()["recording"]
+        assert cleared["recorded_at"] == cleared["uploaded_at"] == first["uploaded_at"]
+
+
+@pytest.mark.parametrize("value", ["not a date", "2026-02-30T12:00:00Z", "1900-01-01T00:00:00Z", "2999-01-01T00:00:00Z", 5])
+def test_a_bad_date_recorded_is_rejected_and_nothing_else_changes(c, client, value):
+    rid = upload(client)
+    c.patch(f"/api/recordings/{rid}", json={"recorded_at": "2025-12-25T12:00:00Z", "notes": "n"})
+    r = c.patch(f"/api/recordings/{rid}", json={"recorded_at": value, "notes": "changed"})
+    assert r.status_code == 400
+    rec = c.get("/api/recordings").get_json()["recordings"][0]
+    assert (rec["recorded_at"], rec["notes"]) == ("2025-12-25T12:00:00Z", "n")
+
+
+def test_recorded_sort_follows_the_date_recorded(c, client):
+    def up(seed, when):
+        r = client.post("/api/upload", data={"file": (io.BytesIO(make_wav(freq_seed=seed)), f"s{seed}.wav"),
+                                              "recorded_at": when, "title": f"t{seed}"},
+                        headers={"Authorization": f"Bearer {TOKEN}"}, content_type="multipart/form-data")
+        return r.get_json()["id"]
+    up(1, "2026-03-10T10:00:00Z")
+    b = up(2, "2026-03-01T10:00:00Z")
+    up(3, "2026-01-01T10:00:00Z")
+    def order(**q):
+        return [x["title"] for x in c.get("/api/recordings", query_string=q).get_json()["recordings"]]
+    assert order() == ["t1", "t2", "t3"]
+    c.patch(f"/api/recordings/{b}", json={"recorded_at": "2026-03-20T12:00:00Z"})     # the owner says b is the newest
+    assert order() == ["t2", "t1", "t3"]
+    assert order(sort="recorded", order="asc") == ["t3", "t1", "t2"]
+    assert order(sort="uploaded").count("t1") == 1                                      # the upload date is a separate sort

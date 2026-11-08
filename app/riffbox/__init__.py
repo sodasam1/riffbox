@@ -471,7 +471,7 @@ def create_app(config=None):
             return bad_request("send a JSON object")
         known = {r["name"] for r in db().execute("SELECT name FROM tags")}
         try:
-            cols, tag_list = validate_patch(body, known, default_title(row["recorded_at"]))
+            cols, tag_list = validate_patch(body, known, default_title(row["recorded_at"]), row["uploaded_at"])
         except Invalid as exc:
             return bad_request(str(exc))
         conn = db()

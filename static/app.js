@@ -83,14 +83,31 @@ let playingId = null;
 function fmtSize(bytes) {
   return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(bytes / 1024)) + " KB";
 }
-function fmtDate(iso) {
+
+// Dates. Every recording has a date uploaded and a date recorded. The date recorded starts out as the date
+// uploaded; entering a date in the form sets it (stored as local noon on that day, so it can never slip to
+// the neighbouring day), and clearing the box puts it back to the upload date.
+const dayKey = (iso) => {                         // the local calendar day, "2026-03-01"
   const d = new Date(iso);
-  return isNaN(d) ? iso : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  return isNaN(d) ? "" : d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+};
+const fmtDay = (iso) => { const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleDateString([], { dateStyle: "medium" }); };
+const dateIsSet = (rec) => rec.recorded_at !== rec.uploaded_at;      // a date recorded was entered by hand
+const localNoon = (ymd) => { const [y, m, d] = ymd.split("-").map(Number); return new Date(y, m - 1, d, 12).toISOString(); };
+function whenText(rec) {
+  let text = fmtDay(rec.recorded_at);
+  if (dateIsSet(rec) && dayKey(rec.recorded_at) !== dayKey(rec.uploaded_at)) text += " (uploaded " + fmtDay(rec.uploaded_at) + ")";
+  return text;
 }
 
 // The automatic name ("Idea, Nov 8 3:42pm") is built here, from the same local time the date line
 // shows. (The server only knows UTC, so a name it generated would disagree with the date line.)
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// The automatic name for a recording: the time it was uploaded, or, if a date recorded was entered, just that day.
+function titleFor(recordedIso, dateEntered) {
+  const d = new Date(recordedIso);
+  return dateEntered ? "Idea, " + MONTHS[d.getMonth()] + " " + d.getDate() : autoTitle(d);
+}
 function autoTitle(d) {
   const h = d.getHours();
   return "Idea, " + MONTHS[d.getMonth()] + " " + d.getDate() + " " + (h % 12 || 12) + ":" +
@@ -206,7 +223,6 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function detailsText(rec) {
   const parts = [];
-  if (rec.tempo) parts.push(cap(rec.tempo));
   if (rec.bpm) parts.push(rec.bpm + " BPM");
   if (rec.key_root || rec.key_mode) parts.push([rec.key_root, rec.key_mode].filter(Boolean).join(" "));
   return parts.join(" · ");
@@ -270,7 +286,7 @@ function render() {
 function buildRow(rec) {
   const btn = el("button", { class: "play", type: "button" }, "▶");
   btn.addEventListener("click", () => togglePlay(rec));
-  const meta = el("div", { class: "meta when" }, fmtDate(rec.recorded_at) +
+  const meta = el("div", { class: "meta when" }, whenText(rec) +
     (rec.duration_s ? " · " + fmtTime(rec.duration_s) : "") + " · " + fmtSize(rec.size));
   if (rec.play_status === "pending") meta.append(el("span", { class: "chip" }, "preparing playback…"));
   if (rec.play_status === "failed") meta.append(el("span", { class: "chip" }, "no play copy"));
@@ -341,14 +357,7 @@ function buildForm(rec) {
   form.append(el("fieldset", {}, el("legend", {}, "What's in it?"), tagBox,
     el("div", { class: "addtag" }, newTag, addBtn), tagErr));
 
-  // tempo: word, optional number, tap-along
-  const tempo = el("fieldset", { class: "tempo" }, el("legend", {}, "Tempo"));
-  for (const [value, label] of [["", "Not set"], ["slow", "Slow"], ["medium", "Medium"], ["fast", "Fast"]]) {
-    const rid = "f-tempo-" + id + "-" + (value || "none");
-    const radio = el("input", { type: "radio", name: "tempo-" + id, id: rid, value });
-    if ((rec.tempo || "") === value) radio.checked = true;
-    tempo.append(el("span", { class: "radio" }, radio, el("label", { for: rid }, label)));
-  }
+  // BPM: a number, with tap-along
   const bpm = el("input", { id: "f-bpm-" + id, type: "number", min: "20", max: "400", inputmode: "numeric",
                             value: rec.bpm == null ? "" : String(rec.bpm) });
   const tap = el("button", { type: "button" }, "Tap tempo");
@@ -363,8 +372,8 @@ function buildForm(rec) {
       bpm.value = String(Math.min(400, Math.max(20, Math.round(60000 / avg))));
     }
   });
-  tempo.append(el("div", { class: "bpm" }, el("label", { for: "f-bpm-" + id }, "BPM (optional)"), bpm, tap));
-  form.append(tempo);
+  form.append(el("div", { class: "field" }, el("label", { for: "f-bpm-" + id }, "BPM (optional)"),
+                 el("div", { class: "bpm" }, bpm, tap)));
 
   // key
   const root = el("select", { id: "f-root-" + id });
@@ -375,6 +384,12 @@ function buildForm(rec) {
   mode.append(el("option", { value: "" }, "—"), el("option", { value: "major" }, "major"), el("option", { value: "minor" }, "minor"));
   mode.value = rec.key_mode || "";
   form.append(el("div", { class: "keyrow" }, field("Key", root, "f-root-" + id), field("Major / minor", mode, "f-mode-" + id)));
+
+  // date recorded: blank means "same as the date uploaded"
+  const initialDate = dateIsSet(rec) ? dayKey(rec.recorded_at) : "";
+  const dateInput = el("input", { id: "f-date-" + id, type: "date", value: initialDate, max: dayKey(new Date().toISOString()) });
+  form.append(el("div", { class: "field" }, el("label", { for: "f-date-" + id }, "Date recorded (optional)"), dateInput,
+    el("div", { class: "meta" }, "Leave it blank to use the date it was uploaded (" + fmtDay(rec.uploaded_at) + ").")));
 
   const notes = el("textarea", { id: "f-notes-" + id, rows: "3", maxlength: "5000" });
   notes.value = rec.notes || "";
@@ -391,18 +406,20 @@ function buildForm(rec) {
 
   const submit = async (status) => {
     err.hidden = true;
-    const picked = form.querySelector('input[name="tempo-' + id + '"]:checked');
     const bpmText = bpm.value.trim();
+    const dateChanged = dateInput.value !== initialDate;       // only send the date if it was touched
+    const recordedIso = dateChanged ? (dateInput.value ? localNoon(dateInput.value) : rec.uploaded_at) : rec.recorded_at;
+    const dateEntered = dateChanged ? Boolean(dateInput.value) : dateIsSet(rec);
     const payload = {
-      title: title.value.trim() || autoTitle(new Date(rec.recorded_at)),   // blank title = regenerate it
+      title: title.value.trim() || titleFor(recordedIso, dateEntered),   // blank title = regenerate it
       tags: [...tagBox.querySelectorAll('.tagbtn[aria-pressed="true"]')].map((b) => b.dataset.tag),
-      tempo: picked && picked.value ? picked.value : null,
       bpm: bpmText === "" ? null : Number(bpmText),
       key_root: root.value || null,
       key_mode: mode.value || null,
       notes: notes.value,
       status,
     };
+    if (dateChanged) payload.recorded_at = dateInput.value ? localNoon(dateInput.value) : null;   // null = use the upload date
     const r = await api("recordings/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" },
                                              body: JSON.stringify(payload) });
     if (r.status === 401) { show("login"); return; }
@@ -841,9 +858,9 @@ function uploadOne(file, row) {
     const state = row.querySelector(".state");
     const fd = new FormData();
     fd.append("file", file, file.name);
-    const recorded = file.lastModified ? new Date(file.lastModified) : new Date();
-    if (file.lastModified) fd.append("recorded_at", recorded.toISOString());
-    fd.append("title", autoTitle(recorded));
+    // The date recorded starts out as the date uploaded (set it in the form if you know it), so no recorded
+    // date is sent. The automatic name is built from this local time, to match the time shown elsewhere.
+    fd.append("title", autoTitle(new Date()));
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "api/upload");
     xhr.upload.addEventListener("progress", (e) => {

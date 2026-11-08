@@ -244,9 +244,10 @@ async function waitUp() {
                play: li.querySelector(".play").getBoundingClientRect().left - l };
     });
     assert.ok(gaps.selected && gaps.field >= 8 && gaps.play >= 8, "content is inset from the highlight bar: " + JSON.stringify(gaps));
-    await form.locator('input[type=radio][value="medium"]').check();
-    await form.locator('input[type=radio][value="medium"]').press("ArrowDown");   // radio groups use the arrows
-    assert.ok(await form.locator('input[type=radio][value="fast"]').isChecked(), "arrow key changed the radio, not the list");
+    const keySelect = form.locator("select[id^=f-root-]");
+    await keySelect.focus();
+    await keySelect.press("ArrowDown");                                           // a drop-down uses the arrow keys
+    assert.notStrictEqual(await keySelect.inputValue(), "", "the arrow key changed the drop-down, not the list selection");
     assert.strictEqual((await state()).selected, hold.selected);
     assert.strictEqual((await state()).src, hold.src);
     await form.locator("textarea").fill("a note with spaces");                     // Space inside a field types a space

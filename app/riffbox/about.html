@@ -3,7 +3,7 @@
      Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model.
      UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
 
-<p class="meta">Last updated: 8 Nov 2026, after building Phase 6. Written from what was checked on your server and
+<p class="meta">Last updated: 8 Nov 2026, after Phase 6 and the date-recorded changes. Written from what was checked on your server and
 in the tests, not from assumptions; anything unverified is marked as such.</p>
 
 <h2>Planned features</h2>
@@ -47,9 +47,10 @@ phone, a check by you) before the next one starts. That keeps any problem confin
     <tr><td>3.5</td><td>Added mid-way: Chrome can't play Apple Lossless (Voice Memos in Lossless mode), so
       the server makes a lossless FLAC copy for playback and keeps your original untouched.</td>
       <td><span class="status done">Done</span></td></tr>
-    <tr><td>4</td><td>Inbox and intake form: title, instruments, tempo, BPM with tap tempo, key and notes,
-      all optional. Saving, even an empty form, moves a recording from the Inbox to the Library. Also fixed
-      afterwards: automatic names now use your local time.</td>
+    <tr><td>4</td><td>Inbox and intake form: title, instruments, BPM with tap tempo, key, an optional date
+      recorded, and notes, all optional. Saving, even an empty form, moves a recording from the Inbox to the
+      Library. Also added afterwards: automatic names use your local time; the date recorded (blank means the date
+      it was uploaded; both dates are always stored); the Slow/Medium/Fast words were removed in favour of BPM.</td>
       <td><span class="status done">Done</span></td></tr>
     <tr><td>5</td><td><strong>Library browser</strong> in the style of a DAW sample browser: a table with a
       filter sidebar (on a phone the filters fold behind a button). Filter by tags (has all or has any of the
@@ -83,7 +84,7 @@ tagged. Because every step took effort, most ideas stayed buried in the Voice Me
 did get filed were hard to find later.</p>
 <p><strong>The goal.</strong> Make capture cost almost nothing: upload the recording and walk away, with no
 tagging required. Do the tagging later in a separate pass, in the Inbox. Then browse the Library the way you
-browse samples in a music plugin: filter by instrument, tempo, key and how interesting an idea is, and play
+browse samples in a music plugin: filter by instrument, BPM, key and how interesting an idea is, and play
 anything immediately.</p>
 <p><strong>The approach.</strong> This lives on your own server, following Derek Sivers' Tech Independence
 guide: a small number of boring, well-understood tools, no outside services, and everything reversible.
@@ -215,9 +216,9 @@ shown in your browser's local time.</p>
     <tr><td><code>filename</code>, <code>orig_filename</code></td><td>The random name on disk, and the name your phone gave it (used when downloading).</td><td>Yes</td></tr>
     <tr><td><code>mime</code>, <code>size</code></td><td>File type and size in bytes.</td><td>Yes</td></tr>
     <tr><td><code>sha256</code></td><td>Fingerprint, used to refuse duplicate uploads.</td><td>Yes</td></tr>
-    <tr><td><code>recorded_at</code>, <code>uploaded_at</code></td><td>When it was recorded (the file's timestamp) and when it was uploaded.</td><td>Yes</td></tr>
+    <tr><td><code>recorded_at</code>, <code>uploaded_at</code></td><td>The date recorded and the date uploaded, always both stored. The date recorded starts out equal to the date uploaded; you can enter a date in the form (kept as noon on that day), and clearing the box puts it back to the upload date.</td><td>Yes</td></tr>
     <tr><td><code>status</code></td><td><code>inbox</code> (not yet looked at) or <code>tagged</code> (saved to the Library).</td><td>Yes</td></tr>
-    <tr><td><code>tempo</code>, <code>bpm</code></td><td>slow / medium / fast, and an optional number from 20 to 400. The Library filters by the BPM number, not by the words.</td><td>Yes</td></tr>
+    <tr><td><code>tempo</code>, <code>bpm</code></td><td><code>bpm</code> is an optional number from 20 to 400 (the Library filters by it with a range slider). <code>tempo</code> held the words slow / medium / fast; the app no longer shows or edits them, but old values stay in the database.</td><td><code>bpm</code>: yes. <code>tempo</code>: no longer used</td></tr>
     <tr><td><code>key_root</code>, <code>key_mode</code></td><td>Note (C, C#, D, Eb, E, F, F#, G, Ab, A, Bb, B) and major or minor.</td><td>Yes</td></tr>
     <tr><td><code>notes</code></td><td>Free text, up to 5,000 characters.</td><td>Yes</td></tr>
     <tr><td><code>codec</code></td><td>What audio format the file holds (for example <code>alac</code> or <code>aac</code>), read from the file itself.</td><td>Yes</td></tr>
