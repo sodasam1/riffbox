@@ -32,6 +32,7 @@ def test_section_order_is_planned_features_then_roadmap_then_the_rest():
         "What the guide and ti.sh already gave us",
         "Architecture",
         "Data model",
+        "Keeping your data portable",
     ]
 
 
@@ -53,3 +54,35 @@ def test_fragment_is_not_part_of_the_public_static_files(client):
     """The page describes the server, so it must not be reachable without logging in."""
     assert client.get("/static/about.html").status_code == 404
     assert client.get("/static/../riffbox/about.html").status_code == 404
+
+
+def test_the_csv_script_on_the_page_really_works(tmp_path):
+    """The portability section tells the owner to run this script, so it is run here against a real database."""
+    import csv
+    import html
+    import io
+    import subprocess
+    import sys
+
+    from conftest import make_wav, upload
+    from riffbox import create_app
+
+    block = re.search(r"save this as\s*<code>dump\.py</code>.*?<pre><code>(.*?)</code></pre>", ABOUT.read_text(), re.S)
+    assert block, "the dump.py script is missing from the page"
+    script = tmp_path / "dump.py"
+    script.write_text(html.unescape(block.group(1)))
+    app = create_app({"TESTING": True, "DATA_DIR": str(tmp_path / "data"), "SECRET_KEY": "k", "PASSPHRASE": "p",
+                      "UPLOAD_TOKEN": "t", "FFMPEG": "", "SESSION_COOKIE_SECURE": False})
+    try:
+        c = app.test_client()
+        upload(c, make_wav(), "a.wav", token="t", title='Riff, "quoted"')
+        c.post("/api/login", json={"passphrase": "p"})
+        c.patch("/api/recordings/1", json={"tags": ["bass", "keys"], "notes": "line1\nline2", "bpm": 120, "rating": "heart"})
+    finally:
+        app.extensions["riffbox"].stop()
+    out = subprocess.run([sys.executable, "-I", str(script), str(tmp_path / "data" / "riffbox.db")],
+                         capture_output=True, text=True, check=True).stdout
+    row = next(csv.DictReader(io.StringIO(out)))
+    assert (row["title"], row["notes"], row["tags"], row["bpm"], row["rating"]) == (
+        'Riff, "quoted"', "line1\nline2", "bass; keys", "120", "heart")
+    assert row["file_on_disk"].endswith(".wav")

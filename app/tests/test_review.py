@@ -50,3 +50,43 @@ def test_counts_and_total_still_agree(authed):
 
 def test_responses_say_nosniff(authed):
     assert authed.get("/api/recordings").headers["X-Content-Type-Options"] == "nosniff"
+
+
+def test_identical_uploads_at_the_same_moment_make_one_recording(app):
+    import threading
+    data = make_wav(freq_seed=9)
+    barrier = threading.Barrier(6)
+    results = []
+
+    def go():
+        c = app.test_client()
+        barrier.wait()
+        r = upload(c, data, "same.wav")
+        results.append((r.status_code, r.get_json().get("duplicate")))
+
+    threads = [threading.Thread(target=go) for _ in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(results) == [(200, True)] * 5 + [(201, False)], results
+    c = app.test_client()
+    c.post("/api/login", json={"passphrase": "correct horse"})
+    assert c.get("/api/recordings").get_json()["total"] == 1
+
+
+def test_without_ffmpeg_the_player_is_told_there_is_no_waveform(tmp_path):
+    app = create_app({"TESTING": True, "DATA_DIR": str(tmp_path / "d"), "SECRET_KEY": "k", "PASSPHRASE": "p",
+                      "UPLOAD_TOKEN": "t", "FFMPEG": "", "SESSION_COOKIE_SECURE": False})
+    try:
+        c = app.test_client()
+        rid = upload(c, make_wav(), "a.wav", token="t").get_json()["id"]
+        c.post("/api/login", json={"passphrase": "p"})
+        assert c.get(f"/api/recordings/{rid}/analysis").get_json()["peaks"] == []
+    finally:
+        app.extensions["riffbox"].stop()
+
+
+def test_big_uploads_are_staged_inside_the_data_directory(app, tmp_path):
+    import tempfile
+    assert tempfile.gettempdir() == str(app.config["DATA_DIR"] + "/tmp")

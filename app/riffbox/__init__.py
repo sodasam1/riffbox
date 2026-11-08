@@ -138,6 +138,13 @@ def create_app(config=None):
                 conn.execute(f"ALTER TABLE recordings ADD COLUMN {col} TEXT")
         conn.commit()
 
+    # Werkzeug parks big uploads in a temp file while it parses them. Keep that inside the data directory
+    # (the disk with room), not the system /tmp, which may be small.
+    scratch = data_dir / "tmp"
+    scratch.mkdir(exist_ok=True)
+    tempfile.tempdir = str(scratch)
+    for leftover in scratch.iterdir():
+        leftover.unlink(missing_ok=True)
     for stale in audio_dir.glob(".incoming-*"):      # half-written files from a crash or a restart mid-upload
         stale.unlink(missing_ok=True)
     boot = connect()
@@ -417,10 +424,12 @@ def create_app(config=None):
             if size == 0:
                 return jsonify(error="empty file"), 400
             digest = h.hexdigest()
+            db().execute("BEGIN IMMEDIATE")      # check-then-insert as one step: two identical uploads at once cannot both pass
             existing = db().execute(
                 "SELECT id FROM recordings WHERE sha256 = ? AND deleted_at IS NULL", (digest,)
             ).fetchone()
             if existing:
+                db().rollback()
                 return jsonify(id=existing["id"], duplicate=True), 200
 
             now = utcnow_iso()
@@ -576,6 +585,8 @@ def create_app(config=None):
         recording, and an empty list if it could not (the player then draws a plain line)."""
         row = live_row(rec_id)
         peaks = None if row["peaks"] is None else json.loads(row["peaks"])
+        if peaks is None and not app.config["FFMPEG"]:
+            peaks = []             # nothing will ever measure it, so say so instead of making the player keep asking
         resp = jsonify(duration_s=row["duration_s"], peaks=peaks)
         resp.headers["Cache-Control"] = "private, no-cache"
         return resp

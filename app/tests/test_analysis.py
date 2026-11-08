@@ -192,7 +192,7 @@ def test_without_ffmpeg_nothing_is_measured_until_it_appears(make_app, tmp_path)
     rid = upload(c, tone_then_silence(tmp_path).read_bytes())
     settle(first)
     login(c)
-    assert c.get(f"/api/recordings/{rid}/analysis").get_json() == {"duration_s": None, "peaks": None}
+    assert c.get(f"/api/recordings/{rid}/analysis").get_json() == {"duration_s": None, "peaks": []}   # no ffmpeg: "no waveform", so the player stops asking
     first.extensions["riffbox"].stop()
 
     second = make_app(FFMPEG=FFMPEG)                                # "ffmpeg installed, service restarted"
@@ -225,7 +225,7 @@ def test_analysis_for_an_unmeasured_recording_and_access_rules(make_app):
     assert c.get(f"/api/recordings/{rid}/analysis").status_code == 401
     assert c.get(f"/api/recordings/{rid}/analysis", headers={"Authorization": f"Bearer {TOKEN}"}).status_code == 401
     login(c)
-    assert c.get(f"/api/recordings/{rid}/analysis").get_json() == {"duration_s": None, "peaks": None}
+    assert c.get(f"/api/recordings/{rid}/analysis").get_json() == {"duration_s": None, "peaks": []}   # no ffmpeg: "no waveform", so the player stops asking
     assert c.get("/api/recordings/9999/analysis").status_code == 404
     assert c.get(f"/api/recordings/{rid}/analysis").headers["Cache-Control"] == "private, no-cache"
 

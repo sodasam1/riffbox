@@ -1,9 +1,9 @@
 <!-- The private "How this works" page. Served only to a logged-in session (GET /api/about) because it
      describes the server setup. This is an HTML fragment, not a full page. Keep the section order:
-     Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model.
+     Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model, Keeping your data portable.
      UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
 
-<p class="meta">Last updated: 8 Nov 2026, after building Phase 7. Written from what was checked on your server and
+<p class="meta">Last updated: 8 Nov 2026, after the Phase 7 check and the start of Phase 8. Written from what was checked on your server and
 in the tests, not from assumptions; anything unverified is marked as such.</p>
 
 <h2>Planned features</h2>
@@ -26,7 +26,7 @@ committed build order; these are the extras that come after, or alongside, them.
     needs are recorded since Phase 6, and you can already sort the Library by last played.)</li>
   <li><strong>Weekly email digest</strong> of a few forgotten hearted ideas, sent through your server's
     existing mail setup (<code>smtpd</code> and smtp2go), so no new service is needed.</li>
-  <li><strong>Possible later:</strong> small waveform thumbnails in the list, and an export-everything zip.</li>
+  <li><strong>Possible later:</strong> small waveform thumbnails in the list, and an export-everything bundle (see "Keeping your data portable" at the bottom).</li>
 </ul>
 
 <h2>Roadmap and progress</h2>
@@ -247,3 +247,96 @@ and tidied automatically, so "Beat  BOX" and "beat box" are the same tag.</p>
 <p>In <code>/var/riffbox/audio/</code>: your original upload under a random name (for example
 <code>3f9a….m4a</code>), and, for Apple Lossless memos, a matching <code>.flac</code> playback copy under its own
 random name. Originals are never modified or deleted by the app.</p>
+
+<h2>Keeping your data portable</h2>
+<p>The goal: your recordings and everything you typed about them stay usable for decades, even if this app, this
+server or this code stops working. Two separate questions: what could stop the <em>app</em>, and how do you
+get the <em>data</em> out if it does.</p>
+
+<h3>What the app depends on</h3>
+<div class="scroll">
+<table>
+  <thead><tr><th>Depends on</th><th>Used for</th><th>Risk over 20 years</th></tr></thead>
+  <tbody>
+    <tr><td>SQLite (built into Python)</td><td>All the details: titles, tags, notes, marks, dates.</td>
+      <td>Very low. The file format is documented and stable, and the SQLite developers intend to support it
+        through 2050.</td></tr>
+    <tr><td>Ordinary audio files</td><td>Your originals, untouched, in <code>/var/riffbox/audio/</code>.</td>
+      <td>Very low for m4a, wav, mp3 and flac. Apple Lossless (ALAC) is open but some browsers can't play it,
+        which is why a FLAC copy exists.</td></tr>
+    <tr><td>Python 3</td><td>Runs the server.</td>
+      <td>Low. Each new release removes a few old features, so the code is re-tested after each upgrade.</td></tr>
+    <tr><td>Flask and waitress (plus Werkzeug, Jinja2, MarkupSafe, itsdangerous, click, blinker)</td>
+      <td>Web routing, login cookie, file upload parsing, the web server.</td>
+      <td><strong>The highest.</strong> Third-party code that changes between major versions, and whose OpenBSD
+        package may eventually disappear. Mitigation: pinned versions, and a plan to keep copies of them (below).</td></tr>
+    <tr><td>ffmpeg (optional)</td><td>Waveforms, lengths and FLAC play copies.</td>
+      <td>Low impact. Without it everything still works; waveforms and play copies just stop being made.</td></tr>
+    <tr><td>OpenBSD, relayd, acme-client, your domain and VPS</td><td>Hosting and HTTPS.</td>
+      <td>Ongoing cost and chores, but replaceable: the app is a plain Python program that can run on any
+        computer, behind any web server.</td></tr>
+    <tr><td>A web browser</td><td>The interface: plain HTML, CSS and JavaScript, no frameworks and no build step.</td>
+      <td>Low. It uses long-standing browser features only.</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Not dependencies: Cloudflare or any other outside service, any JavaScript library, any font or file loaded
+from another site, any account anywhere.</p>
+
+<h3>What keeps it working for decades</h3>
+<ul>
+  <li><strong>The data matters more than the app.</strong> The app is small and replaceable; the SQLite file and the
+    audio folder are what must survive. The most valuable habit is a regular export you can open without this
+    app (next section).</li>
+  <li><strong>Keep your own copy of the code and its libraries.</strong> The code is on GitHub, but keep a clone on
+    your computer too, and add the exact pinned versions of Flask, waitress and their helpers (all pure Python, so
+    one copy works on any computer) to that clone. Then nothing has to be downloaded to rebuild it.</li>
+  <li><strong>Practice a restore.</strong> Once a year, start the app from a backup on an ordinary computer with
+    only Python installed. If that works, you know the whole chain works. (Phase 8 builds this drill.)</li>
+  <li><strong>Optional, later: remove Flask and waitress altogether</strong>, leaving only Python's standard library.
+    The one hard part is reading file uploads, which Flask's helper Werkzeug does for us and which Python removed
+    from its own library in 3.13; sending the file as a plain request body instead would avoid needing it. The test
+    suite would show whether the rewritten version behaves identically. Not scheduled; worth doing if the libraries
+    start to cause trouble.</li>
+</ul>
+
+<h3>Getting your data out today</h3>
+<p>Do this on the server. Do not copy <code>riffbox.db</code> with a plain file copy while the service runs: the
+newest changes can still be in a side file (<code>riffbox.db-wal</code>), so the copy would be missing them. This
+makes a consistent copy instead:</p>
+<div class="scroll"><pre><code>doas -u _riffbox python3 -c "import sqlite3; s = sqlite3.connect('/var/riffbox/riffbox.db'); s.backup(sqlite3.connect('/tmp/riffbox-copy.db'))"</code></pre></div>
+<p>Then copy <code>/tmp/riffbox-copy.db</code> and the whole <code>/var/riffbox/audio/</code> folder to your computer
+(with your normal SFTP tool). Audio files have random names, so <strong>the audio alone tells you nothing</strong>:
+the titles, tags and notes live only in the database. To make a readable index, save this as
+<code>dump.py</code> and run <code>python3 dump.py riffbox-copy.db &gt; index.csv</code>. The result opens in any
+spreadsheet and lists each recording's title, the file that holds it, dates, BPM, key, mark, song, notes and tags
+(it was checked against a database with quotes, commas and line breaks in the text):</p>
+<div class="scroll"><pre><code>import csv, sqlite3, sys
+db = sqlite3.connect(sys.argv[1])
+db.row_factory = sqlite3.Row
+rows = db.execute("""SELECT r.id, r.title, r.filename AS file_on_disk, r.orig_filename, r.recorded_at,
+  r.uploaded_at, r.status, r.bpm, r.key_root, r.key_mode, r.rating, r.used_in, r.notes,
+  (SELECT group_concat(tag, '; ') FROM recording_tags WHERE recording_id = r.id) AS tags
+  FROM recordings r WHERE r.deleted_at IS NULL ORDER BY r.recorded_at""").fetchall()
+out = csv.writer(sys.stdout)
+out.writerow(rows[0].keys() if rows else [])
+for r in rows:
+    out.writerow(list(r))</code></pre></div>
+
+<h3>Export formats worth having (not built yet)</h3>
+<p>A proper export button or script is planned with Phase 8. These are the formats under consideration; they can
+be combined in one bundle.</p>
+<ul>
+  <li><strong>A folder of audio plus one plain-text note per recording</strong> (<code>Title.m4a</code> next to
+    <code>Title.md</code>, with the details at the top and your notes below). Readable in any text editor, and
+    also a ready-made Obsidian vault, which plays the audio inline.</li>
+  <li><strong>A self-contained web page archive</strong>: an <code>index.html</code> with every recording listed,
+    its details, and a play control, pointing at the audio files next to it. Opens by double-clicking, with no
+    server and no software beyond a browser.</li>
+  <li><strong>CSV or JSON index</strong> with a checksum (SHA-256) for every file, so you can prove nothing was
+    damaged. The checksums are already stored.</li>
+  <li><strong>Details written into the audio files themselves</strong> (title, notes, tags, BPM, key, date) on
+    <em>copies</em>, so the information travels with each file even if it is renamed. Works well for m4a, mp3 and
+    flac; poorly for wav, which needs the text-note format instead.</li>
+  <li><strong>A raw copy of the database</strong> in the bundle too, for complete fidelity.</li>
+</ul>
