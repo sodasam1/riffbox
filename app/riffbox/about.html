@@ -26,7 +26,7 @@ committed build order; these are the extras that come after, or alongside, them.
     needs are recorded since Phase 6, and you can already sort the Library by last played.)</li>
   <li><strong>Weekly email digest</strong> of a few forgotten hearted ideas, sent through your server's
     existing mail setup (<code>smtpd</code> and smtp2go), so no new service is needed.</li>
-  <li><strong>Possible later:</strong> small waveform thumbnails in the list, and an export-everything bundle (see "Keeping your data portable" at the bottom).</li>
+  <li><strong>Possible later:</strong> small waveform thumbnails in the list.</li>
 </ul>
 
 <h2>Roadmap and progress</h2>
@@ -77,9 +77,14 @@ phone, a check by you) before the next one starts. That keeps any problem confin
       back, Esc leaves. Also added: the player can be collapsed to one slim row (by a button, and automatically while
       you type on a phone), and opening the form no longer raises the keyboard on a touch screen.</td>
       <td><span class="status done">Built; awaiting your check</span></td></tr>
-    <tr><td>8</td><td><strong>Hardening and backup</strong>: delete with restore, a mobile layout pass, a
-      nightly backup of the database and audio, and a practice restore to prove it works. (Login attempt
-      limiting was pulled forward and is already live.)</td><td><span class="status next">Next</span></td></tr>
+    <tr><td>8</td><td><strong>Hardening and backup</strong>: <strong>Delete</strong> (twice in the edit form) moves a
+      recording to a <strong>Trash</strong> tab, and <strong>Restore</strong> brings it back; nothing is removed from
+      disk. <code>deploy/backup.py</code> makes a checked copy of the database plus every original, nightly if you
+      schedule it; <code>deploy/export.py</code> makes the plain-file export described at the bottom of this page; and
+      <code>deploy/PHASE8.md</code> has the practice restore. Also fixed in this phase: very long uploads' temporary
+      files now go to the data disk. (Login attempt limiting was pulled forward and is already live.)</td>
+      <td><span class="status next">Built; awaiting your check</span></td></tr>
+
   </tbody>
 </table>
 </div>
@@ -301,7 +306,8 @@ from another site, any account anywhere.</p>
 </ul>
 
 <h3>Getting your data out today</h3>
-<p>Do this on the server. Do not copy <code>riffbox.db</code> with a plain file copy while the service runs: the
+<p>The export script below does all of this for you. These two steps are the by-hand minimum, for a day when only
+Python is at hand. Do not copy <code>riffbox.db</code> with a plain file copy while the service runs: the
 newest changes can still be in a side file (<code>riffbox.db-wal</code>), so the copy would be missing them. This
 makes a consistent copy instead:</p>
 <div class="scroll"><pre><code>doas -u _riffbox python3 -c "import sqlite3; s = sqlite3.connect('/var/riffbox/riffbox.db'); s.backup(sqlite3.connect('/tmp/riffbox-copy.db'))"</code></pre></div>
@@ -323,20 +329,30 @@ out.writerow(rows[0].keys() if rows else [])
 for r in rows:
     out.writerow(list(r))</code></pre></div>
 
-<h3>Export formats worth having (not built yet)</h3>
-<p>A proper export button or script is planned with Phase 8. These are the formats under consideration; they can
-be combined in one bundle.</p>
+<h3>The export bundle</h3>
+<p>The repository has <code>deploy/export.py</code>, which needs only Python and does not use this app's code, so it
+still works if the app or Flask is gone. Run it on the server, then fetch the result with your SFTP tool:</p>
+<div class="scroll"><pre><code>doas -u _riffbox python3 /usr/local/riffbox/deploy/export.py /var/riffbox /tmp/riffbox-export</code></pre></div>
+<p>It creates a folder with:</p>
 <ul>
-  <li><strong>A folder of audio plus one plain-text note per recording</strong> (<code>Title.m4a</code> next to
-    <code>Title.md</code>, with the details at the top and your notes below). Readable in any text editor, and
-    also a ready-made Obsidian vault, which plays the audio inline.</li>
-  <li><strong>A self-contained web page archive</strong>: an <code>index.html</code> with every recording listed,
-    its details, and a play control, pointing at the audio files next to it. Opens by double-clicking, with no
-    server and no software beyond a browser.</li>
-  <li><strong>CSV or JSON index</strong> with a checksum (SHA-256) for every file, so you can prove nothing was
-    damaged. The checksums are already stored.</li>
-  <li><strong>Details written into the audio files themselves</strong> (title, notes, tags, BPM, key, date) on
-    <em>copies</em>, so the information travels with each file even if it is renamed. Works well for m4a, mp3 and
-    flac; poorly for wav, which needs the text-note format instead.</li>
-  <li><strong>A raw copy of the database</strong> in the bundle too, for complete fidelity.</li>
+  <li><strong><code>recordings/</code></strong>: each original audio file under a readable name such as
+    <code>2026-03-01 Title [12].m4a</code>, with a plain-text note beside it
+    (<code>2026-03-01 Title [12].md</code>: the details at the top, your notes below). Any text editor opens it,
+    and an Obsidian vault can open the folder as it is and play the audio inline.</li>
+  <li><strong><code>index.html</code></strong>: every recording with its details and a play control. Double-click it;
+    no server or software beyond a browser (checked, including with awkward characters in file names).</li>
+  <li><strong><code>index.csv</code></strong>: the same list for a spreadsheet.</li>
+  <li><strong><code>riffbox.db</code></strong>: the complete database as a copy, for full fidelity.</li>
+  <li><strong><code>manifest-sha256.txt</code></strong>: a checksum for every file (<code>sha256sum -c</code> checks
+    them). The export also compares each audio file with the checksum recorded when you uploaded it, and warns if one
+    is damaged or missing.</li>
 </ul>
+<p>Recordings in the Trash are left out unless you add <code>--include-trash</code>. FLAC play copies are left out
+(they can be rebuilt from the originals). Other formats considered and not built: writing the details into the
+audio files' own tags (works for m4a, mp3 and flac, badly for wav) and a BagIt archive package (a library-world
+standard for exactly this purpose).</p>
+
+<h3>Backup and the practice restore</h3>
+<p><code>deploy/backup.py</code> keeps a consistent copy of the database (checked with SQLite's own integrity
+test, newest 14 kept) and a copy of every original audio file (copied once, never deleted). Setup, the nightly
+schedule and the restore drill are in <code>deploy/PHASE8.md</code>.</p>

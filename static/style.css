@@ -251,3 +251,5 @@ form.edit .error { margin: 0; }
   border: 1px solid var(--line); border-radius: 6px; padding: .5rem .6rem; width: 100%; }
 #triage-card .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 #triage-help { margin: 0; }
+
+button.link.danger { color: #e5484d; }

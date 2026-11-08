@@ -479,9 +479,10 @@ def create_app(config=None):
         for r in db().execute(count_sql + " GROUP BY rating", count_params):
             counts[r["rating"] or "none"] = r["n"]
         total = sum(counts.values())
+        trashed = db().execute("SELECT COUNT(*) FROM recordings WHERE deleted_at IS NOT NULL").fetchone()[0]
         tags = tags_for([r["id"] for r in rows])
         return jsonify(recordings=[row_to_dict(r, tags.get(r["id"], ())) for r in rows],
-                       count=len(rows), total=total, ratings=counts)
+                       count=len(rows), total=total, ratings=counts, trashed=trashed)
 
     @bp.patch("/api/recordings/<int:rec_id>")
     @require_auth()
@@ -514,6 +515,37 @@ def create_app(config=None):
         conn.commit()
         fresh = live_row(rec_id)
         return jsonify(recording=row_to_dict(fresh, tags_for([rec_id]).get(rec_id, ())))
+
+    # ---- delete and restore: "delete" only moves a recording to the Trash; nothing is removed from disk ----
+    @bp.delete("/api/recordings/<int:rec_id>")
+    @require_auth()
+    def trash_recording(rec_id):
+        live_row(rec_id)
+        db().execute("UPDATE recordings SET deleted_at = ? WHERE id = ?", (utcnow_iso(), rec_id))
+        db().commit()
+        return jsonify(ok=True)
+
+    @bp.post("/api/recordings/<int:rec_id>/restore")
+    @require_auth()
+    def restore_recording(rec_id):
+        row = db().execute("SELECT * FROM recordings WHERE id = ? AND deleted_at IS NOT NULL", (rec_id,)).fetchone()
+        if row is None:
+            abort(404)
+        # a copy of the same audio may have been uploaded since; two live rows for one file would break the duplicate check
+        twin = db().execute("SELECT id, title FROM recordings WHERE sha256 = ? AND deleted_at IS NULL AND id != ?",
+                            (row["sha256"], rec_id)).fetchone()
+        if twin:
+            return jsonify(error=f"The same audio is already in your lists as \"{twin['title']}\"."), 409
+        db().execute("UPDATE recordings SET deleted_at = NULL WHERE id = ?", (rec_id,))
+        db().commit()
+        return jsonify(recording=row_to_dict(live_row(rec_id), tags_for([rec_id]).get(rec_id, ())))
+
+    @bp.get("/api/trash")
+    @require_auth()
+    def list_trash():
+        rows = db().execute("SELECT * FROM recordings WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC").fetchall()
+        tags = tags_for([r["id"] for r in rows])
+        return jsonify(recordings=[{**row_to_dict(r, tags.get(r["id"], ())), "deleted_at": r["deleted_at"]} for r in rows])
 
     @bp.get("/api/tags")
     @require_auth()

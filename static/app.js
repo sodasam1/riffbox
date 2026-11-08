@@ -123,6 +123,8 @@ function autoTitle(d) {
 
 function markPlaying() {
   for (const li of document.querySelectorAll("#list li")) {
+    const btn = li.querySelector(".play");
+    if (!btn) continue;                                   // Trash rows have nothing to play
     const on = Number(li.dataset.id) === playingId && !player.paused;
     li.classList.toggle("playing", Number(li.dataset.id) === playingId);
     li.querySelector(".play").textContent = on ? "❚❚" : "▶";
@@ -200,7 +202,9 @@ player.addEventListener("error", async () => {
 // ---- inbox / library, details, and the intake form -------------------------------------------
 // Uploads land in the Inbox. Saving the form (even completely empty) moves a recording to the Library.
 const KEY_ROOTS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
-let view = "inbox";            // which list is showing: "inbox" | "library"
+let view = "inbox";            // which list is showing: "inbox" | "library" | "trash"
+let trashRecs = [];            // recordings moved to the Trash (only fetched while that tab is open)
+let trashCount = 0;
 let inboxRecs = [];            // everything not yet saved to the Library
 let libRecs = [];              // Library recordings matching the current filters (the server does the filtering)
 let libTotal = 0;              // Library size before any filter
@@ -253,11 +257,15 @@ function setView(next) {
 }
 $("#tab-inbox").addEventListener("click", () => setView("inbox"));
 $("#tab-library").addEventListener("click", () => setView("library"));
+$("#tab-trash").addEventListener("click", () => { setView("trash"); loadList(); });
 
 function updateTabs() {
   const inbox = inboxRecs.length;
   $("#tab-inbox").textContent = "Inbox" + (inbox ? " (" + inbox + ")" : "");
   $("#tab-library").textContent = "Library" + (libTotal ? " (" + libTotal + ")" : "");
+  $("#tab-trash").hidden = !trashCount && view !== "trash";
+  $("#tab-trash").textContent = "Trash" + (trashCount ? " (" + trashCount + ")" : "");
+  $("#tab-trash").setAttribute("aria-pressed", String(view === "trash"));
   $("#tab-inbox").setAttribute("aria-pressed", String(view === "inbox"));
   $("#tab-library").setAttribute("aria-pressed", String(view === "library"));
 }
@@ -269,7 +277,7 @@ const filtersActive = () => Boolean(filters.q.trim() || filters.tags.length || b
 function render() {
   updateTabs();
   const inLibrary = view === "library";
-  const shown = inLibrary ? libRecs : inboxRecs;
+  const shown = inLibrary ? libRecs : view === "trash" ? trashRecs : inboxRecs;
   const ul = $("#list");
   ul.replaceChildren();
   ul.classList.toggle("library", inLibrary);
@@ -281,6 +289,7 @@ function render() {
   empty.hidden = shown.length > 0;
   if (!shown.length) {
     empty.textContent = (inboxRecs.length + libTotal) === 0 ? "Nothing yet. Upload a voice memo above."
+      : view === "trash" ? "The Trash is empty."
       : !inLibrary ? "Nothing waiting to be tagged. Switch to Library to browse what you've saved."
       : libTotal === 0 ? "Nothing in the Library yet. Open a recording in the Inbox and save it, and it moves here."
       : "No recordings match these filters. Use Clear filters to start over.";
@@ -292,7 +301,7 @@ function render() {
   if (inLibrary) updateFilterUI();
   playStatus = new Map([...inboxRecs, ...libRecs].map((rec) => [rec.id, rec.play_status]));
   if (selectedId !== null && !shown.some((r) => r.id === selectedId)) selectedId = null;   // filtered out
-  for (const rec of shown) ul.append(buildRow(rec));
+  for (const rec of shown) ul.append(view === "trash" ? buildTrashRow(rec) : buildRow(rec));
   markPlaying();
 }
 
@@ -337,6 +346,34 @@ function buildRow(rec) {
   if (rec.id === selectedId) { li.classList.add("selected"); li.setAttribute("aria-current", "true"); }
   if (openEditId === rec.id) li.append(buildForm(rec));
   return li;
+}
+
+// A recording in the Trash: it can't be played or edited, only brought back.
+function buildTrashRow(rec) {
+  const restore = el("button", { class: "link restore-btn", type: "button" }, "Restore");
+  restore.addEventListener("click", async () => {
+    restore.disabled = true;
+    try {
+      const r = await api("recordings/" + rec.id + "/restore", { method: "POST" });
+      if (r.status === 401) { show("login"); return; }
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        notify(body.error || "Could not restore it (error " + r.status + ").");
+        restore.disabled = false;
+        return;
+      }
+      await loadList();
+      notify("Restored to the " + (rec.status === "inbox" ? "Inbox" : "Library") + ".");
+    } catch (e) { notify("Could not reach the server. Check your connection and try again."); restore.disabled = false; }
+  });
+  const meta = el("div", { class: "meta when" }, "Deleted " + fmtDay(rec.deleted_at) + " · " + fmtSize(rec.size));
+  const info = el("div", { class: "info" }, el("div", { class: "title" }, rec.title), meta);
+  if (rec.tags.length) {
+    const tags = el("div", { class: "tags" });
+    for (const t of rec.tags) tags.append(el("span", { class: "chip tag" }, t));
+    info.append(tags);
+  }
+  return el("li", { "data-id": String(rec.id), "data-title": rec.title }, el("span"), info, el("div", { class: "side" }, restore));
 }
 
 function field(labelText, control, id) {
@@ -442,6 +479,26 @@ function buildForm(rec) {
   const actions = el("div", { class: "actions" }, save, cancel);
   let back = null;
   if (rec.status !== "inbox") { back = el("button", { type: "button", class: "link" }, "Move back to Inbox"); actions.append(back); }
+  const del = el("button", { type: "button", class: "link danger" }, "Delete");
+  let armed = null;
+  del.addEventListener("click", async () => {
+    if (!armed) {                                              // first press asks; a second press within 4 s does it
+      del.textContent = "Press again to move to Trash";
+      armed = setTimeout(() => { armed = null; del.textContent = "Delete"; }, 4000);
+      return;
+    }
+    clearTimeout(armed); armed = null;
+    try {
+      const r = await api("recordings/" + id, { method: "DELETE" });
+      if (r.status === 401) { show("login"); return; }
+      if (!r.ok) { err.textContent = "Could not delete (error " + r.status + ")."; err.hidden = false; del.textContent = "Delete"; return; }
+    } catch (e) { err.textContent = "Could not reach the server."; err.hidden = false; del.textContent = "Delete"; return; }
+    if (playingId === id) { player.pause(); }
+    openEditId = null;
+    await loadList();
+    notify("Moved to Trash. It is kept, and the Trash tab can restore it.");
+  });
+  actions.append(del);
   form.append(err, actions);
 
   const submit = async (status) => {
@@ -496,10 +553,11 @@ function libraryQuery() {
 async function loadList() {
   clearTimeout(pollTimer);
   const seq = ++loadSeq;
-  let inbox, lib, tags;
+  let inbox, lib, tags, trash;
   try {
-    [inbox, lib, tags] = await Promise.all([
-      api("recordings?status=inbox"), api("recordings?" + libraryQuery()), api("tags")]);
+    [inbox, lib, tags, trash] = await Promise.all([
+      api("recordings?status=inbox"), api("recordings?" + libraryQuery()), api("tags"),
+      view === "trash" ? api("trash") : Promise.resolve(null)]);
   } catch (e) {
     if (seq === loadSeq) { notify("Could not reach the server. Check your connection and try again."); schedulePoll(); }
     return;
@@ -512,6 +570,8 @@ async function loadList() {
   libRecs = libBody.recordings;
   libTotal = libBody.total;
   libRatings = libBody.ratings;
+  trashCount = inboxBody.trashed;
+  if (trash && trash.ok) trashRecs = (await trash.json()).recordings;
   if (tags.ok) allTags = (await tags.json()).tags;
   if (openEditId !== null) updateTabs();     // never rebuild the list under a form someone is typing in
   else render();

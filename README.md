@@ -91,7 +91,7 @@ ffmpeg the bar still works but shows a plain line and no lengths. `app/riffbox/m
     uninstall (`deploy/UNINSTALL.md` would gain a step to delete `htdocs/ideas`).
   - Not started. Do it as its own phase, with a deploy gate that checks the page loads from httpd
     and that the old and new routes don't both answer.
-- Possible later: waveform thumbnails in the list, export-all zip.
+- Possible later: waveform thumbnails in the list.
 
 ## Layout
 

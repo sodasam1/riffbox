@@ -83,7 +83,14 @@ Do not start a phase until the previous gate is ticked.
       - [ ] Deploy gate: routine deploy (no new package, no database step, no config change). Mark a few recordings
             on the phone, try the Show filter, and triage a few Inbox recordings on the computer.
       - Also on this branch: the player collapse (see below).
-- [ ] **Phase 8** Hardening + backup + restore drill.
+- [ ] **Phase 8** Hardening + backup + restore drill (branch `phase-8`).
+      - [x] Built and tested: Trash (soft delete, restore, 409 if the same audio was uploaded again meanwhile), `deploy/backup.py`
+            (consistent, integrity-checked database copies + add-only audio copies), the restore drill as an automated test,
+            `deploy/export.py` (readable names, a `.md` note per recording, `index.html`, `index.csv`, database copy,
+            checksums; the HTML checked playing from `file://`), portability section on the How-this-works page,
+            fixes for the open issues from the review (atomic duplicate check, data-disk staging, no waveform polling
+            without ffmpeg). Browser: `tests/e2e/phase8.cjs`.
+      - [ ] Deploy gate: routine deploy; then `deploy/PHASE8.md` (try a backup, schedule it, do the restore drill once, run one export).
 
 ## Player collapse (owner request: the player blocked a phone screen while typing)
 The player bar has a collapse button (▾/▴) that folds it to one slim row (play, title, time), remembered between
