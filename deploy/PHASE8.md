@@ -11,25 +11,35 @@ the system `/tmp`. It creates the folder itself and empties it at every start.
 The two scripts below need only Python (already installed) and live in `/usr/local/riffbox/deploy/` after a deploy.
 They never import the app, so they keep working even if Flask is gone.
 
-## 1. Try a backup by hand
+## 1. Make the backup folder and try a backup by hand
 ```sh
 df -h /var
 ```
 CHECK: the free space is more than the size of `/var/riffbox/audio` (a backup holds a second copy of your originals).
 ```sh
-doas mkdir -p /var/riffbox-backup
-doas /usr/local/bin/python3 /usr/local/riffbox/deploy/backup.py /var/riffbox /var/riffbox-backup
+doas install -d -o _riffbox -g _riffbox -m 700 /var/riffbox-backup
+doas -u _riffbox /usr/local/bin/python3 /usr/local/riffbox/deploy/backup.py /var/riffbox /var/riffbox-backup
 ```
 CHECK: it prints `database -> riffbox-<date>.db; N new audio file(s) copied` and no WARNING lines. Run it a second
 time: `0 new audio file(s) copied`.
 
-## 2. Make it nightly
+## 2. Switch on the "Back up now" button and the nightly backup
+The app has a **Backup and export** page (link at the top, next to *How this works*). Its *Back up now* button
+and the backup status need to know the folder. Add this line to `/etc/riffbox.conf`, then restart:
+```
+RIFFBOX_BACKUP_DIR=/var/riffbox-backup
+```
 ```sh
-doas crontab -e
+doas rcctl restart riffbox
 ```
-Add one line (the output is thrown away on purpose, so the only mail you get from cron is a WARNING or an error):
+CHECK: on the page, *Backup on the server* shows the backup you just made. (Without that line the page says the
+button is off and the rest of the page still works.)
+
+For the nightly run, `doas crontab -e` and add one line. The output is thrown away on purpose, so the only mail you
+get from cron is a WARNING or an error; the `chown` keeps the files owned by `_riffbox`, so the button can add to the
+same folder (I have not been able to try this cron line on your OpenBSD; check it the morning after):
 ```
-30 3 * * * /usr/local/bin/python3 /usr/local/riffbox/deploy/backup.py /var/riffbox /var/riffbox-backup > /dev/null
+30 3 * * * /usr/local/bin/python3 /usr/local/riffbox/deploy/backup.py /var/riffbox /var/riffbox-backup > /dev/null; chown -R _riffbox:_riffbox /var/riffbox-backup
 ```
 It keeps the newest 14 database copies (`--keep N` changes that). Audio is only ever added to the backup.
 
@@ -53,12 +63,18 @@ The automated tests do the same thing with a scratch folder (`test_backup_export
 with your real data.
 
 ## 5. Export everything to plain files
+**In the browser (easiest):** open *Backup and export* at the top of the app and press *Download the export (.zip)*.
+It streams the zip as it is made, so nothing big is stored on the server and the server's memory use stays small. The
+browser shows the progress; keep the tab open. Tick *Include recordings in the Trash* if you want those too. *Download
+riffbox.db* gives just the database. Unzip the file and open `index.html` to look around.
+
+**From the command line** (same result, written to a folder instead):
 ```sh
 doas -u _riffbox /usr/local/bin/python3 /usr/local/riffbox/deploy/export.py /var/riffbox /tmp/riffbox-export
 ```
-Then fetch `/tmp/riffbox-export` with your SFTP tool and delete it on the server. Open `index.html` in the folder to
-look around. Details of what it contains are on the app's *How this works* page, "Keeping your data portable".
-Add `--include-trash` to include deleted recordings. It refuses to write into a folder that already has files in it.
+Then fetch `/tmp/riffbox-export` with your SFTP tool and delete it on the server. Add `--include-trash` to include
+deleted recordings. It refuses to write into a folder that already has files in it. If any audio file is missing or
+fails its upload checksum, the export still completes and lists the problem in `PROBLEMS.txt` (and on the command line, as a warning).
 
 ## What did not change
 Soft delete is the only deletion: there is deliberately no "empty the Trash" button yet, because originals are never

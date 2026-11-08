@@ -90,7 +90,10 @@ Do not start a phase until the previous gate is ticked.
             checksums; the HTML checked playing from `file://`), portability section on the How-this-works page,
             fixes for the open issues from the review (atomic duplicate check, data-disk staging, no waveform polling
             without ffmpeg). Browser: `tests/e2e/phase8.cjs`.
-      - [ ] Deploy gate: routine deploy; then `deploy/PHASE8.md` (try a backup, schedule it, do the restore drill once, run one export).
+      - [x] Added after the merge: the **Backup and export** page (header link): zip export streamed from the browser (shared recipe in
+            `app/riffbox/exporter.py`, byte-identical to `deploy/export.py`), database-only download, backup status and a
+            *Back up now* button (`RIFFBOX_BACKUP_DIR`; shared code in `app/riffbox/backup.py`). Tests: `test_data_page.py`, `tests/e2e/datapage.cjs`.
+      - [ ] Deploy gate: routine deploy; then `deploy/PHASE8.md` (make the backup folder, set `RIFFBOX_BACKUP_DIR`, schedule it, do the restore drill once, download one export).
 
 ## Player collapse (owner request: the player blocked a phone screen while typing)
 The player bar has a collapse button (▾/▴) that folds it to one slim row (play, title, time), remembered between

@@ -6,6 +6,7 @@ passphrase/cookie login, and a bare recordings list.
 import datetime as dt
 import hashlib
 import hmac
+import io
 import json
 import mimetypes
 import os
@@ -21,9 +22,11 @@ from functools import wraps
 from pathlib import Path
 from types import SimpleNamespace
 
-from flask import (Blueprint, Flask, abort, g, jsonify, redirect, request,
+from flask import (Blueprint, Flask, Response, abort, g, jsonify, redirect, request,
                    send_file, send_from_directory, session)
 
+from . import backup as backups
+from . import exporter
 from .intake import Invalid, MAX_TAGS_TOTAL, normalize_tag, validate_patch
 from .library import build_query, parse_filters
 from .media import INPUT_FORMAT, analyze_audio, convert_to_flac, mp4_audio_codec
@@ -98,6 +101,8 @@ def create_app(config=None):
         # browser-friendly FLAC play copy.
         FFMPEG=default_ffmpeg(),
         CONVERT_TIMEOUT=900,
+        # Where the "Back up now" button writes (and the nightly script, if you use it). Empty = the button is off.
+        BACKUP_DIR=os.environ.get("RIFFBOX_BACKUP_DIR", ""),
         STATIC_DIR=os.environ.get("RIFFBOX_STATIC_DIR", str(Path(__file__).resolve().parents[2] / "static")),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
@@ -144,7 +149,10 @@ def create_app(config=None):
     scratch.mkdir(exist_ok=True)
     tempfile.tempdir = str(scratch)
     for leftover in scratch.iterdir():
-        leftover.unlink(missing_ok=True)
+        if leftover.is_dir():                      # an export that was cut off by a restart
+            shutil.rmtree(leftover, ignore_errors=True)
+        else:
+            leftover.unlink(missing_ok=True)
     for stale in audio_dir.glob(".incoming-*"):      # half-written files from a crash or a restart mid-upload
         stale.unlink(missing_ok=True)
     boot = connect()
@@ -632,6 +640,56 @@ def create_app(config=None):
         db().execute("UPDATE recordings SET last_played_at = ? WHERE id = ?", (now, rec_id))
         db().commit()
         return jsonify(ok=True, last_played_at=now)
+
+    # ---- backup and export page ---------------------------------------------------------------------
+    backup_runner = backups.Runner(data_dir, app.config["BACKUP_DIR"]) if app.config["BACKUP_DIR"] else None
+
+    @bp.get("/api/data")
+    @require_auth()
+    def data_overview():
+        """Numbers for the "Backup and export" page."""
+        row = db().execute("SELECT COUNT(CASE WHEN deleted_at IS NULL THEN 1 END) AS live,"
+                           " COUNT(CASE WHEN deleted_at IS NOT NULL THEN 1 END) AS trashed,"
+                           " COALESCE(SUM(size), 0) AS bytes FROM recordings").fetchone()
+        out = {"recordings": row["live"], "trashed": row["trashed"], "audio_bytes": row["bytes"], "backup": None}
+        if backup_runner:
+            out["backup"] = {**backups.status(data_dir, app.config["BACKUP_DIR"]), "job": backup_runner.job}
+        resp = jsonify(out)
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+
+    @bp.post("/api/backup")
+    @require_auth()
+    def backup_now():
+        if not backup_runner:
+            return jsonify(error="backups are not set up on the server (see the page for how)"), 404
+        started = backup_runner.start()
+        return jsonify(started=started), (202 if started else 409)
+
+    @bp.get("/api/export.zip")
+    @require_auth()
+    def export_zip():
+        """Everything as one zip, streamed as it is made (see exporter.py). `?trash=1` includes the Trash."""
+        stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")
+        folder = f"riffbox-export-{stamp}"
+        stream = exporter.stream_zip(data_dir, request.args.get("trash") == "1", scratch=scratch, folder=folder)
+        resp = Response(stream, mimetype="application/zip")
+        resp.headers["Content-Disposition"] = f'attachment; filename="{folder}.zip"'
+        resp.headers["Cache-Control"] = "no-store"
+        resp.headers["X-Accel-Buffering"] = "no"
+        return resp
+
+    @bp.get("/api/export/database")
+    @require_auth()
+    def export_database():
+        """A consistent copy of the database file alone (small, instant)."""
+        with tempfile.TemporaryDirectory(dir=scratch) as tmp:
+            target = Path(tmp) / "riffbox.db"
+            exporter.snapshot_database(data_dir, target)
+            payload = io.BytesIO(target.read_bytes())
+        stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d")
+        return send_file(payload, mimetype="application/vnd.sqlite3", as_attachment=True,
+                         download_name=f"riffbox-{stamp}.db", max_age=0)
 
     @bp.get("/api/about")
     @require_auth()

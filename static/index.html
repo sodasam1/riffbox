@@ -21,6 +21,7 @@
   <header>
     <h1>Riffbox</h1>
     <nav>
+      <a id="data-link" class="quiet" href="#data">Backup and export</a>
       <a id="how-link" class="quiet" href="#how">How this works</a>
       <button id="logout" class="link">Log out</button>
     </nav>
@@ -30,6 +31,42 @@
     <p><a id="how-back" href="#">← Back to recordings</a></p>
     <h2 id="how-h" class="how-title">How this works</h2>
     <div id="how-body">Loading…</div>
+  </section>
+
+  <section id="data-view" aria-labelledby="data-h" hidden>
+    <p><a id="data-back" href="#">← Back to recordings</a></p>
+    <h2 id="data-h" class="how-title">Backup and export</h2>
+    <p id="data-summary" class="meta" aria-live="polite">Loading…</p>
+
+    <h3>Export everything</h3>
+    <p>One zip file with all your original audio under readable names, a plain-text note beside each one, a web
+      page that lists and plays everything, a spreadsheet list, a copy of the database and checksums. It opens on any
+      computer without this app. The download starts straight away and your browser shows its progress; keep this
+      tab open until it finishes.</p>
+    <p><label><input type="checkbox" id="data-trash"> Include recordings in the Trash <span id="data-trash-n" class="meta"></span></label></p>
+    <p><a id="data-zip" class="btn primary" href="api/export.zip" download>Download the export (.zip)</a></p>
+    <p class="meta">Just the database (titles, tags, notes, marks; no audio): <a id="data-db" href="api/export/database" download>download riffbox.db</a></p>
+
+    <h3>Backup on the server</h3>
+    <div id="backup-off" hidden>
+      <p>The "Back up now" button is not switched on. It needs a folder on the server to write to; the steps are in
+        <code>deploy/PHASE8.md</code> (section 2). The nightly backup script works without it.</p>
+    </div>
+    <div id="backup-on" hidden>
+      <p id="backup-state"></p>
+      <p><button type="button" id="backup-now" class="primary">Back up now</button></p>
+      <p id="backup-msg" class="meta" role="status" aria-live="polite"></p>
+      <p class="meta">A backup keeps a checked copy of the database (the newest 14) and a copy of every original
+        audio file. It lives on the same server, so it does not protect you if the server is lost. For that,
+        download the export above or pull the backup folder to your own computer.</p>
+    </div>
+
+    <h3>Restoring</h3>
+    <p>There is deliberately no restore button: replacing the live library is the one action that cannot be undone
+      from here. To check that a backup really works, do the practice restore in <code>deploy/PHASE8.md</code>
+      (section 4) on your own computer. If the server is ever lost, the zip above also contains
+      <code>riffbox.db</code> and the audio, which is everything needed.</p>
+    <p id="data-err" class="error" role="alert" hidden></p>
   </section>
 
   <div id="main-view">

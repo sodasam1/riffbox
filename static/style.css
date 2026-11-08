@@ -253,3 +253,10 @@ form.edit .error { margin: 0; }
 #triage-help { margin: 0; }
 
 button.link.danger { color: #e5484d; }
+
+a.btn { display: inline-block; font: inherit; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+        padding: .55rem 1rem; text-decoration: none; }
+a.btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+#data-view h3 { font-size: 1.05rem; margin: 1.6rem 0 .4rem; }
+#data-view p { max-width: 62ch; }
+#data-view code { font-size: .88em; background: var(--panel); padding: .05rem .3rem; border-radius: 4px; word-break: break-word; }

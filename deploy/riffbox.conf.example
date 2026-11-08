@@ -10,3 +10,6 @@ RIFFBOX_UPLOAD_TOKEN=CHANGE-ME
 RIFFBOX_PASSPHRASE=CHANGE-ME
 # Optional (phase 3.5): lets the server make FLAC play copies of Apple Lossless memos.
 # RIFFBOX_FFMPEG=/usr/local/bin/ffmpeg
+# Optional (phase 8): the folder the "Backup and export" page's "Back up now" button writes to.
+# Create it first:  doas install -d -o _riffbox -g _riffbox -m 700 /var/riffbox-backup
+# RIFFBOX_BACKUP_DIR=/var/riffbox-backup

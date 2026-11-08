@@ -35,9 +35,12 @@ async function boot() {
 // (It describes the server setup, so it is not part of the public page files.) Reached through
 // the link in the header; the address gets "#how", so the browser's Back button works.
 async function route() {
-  const how = location.hash === "#how";
+  const how = location.hash === "#how", data = location.hash === "#data";
   $("#how-view").hidden = !how;
-  $("#main-view").hidden = how;
+  $("#data-view").hidden = !data;
+  $("#main-view").hidden = how || data;
+  if (data) { window.scrollTo(0, 0); loadData(); return; }
+  clearTimeout(dataTimer);
   if (!how) return;
   window.scrollTo(0, 0);
   const body = $("#how-body");
@@ -51,6 +54,61 @@ async function route() {
   }
 }
 window.addEventListener("hashchange", route);
+
+// ---- "Backup and export": download the export, see the server backup, start one -----------------------
+// The downloads are plain links (the browser shows the progress); only the backup status needs script.
+let dataTimer = null;
+function fmtBytes(n) { return n >= 1073741824 ? (n / 1073741824).toFixed(2) + " GB" : n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
+function ago(iso) {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 2) return "just now";
+  if (mins < 120) return mins + " minutes ago";
+  if (mins < 2880) return Math.round(mins / 60) + " hours ago";
+  return Math.round(mins / 1440) + " days ago";
+}
+async function loadData() {
+  clearTimeout(dataTimer);
+  const err = $("#data-err");
+  err.hidden = true;
+  let r;
+  try { r = await api("data"); } catch (e) { err.textContent = "Could not reach the server. Check your connection and try again."; err.hidden = false; return; }
+  if (r.status === 401) { show("login"); return; }
+  if (!r.ok) { err.textContent = "Could not load this page (error " + r.status + ")."; err.hidden = false; return; }
+  const d = await r.json();
+  if (location.hash !== "#data") return;                 // the user already left
+  $("#data-summary").textContent = d.recordings + (d.recordings === 1 ? " recording" : " recordings") +
+    (d.trashed ? " (plus " + d.trashed + " in the Trash)" : "") + " · " + fmtBytes(d.audio_bytes) + " of original audio";
+  $("#data-trash-n").textContent = d.trashed ? "(" + d.trashed + ")" : "";
+  $("#data-trash").disabled = d.trashed === 0;
+  $("#backup-off").hidden = d.backup !== null;
+  $("#backup-on").hidden = d.backup === null;
+  if (!d.backup) return;
+  const b = d.backup, job = b.job;
+  $("#backup-state").textContent = b.latest
+    ? "Last backup: " + ago(b.latest) + " (" + new Date(b.latest).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) + "). " +
+      b.copies + " database " + (b.copies === 1 ? "copy" : "copies") + " kept. " +
+      (b.audio_missing ? b.audio_missing + " of " + b.audio_total + " audio files are not backed up yet." : "All " + b.audio_total + " audio files are backed up.")
+    : "No backup yet. " + b.audio_total + " audio files are waiting to be backed up.";
+  $("#backup-now").disabled = job.running;
+  $("#backup-msg").textContent = job.running ? "Backing up… this page updates when it finishes."
+    : job.message ? job.message + (job.problems.length ? " Problems: " + job.problems.join("; ") : "") : "";
+  if (job.running) dataTimer = setTimeout(loadData, 1500);
+}
+$("#data-trash").addEventListener("change", (e) => { $("#data-zip").setAttribute("href", "api/export.zip" + (e.target.checked ? "?trash=1" : "")); });
+$("#backup-now").addEventListener("click", async () => {
+  $("#backup-now").disabled = true;
+  try {
+    const r = await api("backup", { method: "POST" });
+    if (r.status === 401) { show("login"); return; }
+    if (!r.ok && r.status !== 409) {
+      const body = await r.json().catch(() => ({}));
+      $("#backup-msg").textContent = body.error || "Could not start the backup (error " + r.status + ").";
+      $("#backup-now").disabled = false;
+      return;
+    }
+  } catch (e) { $("#backup-msg").textContent = "Could not reach the server."; $("#backup-now").disabled = false; return; }
+  loadData();
+});
 
 $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();

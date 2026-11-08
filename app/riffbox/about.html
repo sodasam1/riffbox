@@ -3,7 +3,7 @@
      Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model, Keeping your data portable.
      UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
 
-<p class="meta">Last updated: 8 Nov 2026, after the Phase 7 check and the start of Phase 8. Written from what was checked on your server and
+<p class="meta">Last updated: 8 Nov 2026, after adding the Backup and export page. Written from what was checked on your server and
 in the tests, not from assumptions; anything unverified is marked as such.</p>
 
 <h2>Planned features</h2>
@@ -81,7 +81,7 @@ phone, a check by you) before the next one starts. That keeps any problem confin
       recording to a <strong>Trash</strong> tab, and <strong>Restore</strong> brings it back; nothing is removed from
       disk. <code>deploy/backup.py</code> makes a checked copy of the database plus every original, nightly if you
       schedule it; <code>deploy/export.py</code> makes the plain-file export described at the bottom of this page; and
-      <code>deploy/PHASE8.md</code> has the practice restore. Also fixed in this phase: very long uploads' temporary
+      <code>deploy/PHASE8.md</code> has the practice restore. A <strong>Backup and export</strong> page (link at the top) downloads the export as a zip, shows the backup status and has a <em>Back up now</em> button. Also fixed in this phase: very long uploads' temporary
       files now go to the data disk. (Login attempt limiting was pulled forward and is already live.)</td>
       <td><span class="status next">Built; awaiting your check</span></td></tr>
 
@@ -330,8 +330,11 @@ for r in rows:
     out.writerow(list(r))</code></pre></div>
 
 <h3>The export bundle</h3>
-<p>The repository has <code>deploy/export.py</code>, which needs only Python and does not use this app's code, so it
-still works if the app or Flask is gone. Run it on the server, then fetch the result with your SFTP tool:</p>
+<p>Open <strong>Backup and export</strong> (the link at the top of the app) and press <em>Download the export
+(.zip)</em>. The zip is made as it downloads, so the server never has to store a second copy of your audio. The same
+export is also available from the command line: <code>deploy/export.py</code> needs only Python and does not use
+the app's web code, so it still works if the app or Flask is gone. Run it on the server, then fetch the result with
+your SFTP tool:</p>
 <div class="scroll"><pre><code>doas -u _riffbox python3 /usr/local/riffbox/deploy/export.py /var/riffbox /tmp/riffbox-export</code></pre></div>
 <p>It creates a folder with:</p>
 <ul>
@@ -347,12 +350,14 @@ still works if the app or Flask is gone. Run it on the server, then fetch the re
     them). The export also compares each audio file with the checksum recorded when you uploaded it, and warns if one
     is damaged or missing.</li>
 </ul>
-<p>Recordings in the Trash are left out unless you add <code>--include-trash</code>. FLAC play copies are left out
+<p>Recordings in the Trash are left out unless you tick the box on the page (or add <code>--include-trash</code>). FLAC play copies are left out
 (they can be rebuilt from the originals). Other formats considered and not built: writing the details into the
 audio files' own tags (works for m4a, mp3 and flac, badly for wav) and a BagIt archive package (a library-world
 standard for exactly this purpose).</p>
 
 <h3>Backup and the practice restore</h3>
-<p><code>deploy/backup.py</code> keeps a consistent copy of the database (checked with SQLite's own integrity
-test, newest 14 kept) and a copy of every original audio file (copied once, never deleted). Setup, the nightly
-schedule and the restore drill are in <code>deploy/PHASE8.md</code>.</p>
+<p>A backup keeps a consistent copy of the database (checked with SQLite's own integrity test, newest 14 kept) and a
+copy of every original audio file (copied once, never deleted). The <em>Backup and export</em> page shows the last
+backup, whether every audio file is covered, and has a <em>Back up now</em> button; <code>deploy/backup.py</code> does
+the same from the command line or a nightly schedule. Setup, the schedule and the restore drill are in
+<code>deploy/PHASE8.md</code>. There is deliberately no restore button.</p>
