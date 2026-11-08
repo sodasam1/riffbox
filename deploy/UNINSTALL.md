@@ -14,13 +14,15 @@ certificates, DNS or firewall, because Riffbox never changes them.
 | 4 | Secrets file | `/etc/riffbox.conf` | step 4 | No |
 | 5 | Service user and group | `_riffbox` in `/etc/passwd` and `/etc/group` | step 3 | **Yes** (system files) |
 | 6 | The code | `/usr/local/riffbox` | step 3 / deploys | No |
-| 7 | **Your recordings and database** | `/var/riffbox` | step 3 / use | No. **This is your data** |
+| 7 | **Your recordings and database** (also holds the scratch folder `tmp/`) | `/var/riffbox` | step 3 / use | No. **This is your data** |
+| 7b | **Backup copy of your data** (only if you did `deploy/PHASE8.md`): database copies and a second copy of every original | `/var/riffbox-backup` (or whatever `RIFFBOX_BACKUP_DIR` says) | phase 8 | No. **This is also your data** |
+| 7c | Nightly backup job (only if you added it) | root's crontab (`doas crontab -l`, the line that runs `backup.py`) | phase 8 | **Yes** (the crontab may hold other jobs) |
+| 7d | Export folder (only if you ran `export.py` on the server) | `/tmp/riffbox-export` or the folder you named | phase 8 | No |
 | 8 | Python packages (Flask, waitress and their helpers) | `/usr/local` via `pkg_add` | step 2 | Possibly some helpers (see below) |
 | 8b | `ffmpeg` and its libraries (only if you did `deploy/PHASE3_5.md`) | `/usr/local` via `pkg_add` | phase 3.5 | Possibly some libraries (see below) |
 | 9 | Upload leftovers in your home directory | `~/riffbox-incoming`, `~/install-riffbox.sh`, `~/riffbox.tgz` | step 5 | No |
 
-Later phases may add more (a nightly backup job in Phase 8, a digest e-mail if built). This file is
-updated whenever that happens.
+Later features may add more (a digest e-mail, if built). This file is updated whenever that happens.
 
 ## Optional: record a baseline before step 7
 
@@ -78,10 +80,13 @@ test OpenBSD's exact behaviour here.)
 doas rm /etc/riffbox.conf
 doas rm -r /usr/local/riffbox
 doas rm -r /var/riffbox
+doas rm -r /var/riffbox-backup        # only if you made it; this is the second copy of your recordings
 rm -r ~/riffbox-incoming
 rm -f ~/install-riffbox.sh ~/riffbox.tgz
 ```
-(`/var/riffbox` is your recordings: only run that line once you have a copy, or no longer care.)
+(`/var/riffbox` and `/var/riffbox-backup` are your recordings: only run those lines once you have a copy on your own
+computer, or no longer care. Also remove the nightly backup line from root's crontab with `doas crontab -e`, and
+delete `/tmp/riffbox-export` if it exists.)
 
 ### 4. Remove the service user
 ```sh
@@ -117,10 +122,11 @@ CHECK: `pkg_info | grep -iE 'flask|waitress|ffmpeg'` prints nothing, and `rcctl 
 ## Check that nothing is left
 ```sh
 grep -ri riffbox /etc/relayd.conf /etc/rc.conf.local /etc/passwd /etc/group
-ls -d /usr/local/riffbox /var/riffbox /etc/riffbox.conf /etc/rc.d/riffbox ~/riffbox-incoming 2>&1
+ls -d /usr/local/riffbox /var/riffbox /var/riffbox-backup /etc/riffbox.conf /etc/rc.d/riffbox ~/riffbox-incoming 2>&1
 rcctl ls all | grep riffbox
+doas crontab -l | grep -i riffbox
 ```
-CHECK: the `grep` and `rcctl` print nothing, and every `ls` line says "No such file or directory".
+CHECK: the `grep` and `rcctl` lines and the crontab check print nothing, and every `ls` line says "No such file or directory".
 If you took the baseline, compare the shared files:
 ```sh
 diff ~/riffbox-baseline/relayd.conf /etc/relayd.conf && echo "relayd.conf identical"

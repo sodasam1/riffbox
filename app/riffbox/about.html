@@ -153,8 +153,12 @@ audio files. Everything else on your domain is still handled by httpd exactly as
       change its own code. Includes the page files (<code>static/</code>) and this page.</td></tr>
     <tr><td>Secrets and settings</td><td><code>/etc/riffbox.conf</code></td><td>Session key, upload token, login
       passphrase, address prefix and the ffmpeg path. Deploys never touch it.</td></tr>
-    <tr><td>Your data</td><td><code>/var/riffbox</code></td><td>The SQLite database and the
-      <code>audio/</code> folder. Deploys never touch it.</td></tr>
+    <tr><td>Your data</td><td><code>/var/riffbox</code></td><td>The SQLite database (<code>riffbox.db</code>) and the
+      <code>audio/</code> folder with your originals (and the FLAC play copies). A <code>tmp/</code> folder inside it
+      is scratch space for big uploads and exports, emptied at every start. Deploys never touch any of it.</td></tr>
+    <tr><td>Backup copy (optional)</td><td><code>/var/riffbox-backup</code></td><td>Made by the <em>Back up now</em>
+      button or <code>backup.py</code>: the newest 14 database copies and a second copy of every original. Also your
+      data, and on the same disk, so it does not protect against losing the server.</td></tr>
     <tr><td>Optional helper</td><td><code>ffmpeg</code></td><td>Makes the FLAC copies and measures each recording's
       length and waveform. Without it the app still works, but there is no waveform or length, and Apple Lossless
       memos have no copy for Chrome.</td></tr>
