@@ -40,7 +40,11 @@ $("#login-form").addEventListener("submit", async (e) => {
     body: JSON.stringify({ passphrase: $("#pass").value }),
   });
   if (r.ok) { $("#pass").value = ""; boot(); }
-  else { err.textContent = "Wrong passphrase."; err.hidden = false; }
+  else if (r.status === 429) {
+    const secs = Number(r.headers.get("Retry-After")) || 900;
+    err.textContent = "Too many wrong attempts. Try again in about " + Math.ceil(secs / 60) + " minutes.";
+    err.hidden = false;
+  } else { err.textContent = "Wrong passphrase."; err.hidden = false; }
 });
 
 $("#logout").addEventListener("click", async () => {

@@ -8,10 +8,11 @@ Do not start a phase until the previous gate is ticked.
 - [x] **Phase 1** Core skeleton, local. Gate: `pytest` 31 passed; real `waitress` server:
       upload 201, re-upload deduped, no token 401, `Range: bytes=0-99` returns 206 with
       correct `Content-Range` and identical bytes (tested with a real AAC `.m4a`).
-- [ ] **Phase 2** First deploy. Follow `deploy/PHASE2.md`. Gates A (runs on loopback), B (public HTTPS), C (50 MB upload).
+- [x] **Phase 2** First deploy. Gates A (runs on loopback), B (public HTTPS), C (50 MB upload) passed on the real server
+      (reported by owner; steps 1-11 of `deploy/PHASE2.md` completed).
 - [ ] **Phase 3** Minimal UI: login, uploader, list, player.
-      - [x] Local gate: `pytest` 32 passed; `node tests/e2e/phase3.cjs` (Chromium, served under `/ideas`):
-            login, upload + duplicate detection, play/pause, download, logout, no unexpected console errors.
+      - [x] Local gate: `pytest` 42 passed; `node tests/e2e/phase3.cjs` (Chromium, served under `/ideas`):
+            login, upload + duplicate detection, play/pause, download, logout, login lockout, no unexpected console errors.
       - [ ] Deploy gate: a real `.m4a` from your iPhone uploads and plays in Safari (needs Phase 2 first).
 - [ ] **Phase 4** Inbox + intake form.
 - [ ] **Phase 5** Library browser (filters, search, sort, keyboard preview).

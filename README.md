@@ -33,6 +33,15 @@ Configuration is by environment variables: `RIFFBOX_DATA_DIR`, `RIFFBOX_SECRET`,
 `RIFFBOX_PASSPHRASE`, `RIFFBOX_UPLOAD_TOKEN`. The app refuses to start without a secret.
 `RIFFBOX_INSECURE_COOKIES=1` is for local http only.
 
+## Security notes
+
+- Logins are throttled: 5 wrong passphrases per client (30 from anyone) within 15 minutes returns
+  HTTP 429 until the oldest failure ages out. The counters live in memory and reset when the service
+  restarts. Client identity comes from relayd's `X-Forwarded-For`, trusted only for loopback peers.
+  Still use a long random passphrase.
+- The upload token can only upload. It cannot list or download recordings.
+- `.gitattributes` forces LF line endings so Windows checkouts don't break `deploy/rc.d/riffbox`.
+
 ## Planned features (not built yet)
 
 - **iOS Shortcut** for one-tap upload from the Voice Memos share sheet, using the

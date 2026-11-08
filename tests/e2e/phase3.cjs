@@ -46,10 +46,11 @@ async function waitUp() {
     const page = await ctx.newPage();
     const problems = [];
     page.on("pageerror", (e) => problems.push("pageerror: " + e.message));
-    let expected401 = 0;   // logged-out session check on load + the deliberate wrong passphrase
+    let expected401 = 0, expected429 = 0;   // deliberate failures: see the comments where they happen
     page.on("console", (m) => {
       if (m.type() !== "error") return;
       if (m.text().includes("401")) { expected401++; return; }
+      if (m.text().includes("429")) { expected429++; return; }
       problems.push("console: " + m.text());
     });
 
@@ -102,8 +103,25 @@ async function waitUp() {
     assert.strictEqual((await ctx.request.get(BASE + "api/recordings")).status(), 401);
     console.log("ok  reload keeps session; logout ends it");
 
+    // lockout: a successful login clears the failure count, so five fresh wrong attempts reach the
+    // limit; the next attempt (even with the right passphrase) must be refused with a clear message.
+    const attempt = async (pass) => {
+      const [resp] = await Promise.all([
+        page.waitForResponse((r) => r.url().endsWith("api/login")),
+        (async () => { await page.fill("#pass", pass); await page.click("#login-form button"); })(),
+      ]);
+      return resp.status();
+    };
+    for (let i = 0; i < 5; i++) assert.strictEqual(await attempt("wrong"), 401);
+    assert.strictEqual(await attempt("open sesame"), 429);
+    await page.waitForFunction(() => /Too many wrong attempts/.test(document.querySelector("#login-error").textContent));
+    assert.ok(await page.isHidden("#app"), "still logged out while locked");
+    console.log("ok  lockout after 5 wrong attempts shows a message and refuses even the right passphrase");
+
     assert.deepStrictEqual(problems, [], "browser errors: " + problems.join(" | "));
-    assert.strictEqual(expected401, 2, "exactly two expected 401s, got " + expected401);
+    // 401s: logged-out session check on load, first wrong passphrase, five more wrong ones.
+    assert.strictEqual(expected401, 7, "expected exactly seven 401s, got " + expected401);
+    assert.strictEqual(expected429, 1, "expected exactly one 429, got " + expected429);
     console.log("ok  no unexpected console or page errors");
     console.log("screenshot:", path.join(tmp, "mobile.png"));
   } catch (e) {
