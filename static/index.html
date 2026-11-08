@@ -20,9 +20,19 @@
 <div id="app" hidden>
   <header>
     <h1>Riffbox</h1>
-    <button id="logout" class="link">Log out</button>
+    <nav>
+      <a id="how-link" class="quiet" href="#how">How this works</a>
+      <button id="logout" class="link">Log out</button>
+    </nav>
   </header>
 
+  <section id="how-view" aria-labelledby="how-h" hidden>
+    <p><a id="how-back" href="#">← Back to recordings</a></p>
+    <h2 id="how-h" class="how-title">How this works</h2>
+    <div id="how-body">Loading…</div>
+  </section>
+
+  <div id="main-view">
   <section aria-labelledby="up-h">
     <h2 id="up-h">Upload</h2>
     <div id="drop" tabindex="0">
@@ -42,8 +52,12 @@
     <p id="empty" hidden></p>
     <ul id="list"></ul>
     <p id="audio-error" class="error" role="alert" hidden></p>
-    <audio id="player" controls preload="none"></audio>
   </section>
+  </div>
+</div>
+
+<div id="playerbar" hidden>
+  <audio id="player" controls preload="none"></audio>
 </div>
 <script src="static/app.js"></script>
 </body>

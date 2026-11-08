@@ -42,6 +42,13 @@ ffmpeg everything still works; ALAC memos just have no browser-friendly copy. Se
 `deploy/PHASE3_5.md`. The codec is read from the MP4 file itself (`app/riffbox/media.py`), so no
 tool is needed to detect it.
 
+## "How this works" page
+
+A link in the app's header opens a page explaining the project: planned features, the phase roadmap and
+progress, context, what the guide and `ti.sh` established, architecture, and the data model. It lives in
+`app/riffbox/about.html` and is only served to a logged-in session (`GET /api/about`), because it describes
+the server setup; the public page files contain none of it. Keep it up to date (see `PHASES.md`).
+
 ## Security notes
 
 - Logins are throttled: 5 wrong passphrases per client (30 from anyone) within 15 minutes returns

@@ -2,6 +2,10 @@
 
 Do not start a phase until the previous gate is ticked.
 
+**Housekeeping rule:** when a phase finishes, also update the roadmap table and the "Last updated" line in
+`app/riffbox/about.html` (the in-app "How this works" page), and the "Planned features" list there and in
+`README.md` if it changed. `app/tests/test_about.py` fails if the data-model table drifts from the schema.
+
 - [x] **Phase 0** Server recon done. Python 3.13.16, sqlite3 works, py3-flask 3.1.3 and
       py3-waitress 3.0.2 available; single 21 GB `/` with 18 GB free; no pf, DNS, cert or cert-renew change needed
       (URL is sanjaysubramanian.com/ideas, so only relayd routing changes).
@@ -19,13 +23,15 @@ Do not start a phase until the previous gate is ticked.
             failure fallback, migration of a pre-3.5 database, backfill after installing ffmpeg later);
             browser test: ALAC upload plays in Chromium via FLAC, Download returns the original bytes.
       - [x] Deploy gate: ffmpeg installed per `deploy/PHASE3_5.md`; the existing ALAC memo plays in Chrome (reported by owner).
-- [ ] **Phase 4** Inbox + intake form (merged to `main`; waiting on the deploy gate).
+- [x] **Phase 4** Inbox + intake form (deploy gate: owner reports it working well). Follow-up fixes shipped: automatic
+      names use local time; player bar spacing; the private "How this works" page (`app/riffbox/about.html`,
+      checked by `tests/e2e/howto.cjs` and `app/tests/test_about.py`).
       - [x] Local gate: `pytest` 122 passed (validation rules, tags, PATCH round trips, inbox/tagged filter, auth);
             `node tests/e2e/phase4.cjs` (Chromium): uploads land in the Inbox with a count, every field saves and moves the
             recording to the Library, an empty form saves, details persist across reload, edit form is prefilled,
             Move back to Inbox, a bad BPM shows the server message and keeps the form, an upload finishing never
             wipes an open form. `phase3.cjs` still passes.
-      - [ ] Deploy gate: routine deploy (no new package, no database step, no config change); tag and save one of your
+      - [x] Deploy gate: routine deploy (no new package, no database step, no config change); tag and save one of your
             real memos on the phone and on the computer.
 - [ ] **Phase 5** Library browser (filters, search, sort, keyboard preview).
 - [ ] **Phase 6** Player polish (waveform, scrub, speed, loop, download).

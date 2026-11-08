@@ -39,6 +39,7 @@ def default_ffmpeg():
             or ("/usr/local/bin/ffmpeg" if os.access("/usr/local/bin/ffmpeg", os.X_OK) else ""))
 
 SCHEMA = Path(__file__).with_name("schema.sql")
+ABOUT = Path(__file__).with_name("about.html")        # the private "How this works" page
 
 # Login throttling: after PER_CLIENT_MAX wrong passphrases from one client (or GLOBAL_MAX from
 # anyone) inside WINDOW seconds, logins get HTTP 429 until the oldest failure ages out.
@@ -513,6 +514,15 @@ def create_app(config=None):
                               False, "private, no-cache")
         return send_audio(audio_dir / row["filename"], row["mime"], row["orig_filename"],
                           False, "private, no-cache")
+
+    @bp.get("/api/about")
+    @require_auth()
+    def about():
+        """The "How this works" page. It describes the server setup, so unlike the page files it is
+        only handed to a logged-in session."""
+        resp = send_file(ABOUT, mimetype="text/html", conditional=True, max_age=0)
+        resp.headers["Cache-Control"] = "private, no-cache"
+        return resp
 
     @bp.get("/")
     def index():

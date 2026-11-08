@@ -1,6 +1,6 @@
 "use strict";
 // All URLs are relative ("api/..."), so the app works under any prefix such as /ideas/.
-// No inline handlers, data: or blob: URLs, no third-party hosts (relayd's CSP is strict).
+// No inline handlers, data: or blob: URLs, no third-party hosts (the site's security headers forbid them).
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -22,13 +22,35 @@ async function api(path, opts) {
 function show(view) {
   $("#login").hidden = view !== "login";
   $("#app").hidden = view !== "app";
+  $("#playerbar").hidden = view !== "app";
 }
 
 async function boot() {
   let ok = false;
   try { ok = (await api("session")).ok; } catch (e) { /* offline: fall through to login */ }
-  if (ok) { show("app"); await loadList(); } else { show("login"); $("#pass").focus(); }
+  if (ok) { show("app"); route(); await loadList(); } else { show("login"); $("#pass").focus(); }
 }
+
+// ---- "How this works": a private page, fetched from the server only after login ---------------
+// (It describes the server setup, so it is not part of the public page files.) Reached through
+// the link in the header; the address gets "#how", so the browser's Back button works.
+async function route() {
+  const how = location.hash === "#how";
+  $("#how-view").hidden = !how;
+  $("#main-view").hidden = how;
+  if (!how) return;
+  window.scrollTo(0, 0);
+  const body = $("#how-body");
+  try {
+    const r = await api("about");
+    if (r.status === 401) { show("login"); return; }
+    if (r.ok) body.innerHTML = await r.text();      // our own file from our own server, never user input
+    else body.textContent = "Could not load this page (error " + r.status + ").";
+  } catch (e) {
+    body.textContent = "Could not reach the server. Check your connection and try again.";
+  }
+}
+window.addEventListener("hashchange", route);
 
 $("#login-form").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -50,6 +72,7 @@ $("#login-form").addEventListener("submit", async (e) => {
 $("#logout").addEventListener("click", async () => {
   player.pause();
   await api("logout", { method: "POST" });
+  history.replaceState(null, "", location.pathname + location.search);   // leave "#how" behind
   show("login");
 });
 

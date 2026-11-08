@@ -1,0 +1,229 @@
+<!-- The private "How this works" page. Served only to a logged-in session (GET /api/about) because it
+     describes the server setup. This is an HTML fragment, not a full page. Keep the section order:
+     Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model.
+     UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
+
+<p class="meta">Last updated: 8 Nov 2026, after Phase 4. Written from what was checked on your server and
+in the tests, not from assumptions; anything unverified is marked as such.</p>
+
+<h2>Planned features</h2>
+<p>Not built yet, roughly in the order they look most useful. (The numbered phases further down are the
+committed build order; these are the extras that come after, or alongside, them.)</p>
+<ul>
+  <li><strong>Serve this page's files from your website's <code>htdocs</code> folder</strong> (your preferred
+    direction). Today the Python app hands out the page files along with the data. The plan: put the page
+    files in <code>/var/www/htdocs/ideas/</code> so your normal site tooling uploads them, and narrow the
+    relayd rule so only <code>/ideas/api/*</code> goes to the app. The address stays
+    <code>/ideas/</code>. Accepted trade-offs: two upload destinations, the page and the data code can get
+    out of step if only one is uploaded, and the page files are no longer removed by the Riffbox-only
+    uninstall.</li>
+  <li><strong>iPhone Shortcut for one-tap upload</strong> from the Voice Memos share sheet, using the
+    add-only upload token. It should send a local-time title, because the server alone only knows UTC.</li>
+  <li><strong>Record-and-send Shortcut</strong> (Action Button, Back Tap or Lock Screen) that records and
+    uploads directly, skipping the Voice Memos app.</li>
+  <li><strong>Shuffle and "not played in a while"</strong>: a button that plays a random hearted idea, and a
+    list of ideas you haven't opened in 30+ days, to get you back to old material.</li>
+  <li><strong>Weekly email digest</strong> of a few forgotten hearted ideas, sent through your server's
+    existing mail setup (<code>smtpd</code> and smtp2go), so no new service is needed.</li>
+  <li><strong>Possible later:</strong> small waveform thumbnails in the list, and an export-everything zip.</li>
+</ul>
+
+<h2>Roadmap and progress</h2>
+<p>The app is built in phases, and each phase has to pass its tests (and, where it touches your server or
+phone, a check by you) before the next one starts. That keeps any problem confined to the newest layer.</p>
+<div class="scroll">
+<table>
+  <thead><tr><th>Phase</th><th>What it adds</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td>0</td><td>Look at the real server setup before writing anything for it.</td>
+      <td><span class="status done">Done</span></td></tr>
+    <tr><td>1</td><td>The core: upload with duplicate detection, audio streaming that supports scrubbing,
+      and passphrase login.</td><td><span class="status done">Done</span></td></tr>
+    <tr><td>2</td><td>First deployment: the background service, the relayd route for
+      <code>/ideas</code>, and public HTTPS.</td><td><span class="status done">Done</span></td></tr>
+    <tr><td>3</td><td>The first screens: login, uploader, list of recordings, and a player.</td>
+      <td><span class="status done">Done</span></td></tr>
+    <tr><td>3.5</td><td>Added mid-way: Chrome can't play Apple Lossless (Voice Memos in Lossless mode), so
+      the server makes a lossless FLAC copy for playback and keeps your original untouched.</td>
+      <td><span class="status done">Done</span></td></tr>
+    <tr><td>4</td><td>Inbox and intake form: title, instruments, tempo, BPM with tap tempo, key and notes,
+      all optional. Saving, even an empty form, moves a recording from the Inbox to the Library. Also fixed
+      afterwards: automatic names now use your local time.</td>
+      <td><span class="status done">Done</span></td></tr>
+    <tr><td>5</td><td><strong>Library browser</strong> in the style of a DAW sample browser: filter by tags
+      (match all or any), by key and tempo, search titles and notes, sort by date recorded, uploaded,
+      title or length, move through the list with the arrow keys with auto-preview, and play or pause with
+      the space bar.</td><td><span class="status next">Next</span></td></tr>
+    <tr><td>6</td><td><strong>Player polish</strong>: a scrubbable waveform (peaks computed in the browser
+      and saved; for Apple Lossless memos this has to come from the FLAC copy, because Chrome can't decode the
+      original), playback speed, an A-B loop, and download of the untouched original.</td>
+      <td><span class="status">Planned</span></td></tr>
+    <tr><td>7</td><td><strong>Ratings and triage</strong>: heart, check ("used in a song") and X ("no longer
+      interesting") marks with filters (X hidden from "All" by default), a "used in" note for checks, and a
+      card-by-card triage mode for working through the Inbox with keyboard shortcuts.</td>
+      <td><span class="status">Planned</span></td></tr>
+    <tr><td>8</td><td><strong>Hardening and backup</strong>: delete with restore, a mobile layout pass, a
+      nightly backup of the database and audio, and a practice restore to prove it works. (Login attempt
+      limiting was pulled forward and is already live.)</td><td><span class="status">Planned</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Context</h2>
+<p><strong>The problem.</strong> Ideas were recorded as voice memos, then moved by hand into Obsidian and
+tagged. Because every step took effort, most ideas stayed buried in the Voice Memos app, and the ones that
+did get filed were hard to find later.</p>
+<p><strong>The goal.</strong> Make capture cost almost nothing: upload the recording and walk away, with no
+tagging required. Do the tagging later in a separate pass, in the Inbox. Then browse the Library the way you
+browse samples in a music plugin: filter by instrument, tempo, key and how interesting an idea is, and play
+anything immediately.</p>
+<p><strong>The approach.</strong> This lives on your own server, following Derek Sivers' Tech Independence
+guide: a small number of boring, well-understood tools, no outside services, and everything reversible.
+Rules you set along the way: no Cloudflare or other third-party hosting, manual tagging only (no AI), Obsidian
+is out of the workflow, the install must stay compartmentalised so it can be removed completely, and the
+build must go in small tested phases.</p>
+
+<h2>What the guide and <code>ti.sh</code> already gave us</h2>
+<p>Riffbox sits on top of the server the guide builds. These facts come from the guide, the
+<code>ti.sh</code> script, and the configuration files we read on your server in Phase 0.</p>
+<ul>
+  <li><strong>The machine:</strong> OpenBSD 7.9 on a Vultr server with 1 CPU, 1 GB of memory and 25 GB of
+    disk (about 18 GB was free when we checked). That is small, which is why nothing here runs heavy
+    software, and why audio conversion happens one file at a time.</li>
+  <li><strong>Your account:</strong> you log in with an SSH key only (passwords and root login are switched
+    off), and your account can run <code>doas</code> (OpenBSD's <code>sudo</code>) without a password.</li>
+  <li><strong>The web front door:</strong> <code>relayd</code> handles HTTPS on port 443 and decides where
+    each request goes by host name and path. Your website's pages are handed out by <code>httpd</code>
+    from <code>/var/www/htdocs</code>. <code>acme-client</code> gets the Let's Encrypt certificate, and a
+    weekly cron job (Fridays, 03:11) renews it.</li>
+  <li><strong>The firewall</strong> (<code>pf</code>) only lets in ports 22, 25, 80, 443, 587 and 993.
+    Traffic on the server's own loopback address is unrestricted, which is why the app can listen privately
+    on <code>127.0.0.1</code> and be reached only through relayd.</li>
+  <li><strong>A precedent we copied:</strong> relayd already routes <code>dav.</code> to a Python program
+    (Radicale) listening on loopback. Riffbox is wired in the same way.</li>
+  <li><strong>The encrypted disk</strong> at <code>/mnt</code> only exists after you type <code>m</code> and
+    enter its passphrase, and is gone after a reboot. Riffbox must run unattended, so none of its live data
+    is kept there.</li>
+  <li><strong>Mail:</strong> the server runs its own mail software and sends outgoing mail through smtp2go.
+    The planned weekly digest would reuse this.</li>
+  <li><strong>Software already present:</strong> the script installs curl, rsync, Radicale, links, mutt and
+    dovecot. Python came along with Radicale. Riffbox added Flask, waitress and (for the FLAC copies)
+    ffmpeg.</li>
+</ul>
+
+<h2>Architecture</h2>
+<h3>What happens when you use it</h3>
+<p>Your browser asks for an address under <code>/ideas</code> over HTTPS. relayd notices the path and
+forwards the request to a small Python program (Flask, run by a server called waitress) listening on
+<code>127.0.0.1:8100</code>. The program checks you are logged in, then reads or writes the database and the
+audio files. Everything else on your domain is still handled by httpd exactly as before.</p>
+
+<h3>Where each piece lives on the server</h3>
+<div class="scroll">
+<table>
+  <thead><tr><th>Piece</th><th>Location</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>The route</td><td><code>/etc/relayd.conf</code></td><td>Three added lines that send <code>/ideas</code> to the
+      app. Nothing else of yours was changed.</td></tr>
+    <tr><td>The service</td><td><code>/etc/rc.d/riffbox</code></td><td>Starts at boot and runs as the
+      <code>_riffbox</code> account, which has no shell, no login and no <code>doas</code>.</td></tr>
+    <tr><td>The code</td><td><code>/usr/local/riffbox</code></td><td>Owned by root, so the app cannot
+      change its own code. Includes the page files (<code>static/</code>) and this page.</td></tr>
+    <tr><td>Secrets and settings</td><td><code>/etc/riffbox.conf</code></td><td>Session key, upload token, login
+      passphrase, address prefix and the ffmpeg path. Deploys never touch it.</td></tr>
+    <tr><td>Your data</td><td><code>/var/riffbox</code></td><td>The SQLite database and the
+      <code>audio/</code> folder. Deploys never touch it.</td></tr>
+    <tr><td>Optional helper</td><td><code>ffmpeg</code></td><td>Only used to make FLAC copies. Without it the
+      app still works; Apple Lossless memos just have no copy for Chrome.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Uploading and playing</h3>
+<ul>
+  <li><strong>Upload:</strong> the page sends each file along with its recorded time (the file's own
+    timestamp) and an automatic title built from your local time. The server fingerprints the file
+    (SHA-256) to refuse duplicates, stores it under a random name so file names can never collide or
+    escape the folder, and puts it in the Inbox.</li>
+  <li><strong>Apple Lossless memos:</strong> the server reads the file's own structure to see which codec it
+    uses (no extra tool needed). If it is Apple Lossless, a single background worker converts it to FLAC
+    (lossless in both directions; the tests compare the decoded audio sample for sample). The player uses
+    the FLAC copy; <em>Download</em> always gives you the original, byte for byte.</li>
+  <li><strong>Playback:</strong> audio is served in ranges, which is what lets the browser jump to any point
+    in a recording without downloading the whole thing.</li>
+</ul>
+
+<h3>Safety</h3>
+<ul>
+  <li>One passphrase protects the app. The login cookie is signed, expires after 60 days, and is only sent
+    to <code>/ideas</code>, never to the rest of your site.</li>
+  <li>After 5 wrong passphrases from one place, or 30 from anywhere, within 15 minutes, logins are refused
+    until the oldest failure ages out. Restarting the service clears this.</li>
+  <li>A separate upload token can only add files. It cannot list, read or change anything.</li>
+  <li>This explanation page is only sent to a logged-in session; it is not part of the public page files.</li>
+</ul>
+
+<h3>How a new version gets onto the server</h3>
+<p>You download the new code, FreeFileSync copies it to a staging folder in your home directory, and one
+command on the server (<code>sh ~/install-riffbox.sh</code>) copies it into place and restarts the service.
+That staging step exists because FreeFileSync logs in as you and cannot write to root-owned folders.</p>
+
+<h3>Why it is built this way</h3>
+<ul>
+  <li><strong>A separate <code>_riffbox</code> account:</strong> this is the one program that accepts files from
+    the internet. If a bug in it were ever exploited, the attacker would get an account that can do almost
+    nothing, instead of yours, which has passwordless <code>doas</code> and is therefore effectively root.
+    This is the same convention the guide uses for <code>_radicale</code> and <code>_smtpd</code>.</li>
+  <li><strong>The page files live with the app, not in <code>htdocs</code>:</strong> this keeps one route, one
+    folder to deploy, and a page that always matches its data code. It is a trade-off, and moving the page to
+    <code>htdocs</code> is on the planned list above.</li>
+  <li><strong>SQLite and plain files:</strong> no database server to run, and backing up means copying one
+    folder.</li>
+  <li><strong>Lossless copies, not lossy ones:</strong> the original is never altered, and the copy made for
+    playback loses nothing.</li>
+  <li><strong>Plain HTML, CSS and JavaScript, no build step:</strong> nothing to install or break, in the
+    spirit of the guide. The page also has to avoid outside hosts and inline data, because the relayd
+    security headers on your site forbid them.</li>
+  <li><strong>Everything removable:</strong> <code>deploy/UNINSTALL.md</code> in the repository lists every
+    change made to the server and how to reverse each one.</li>
+</ul>
+
+<h2>Data model</h2>
+<p>Everything is stored in one SQLite file (<code>/var/riffbox/riffbox.db</code>). Times are stored in UTC and
+shown in your browser's local time.</p>
+
+<h3>Recordings (one row per upload)</h3>
+<div class="scroll">
+<table>
+  <thead><tr><th>Field</th><th>Meaning</th><th>Used now?</th></tr></thead>
+  <tbody>
+    <tr><td><code>id</code></td><td>A number given to each recording, used in the page's internal addresses.</td><td>Yes</td></tr>
+    <tr><td><code>title</code></td><td>Name shown in the list. Clearing it regenerates "Idea, Nov 8 3:42pm" in local time.</td><td>Yes</td></tr>
+    <tr><td><code>filename</code>, <code>orig_filename</code></td><td>The random name on disk, and the name your phone gave it (used when downloading).</td><td>Yes</td></tr>
+    <tr><td><code>mime</code>, <code>size</code></td><td>File type and size in bytes.</td><td>Yes</td></tr>
+    <tr><td><code>sha256</code></td><td>Fingerprint, used to refuse duplicate uploads.</td><td>Yes</td></tr>
+    <tr><td><code>recorded_at</code>, <code>uploaded_at</code></td><td>When it was recorded (the file's timestamp) and when it was uploaded.</td><td>Yes</td></tr>
+    <tr><td><code>status</code></td><td><code>inbox</code> (not yet looked at) or <code>tagged</code> (saved to the Library).</td><td>Yes</td></tr>
+    <tr><td><code>tempo</code>, <code>bpm</code></td><td>slow / medium / fast, and an optional number from 20 to 400.</td><td>Yes</td></tr>
+    <tr><td><code>key_root</code>, <code>key_mode</code></td><td>Note (C, C#, D, Eb, E, F, F#, G, Ab, A, Bb, B) and major or minor.</td><td>Yes</td></tr>
+    <tr><td><code>notes</code></td><td>Free text, up to 5,000 characters.</td><td>Yes</td></tr>
+    <tr><td><code>codec</code></td><td>What audio format the file holds (for example <code>alac</code> or <code>aac</code>), read from the file itself.</td><td>Yes</td></tr>
+    <tr><td><code>play_status</code>, <code>play_filename</code>, <code>play_error</code></td><td>State of the FLAC playback copy (<code>pending</code>, <code>ready</code>, <code>failed</code>), its file name, and the last error (for the server log only, never shown on the page).</td><td>Yes</td></tr>
+    <tr><td><code>duration_s</code>, <code>peaks</code></td><td>Length, and the points used to draw the waveform.</td><td>Phase 6</td></tr>
+    <tr><td><code>rating</code>, <code>used_in</code></td><td>Heart, check or X, and which song a checked idea became.</td><td>Phase 7</td></tr>
+    <tr><td><code>last_played_at</code></td><td>When it was last played.</td><td>Planned (shuffle and "not played in a while")</td></tr>
+    <tr><td><code>deleted_at</code></td><td>Marks a recording as deleted without erasing it. The app already hides these.</td><td>Phase 8 adds the delete and restore buttons</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Tags</h3>
+<p>Two small tables: the list of tags (<code>tags</code>) and which tags each recording has
+(<code>recording_tags</code>). Nine tags come built in (bass, drums, keys, guitar, harmony, vocal, melody,
+rhythmic idea, full song), and you can add your own from the form, up to 100 in total. Names are lower-cased
+and tidied automatically, so "Beat  BOX" and "beat box" are the same tag.</p>
+
+<h3>Files on disk</h3>
+<p>In <code>/var/riffbox/audio/</code>: your original upload under a random name (for example
+<code>3f9a….m4a</code>), and, for Apple Lossless memos, a matching <code>.flac</code> playback copy under its own
+random name. Originals are never modified or deleted by the app.</p>
