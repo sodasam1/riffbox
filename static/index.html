@@ -84,6 +84,8 @@
                 <option value="uploaded">Uploaded</option>
                 <option value="title">Title</option>
                 <option value="bpm">BPM</option>
+                <option value="length">Length</option>
+                <option value="played">Last played</option>
               </select>
               <button id="f-order" type="button">↓</button>
             </div>
@@ -106,7 +108,24 @@
 </div>
 
 <div id="playerbar" hidden>
-  <audio id="player" controls preload="none"></audio>
+  <audio id="player" preload="none"></audio>
+  <div class="pb-top">
+    <span id="pb-title" class="pb-title">Nothing playing</span>
+    <span id="pb-time" class="pb-time">0:00 / 0:00</span>
+    <a id="pb-dl" class="dl" href="#" hidden>Download</a>
+  </div>
+  <canvas id="wave" tabindex="0" role="slider" aria-label="Playback position. Arrow keys skip 5 seconds, Home and End jump to the ends."
+          aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="Nothing playing"></canvas>
+  <div class="pb-controls">
+    <button id="pb-play" type="button" aria-label="Play" disabled>▶</button>
+    <select id="pb-speed" aria-label="Playback speed"></select>
+    <div class="pb-loop" role="group" aria-label="Loop a section">
+      <button id="pb-a" type="button" aria-label="Set loop start at the current position" title="Set loop start here ( [ )">A</button>
+      <button id="pb-b" type="button" aria-label="Set loop end at the current position" title="Set loop end here ( ] )">B</button>
+      <button id="pb-loop" type="button" aria-pressed="false" title="Repeat the A–B section, or the whole recording if none is set">Loop</button>
+      <button id="pb-clear" type="button" aria-label="Clear the loop" title="Clear the loop" disabled>✕</button>
+    </div>
+  </div>
 </div>
 <script src="static/app.js"></script>
 </body>

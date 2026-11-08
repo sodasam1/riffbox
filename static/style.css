@@ -14,7 +14,7 @@ body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
-main, #app { max-width: 52rem; margin: 0 auto; padding: 0 16px 8rem; }   /* room to scroll past the player */
+main, #app { max-width: 52rem; margin: 0 auto; padding: 0 16px 14rem; }   /* room to scroll past the player */
 h1 { font-size: 1.4rem; margin: 1.2rem 0 .8rem; }
 h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 2rem 0 .6rem; }
 header { display: flex; justify-content: space-between; align-items: center; }
@@ -66,7 +66,10 @@ ul { list-style: none; padding: 0; margin: 0; }
 #queue .state.ok { color: var(--text); } #queue .state.bad { color: var(--err); }
 progress { grid-column: 1 / -1; width: 100%; height: 6px; accent-color: var(--accent); }
 
-#list li { display: grid; grid-template-columns: 44px 1fr auto; gap: 0 12px; align-items: center; padding: .55rem 0; border-bottom: 1px solid var(--line); }
+/* Rows have inner padding (cancelled by the negative margin, so the text still lines up with the page)
+   so that the highlight of a selected or playing row sits *around* the content, never on top of it. */
+#list li { display: grid; grid-template-columns: 44px 1fr auto; gap: 0 12px; align-items: center;
+           padding: .55rem 10px; margin: 0 -10px; border-bottom: 1px solid var(--line); }
 #list li.playing { background: var(--panel); }
 .play { width: 44px; height: 44px; border-radius: 50%; padding: 0; display: grid; place-items: center; }
 .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -82,8 +85,23 @@ a.dl { color: var(--accent); font-size: .9rem; }
   padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
   box-shadow: 0 6px 22px rgb(0 0 0 / .22);
 }
+#playerbar { display: grid; gap: 8px; }
 #playerbar[hidden] { display: none; }
-#playerbar audio { display: block; width: 100%; height: 44px; }
+.pb-top { display: flex; align-items: baseline; gap: 12px; font-size: .9rem; }
+.pb-title { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#wave { display: block; width: 100%; height: 56px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line);
+        cursor: pointer; touch-action: none; }
+#wave:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pb-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#pb-play { width: 44px; height: 44px; border-radius: 50%; padding: 0; display: grid; place-items: center; flex: none; }
+#pb-speed { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+            min-height: 40px; padding: 0 .4rem; }
+.pb-loop { display: flex; gap: 6px; }
+.pb-loop button { min-height: 40px; min-width: 40px; padding: .2rem .65rem; }
+.pb-loop button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.pb-loop button.set { border-color: var(--accent); color: var(--accent); }
+.pb-loop button:disabled, #pb-play:disabled { opacity: .45; cursor: default; }
 
 /* ---- phase 4: inbox/library switch, details, intake form ---- */
 #views { display: flex; gap: 8px; margin: .2rem 0 .8rem; }
@@ -159,7 +177,7 @@ form.edit .error { margin: 0; }
   #filters-toggle { display: none; }
   #filters-panel { display: grid; padding-top: 0; }
 
-  #colhead { display: grid; grid-template-columns: var(--cols); gap: 0 12px; padding: 0 0 6px;
+  #colhead { display: grid; grid-template-columns: var(--cols); gap: 0 12px; padding: 0 10px 6px; margin: 0 -10px;
              color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em;
              border-bottom: 1px solid var(--line); }
   #colhead[hidden] { display: none; }

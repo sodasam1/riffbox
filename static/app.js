@@ -118,6 +118,7 @@ function startPlay(rec) {
   }
   playingId = rec.id;
   player.src = "api/play/" + rec.id;     // the FLAC play copy if there is one, else the original
+  loadTransport(rec);
   player.play().catch(() => {});
   markPlaying();
 }
@@ -195,7 +196,7 @@ const stored = {
 };
 {
   const s = stored.get("sort"), o = stored.get("order"), p = stored.get("preview");
-  if (["recorded", "uploaded", "title", "bpm"].includes(s)) filters.sort = s;
+  if (["recorded", "uploaded", "title", "bpm", "length", "played"].includes(s)) filters.sort = s;
   if (o === "asc" || o === "desc") filters.order = o;
   if (p === "0") autoPreview = false;
 }
@@ -267,7 +268,8 @@ function render() {
 function buildRow(rec) {
   const btn = el("button", { class: "play", type: "button" }, "▶");
   btn.addEventListener("click", () => togglePlay(rec));
-  const meta = el("div", { class: "meta when" }, fmtDate(rec.recorded_at) + " · " + fmtSize(rec.size));
+  const meta = el("div", { class: "meta when" }, fmtDate(rec.recorded_at) +
+    (rec.duration_s ? " · " + fmtTime(rec.duration_s) : "") + " · " + fmtSize(rec.size));
   if (rec.play_status === "pending") meta.append(el("span", { class: "chip" }, "preparing playback…"));
   if (rec.play_status === "failed") meta.append(el("span", { class: "chip" }, "no play copy"));
   const info = el("div", { class: "info" }, el("div", { class: "title" }, rec.title), meta);
@@ -453,14 +455,243 @@ function schedulePoll() {
   pollTimer = setTimeout(() => { if (openEditId !== null) schedulePoll(); else loadList(); }, 3000);
 }
 
+// ---- transport bar: waveform, scrubbing, speed, loop, download --------------------------------------
+// The waveform and length are measured once on the server (ffmpeg) when a recording is uploaded, so
+// nothing heavy is decoded on a phone. Without them the bar still works: it just shows a plain line.
+const wave = $("#wave");
+const wctx = wave.getContext("2d");
+const SPEEDS = ["0.5", "0.75", "1", "1.25", "1.5", "2"];
+let current = null;            // the recording loaded in the player
+let peaks = null;              // waveform: numbers 0-255; [] = could not be measured; null = not known (yet)
+let knownDuration = 0;         // seconds, from the server's measurement
+let loopA = null, loopB = null, loopOn = false;
+let pendingSeek = null;        // a seek asked for before the file's length was known
+let reported = false;          // has this listen been counted as "played" yet?
+let rafId = 0;
+
+function fmtTime(sec) {
+  if (!Number.isFinite(sec) || sec < 0) sec = 0;
+  const s = Math.floor(sec), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : String(m)) + ":" + String(r).padStart(2, "0");
+}
+const totalTime = () => (Number.isFinite(player.duration) && player.duration > 0) ? player.duration : knownDuration;
+
+// speed (pitch stays put when you slow down or speed up)
+for (const v of SPEEDS) $("#pb-speed").append(el("option", { value: v }, v + "×"));
+let speed = SPEEDS.includes(stored.get("speed")) ? stored.get("speed") : "1";
+$("#pb-speed").value = speed;
+function applySpeed() {
+  player.defaultPlaybackRate = Number(speed);
+  player.playbackRate = Number(speed);
+  for (const k of ["preservesPitch", "mozPreservesPitch", "webkitPreservesPitch"]) if (k in player) player[k] = true;
+}
+$("#pb-speed").addEventListener("change", (e) => { speed = e.target.value; stored.set("speed", speed); applySpeed(); });
+applySpeed();
+
+function loadTransport(rec) {
+  current = rec;
+  peaks = null;
+  knownDuration = rec.duration_s || 0;
+  loopA = loopB = null; loopOn = false; pendingSeek = null; reported = false;
+  player.loop = false;
+  $("#pb-title").textContent = rec.title;
+  const dl = $("#pb-dl");
+  dl.href = "api/audio/" + rec.id + "?download=1";
+  dl.hidden = false;
+  $("#pb-play").disabled = false;
+  applySpeed();                    // a new source resets the rate in some browsers
+  syncLoopUI(); updateTime(); drawWave();
+  loadAnalysis(rec, 0);
+}
+
+async function loadAnalysis(rec, attempt) {
+  try {
+    const r = await api("recordings/" + rec.id + "/analysis");
+    if (!r.ok || !current || current.id !== rec.id) return;
+    const body = await r.json();
+    if (body.duration_s) knownDuration = body.duration_s;
+    if (body.peaks === null) {                   // not measured yet (just uploaded): look again shortly
+      if (attempt < 8) setTimeout(() => { if (current && current.id === rec.id && peaks === null) loadAnalysis(rec, attempt + 1); }, 4000);
+      return;
+    }
+    peaks = body.peaks;
+    updateTime(); drawWave();
+  } catch (e) { /* offline: the plain line is fine */ }
+}
+
+function updateTime() {
+  const total = totalTime();
+  $("#pb-time").textContent = fmtTime(player.currentTime) + " / " + fmtTime(total);
+  wave.setAttribute("aria-valuemax", String(Math.round(total)));
+  wave.setAttribute("aria-valuenow", String(Math.round(player.currentTime)));
+  wave.setAttribute("aria-valuetext", current ? fmtTime(player.currentTime) + " of " + fmtTime(total) : "Nothing playing");
+}
+
+function drawWave() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = wave.clientWidth, h = wave.clientHeight;
+  if (!w || !h) return;
+  if (wave.width !== Math.round(w * dpr) || wave.height !== Math.round(h * dpr)) {
+    wave.width = Math.round(w * dpr); wave.height = Math.round(h * dpr);
+  }
+  wctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  wctx.clearRect(0, 0, w, h);
+  const css = getComputedStyle(document.documentElement);
+  const accent = css.getPropertyValue("--accent").trim() || "#d9480f";
+  const muted = css.getPropertyValue("--muted").trim() || "#888";
+  const total = totalTime();
+  const progress = total > 0 ? Math.min(1, player.currentTime / total) : 0;
+
+  if (peaks && peaks.length) {
+    const n = peaks.length, barW = w / n;
+    for (let i = 0; i < n; i++) {
+      const bh = Math.max(2, Math.pow(peaks[i] / 255, 0.75) * (h - 10));
+      wctx.fillStyle = (i + 0.5) / n <= progress ? accent : muted;
+      wctx.globalAlpha = (i + 0.5) / n <= progress ? 1 : 0.55;
+      wctx.fillRect(i * barW + 0.5, (h - bh) / 2, Math.max(1, barW - 1), bh);
+    }
+  } else {                                        // not measured: a plain line, filled up to the playhead
+    wctx.globalAlpha = 0.55; wctx.fillStyle = muted; wctx.fillRect(0, h / 2 - 1, w, 2);
+    wctx.globalAlpha = 1; wctx.fillStyle = accent; wctx.fillRect(0, h / 2 - 1, w * progress, 2);
+  }
+  wctx.globalAlpha = 1;
+
+  if (loopA !== null && total > 0) {              // the A–B section
+    const a = (loopA / total) * w, b = (loopB !== null ? loopB / total : loopA / total) * w;
+    wctx.fillStyle = accent;
+    if (loopB !== null) { wctx.globalAlpha = loopOn ? 0.22 : 0.1; wctx.fillRect(a, 0, b - a, h); }
+    wctx.globalAlpha = 1;
+    wctx.fillRect(a - 1, 0, 2, h);
+    if (loopB !== null) wctx.fillRect(b - 1, 0, 2, h);
+  }
+  if (current && total > 0) { wctx.fillStyle = accent; wctx.fillRect(progress * w - 1, 0, 2, h); }   // playhead
+}
+
+function syncLoopUI() {
+  player.loop = loopOn && (loopA === null || loopB === null);     // no section set: repeat the whole recording
+  $("#pb-loop").setAttribute("aria-pressed", String(loopOn));
+  $("#pb-a").classList.toggle("set", loopA !== null);
+  $("#pb-b").classList.toggle("set", loopB !== null);
+  $("#pb-clear").disabled = loopA === null && loopB === null && !loopOn;
+  drawWave();
+}
+
+function enforceLoop() {
+  if (loopOn && loopA !== null && loopB !== null && player.currentTime >= loopB) player.currentTime = loopA;
+}
+
+function seekTo(seconds) {
+  const total = totalTime();
+  const t = Math.min(Math.max(0, seconds), total > 0 ? total : seconds);
+  if (player.readyState === 0) pendingSeek = t;     // length not loaded yet: apply it when it is
+  else player.currentTime = t;
+  updateTime(); drawWave();
+}
+
+// animation loop while playing: smooth playhead and an accurate loop point (timeupdate is too coarse)
+function tick() {
+  rafId = 0;
+  enforceLoop(); updateTime(); drawWave();
+  if (!player.paused && !player.ended) rafId = requestAnimationFrame(tick);
+}
+const startTicking = () => { if (!rafId) rafId = requestAnimationFrame(tick); };
+
+player.addEventListener("loadedmetadata", () => {
+  if (pendingSeek !== null) { player.currentTime = pendingSeek; pendingSeek = null; }
+  updateTime(); drawWave();
+});
+player.addEventListener("play", () => { $("#pb-play").textContent = "❚❚"; $("#pb-play").setAttribute("aria-label", "Pause"); startTicking(); });
+for (const ev of ["pause", "ended", "error"]) {
+  player.addEventListener(ev, () => { $("#pb-play").textContent = "▶"; $("#pb-play").setAttribute("aria-label", "Play"); updateTime(); drawWave(); });
+}
+player.addEventListener("ended", () => {          // a section that runs to the very end still repeats
+  if (loopOn && loopA !== null && loopB !== null) { player.currentTime = loopA; player.play().catch(() => {}); }
+});
+player.addEventListener("timeupdate", () => {
+  enforceLoop(); updateTime();
+  // count it as "played" only once it has really been listened to, not skipped past while browsing
+  if (!reported && current && player.currentTime >= Math.min(5, (totalTime() || 10) * 0.5)) {
+    reported = true;
+    api("recordings/" + current.id + "/played", { method: "POST" }).catch(() => {});
+  }
+});
+
+$("#pb-play").addEventListener("click", () => {
+  if (!current) return;
+  if (player.error) { startPlay(current); return; }
+  if (player.paused) player.play().catch(() => {}); else player.pause();
+});
+
+// click or drag on the waveform to scrub; Shift + drag selects a loop section (touch: use the A and B buttons)
+let drag = null;
+const fractionAt = (e) => { const r = wave.getBoundingClientRect(); return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); };
+wave.addEventListener("pointerdown", (e) => {
+  if (!current || !totalTime()) return;
+  wave.setPointerCapture(e.pointerId);
+  wave.focus({ preventScroll: true });
+  drag = { select: e.shiftKey, start: fractionAt(e), moved: false };
+  if (!drag.select) seekTo(drag.start * totalTime());
+});
+wave.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  const f = fractionAt(e), total = totalTime();
+  if (Math.abs(f - drag.start) > 0.004) drag.moved = true;
+  if (drag.select) { loopA = Math.min(drag.start, f) * total; loopB = Math.max(drag.start, f) * total; drawWave(); }
+  else seekTo(f * total);
+});
+const endDrag = () => {
+  if (drag && drag.select) {
+    if (drag.moved && loopB !== null && loopB - loopA >= 0.5) loopOn = true; else { loopA = loopB = null; }
+    syncLoopUI();
+  }
+  drag = null;
+};
+wave.addEventListener("pointerup", endDrag);
+wave.addEventListener("pointercancel", () => { drag = null; });
+
+wave.addEventListener("keydown", (e) => {
+  if (!current || e.altKey || e.ctrlKey || e.metaKey) return;
+  const total = totalTime();
+  const step = { ArrowLeft: -5, ArrowRight: 5, PageDown: -30, PageUp: 30 }[e.key];
+  if (step !== undefined) { e.preventDefault(); seekTo(player.currentTime + step); }
+  else if (e.key === "Home") { e.preventDefault(); seekTo(0); }
+  else if (e.key === "End") { e.preventDefault(); seekTo(total); }
+  else if (e.key === " ") { e.preventDefault(); $("#pb-play").click(); }
+  else if (e.key === "[") { e.preventDefault(); $("#pb-a").click(); }
+  else if (e.key === "]") { e.preventDefault(); $("#pb-b").click(); }
+});
+
+$("#pb-a").addEventListener("click", () => {
+  if (!current) return;
+  loopA = player.currentTime;
+  if (loopB !== null && loopB <= loopA) loopB = null;
+  if (loopB !== null) loopOn = true;
+  syncLoopUI();
+});
+$("#pb-b").addEventListener("click", () => {
+  if (!current) return;
+  const t = player.currentTime;
+  if (loopA === null) loopA = 0;
+  if (t <= loopA) { loopB = loopA; loopA = t; } else loopB = t;
+  if (loopB - loopA < 0.2) { loopB = null; syncLoopUI(); return; }   // too short to be a section
+  loopOn = true;
+  syncLoopUI();
+});
+$("#pb-loop").addEventListener("click", () => { loopOn = !loopOn; syncLoopUI(); });
+$("#pb-clear").addEventListener("click", () => { loopA = loopB = null; loopOn = false; syncLoopUI(); });
+
+new ResizeObserver(drawWave).observe(wave);
+
 // ---- Library sidebar: search, tag/tempo/key filters, sorting ----------------------------------------
 const SORT_WORDS = {      // what the direction button says, per sort
   recorded: { desc: "Newest first", asc: "Oldest first" },
   uploaded: { desc: "Newest first", asc: "Oldest first" },
   title: { asc: "A to Z", desc: "Z to A" },
   bpm: { desc: "Highest first", asc: "Lowest first" },
+  length: { desc: "Longest first", asc: "Shortest first" },
+  played: { desc: "Most recent first", asc: "Longest ago first" },
 };
-const DEFAULT_ORDER = { recorded: "desc", uploaded: "desc", title: "asc", bpm: "desc" };
+const DEFAULT_ORDER = { recorded: "desc", uploaded: "desc", title: "asc", bpm: "desc", length: "desc", played: "desc" };
 
 for (const k of KEY_ROOTS) $("#f-root").append(el("option", { value: k }, k));
 let renderedTagKey = "";

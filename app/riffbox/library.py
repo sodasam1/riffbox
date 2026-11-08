@@ -11,8 +11,11 @@ SORTS = {
     "uploaded": "r.uploaded_at",
     "title": "LOWER(r.title)",
     "bpm": "r.bpm",
+    "length": "r.duration_s",
+    "played": "r.last_played_at",
 }
-DEFAULT_ORDER = {"recorded": "desc", "uploaded": "desc", "title": "asc", "bpm": "desc"}
+DEFAULT_ORDER = {"recorded": "desc", "uploaded": "desc", "title": "asc", "bpm": "desc",
+                 "length": "desc", "played": "desc"}
 MAX_QUERY_CHARS = 200
 MAX_TERMS = 8
 MAX_TAG_FILTERS = 30
@@ -113,7 +116,9 @@ def build_query(f):
     direction = "DESC" if f["order"] == "desc" else "ASC"
     column = SORTS[f["sort"]]
     order = f"{column} {direction}"
-    if f["sort"] == "bpm":
-        order = f"r.bpm IS NULL, {order}"        # recordings without a BPM always go last
+    if f["sort"] in ("bpm", "length"):
+        order = f"{column} IS NULL, {order}"     # recordings with no BPM / unknown length always go last
+    # "played" needs no special case: never-played (empty) sorts first oldest-first and last newest-first,
+    # which is what "longest ago first" and "most recent first" mean.
     sql = f"SELECT r.* FROM recordings r WHERE {' AND '.join(where)} ORDER BY {order}, r.id DESC"
     return sql, params

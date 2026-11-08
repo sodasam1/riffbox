@@ -6,6 +6,7 @@ passphrase/cookie login, and a bare recordings list.
 import datetime as dt
 import hashlib
 import hmac
+import json
 import mimetypes
 import os
 import queue
@@ -25,7 +26,7 @@ from flask import (Blueprint, Flask, abort, g, jsonify, redirect, request,
 
 from .intake import Invalid, MAX_TAGS_TOTAL, normalize_tag, validate_patch
 from .library import build_query, parse_filters
-from .media import convert_to_flac, mp4_audio_codec
+from .media import INPUT_FORMAT, analyze_audio, convert_to_flac, mp4_audio_codec
 
 ALLOWED_EXT = {
     ".m4a", ".mp3", ".wav", ".aac", ".caf", ".aif", ".aiff", ".ogg", ".flac", ".mp4",
@@ -179,15 +180,36 @@ def create_app(config=None):
         finally:
             conn.close()
 
+    def run_analysis(rec_id):
+        """Work out a recording's length and waveform once, so the player can draw it and the Library
+        can sort by length. A failure is remembered (an empty waveform) so it is not retried forever."""
+        conn = connect()
+        try:
+            row = conn.execute("SELECT filename FROM recordings WHERE id = ?", (rec_id,)).fetchone()
+            if row is None:
+                return
+            ok, duration, peaks, err = analyze_audio(app.config["FFMPEG"], audio_dir / row["filename"],
+                                                     app.config["CONVERT_TIMEOUT"])
+            if ok:
+                conn.execute("UPDATE recordings SET duration_s=?, peaks=? WHERE id=?",
+                             (duration, json.dumps(peaks, separators=(",", ":")), rec_id))
+            else:
+                app.logger.error("riffbox: could not analyse recording %s: %s", rec_id, err)
+                conn.execute("UPDATE recordings SET peaks='[]' WHERE id=?", (rec_id,))
+            conn.commit()
+        finally:
+            conn.close()
+
     def worker():
         while True:
-            rec_id = jobs.get()
+            job = jobs.get()
             try:
-                if rec_id is None:
+                if job is None:
                     return
-                run_conversion(rec_id)
+                kind, rec_id = job
+                (run_conversion if kind == "convert" else run_analysis)(rec_id)
             except Exception:                      # never let one bad file kill the worker
-                app.logger.exception("riffbox: conversion job crashed (recording %s)", rec_id)
+                app.logger.exception("riffbox: background job crashed: %s", job)
             finally:
                 jobs.task_done()
 
@@ -215,8 +237,11 @@ def create_app(config=None):
                 if codec == "alac" and app.config["FFMPEG"]:
                     conn.execute("UPDATE recordings SET play_status='pending' WHERE id=?", (r["id"],))
                     conn.commit()
-                    jobs.put(r["id"])
+                    jobs.put(("convert", r["id"]))
             conn.commit()
+            if app.config["FFMPEG"]:        # recordings that have not been measured yet (older ones, or ffmpeg arrived later)
+                for r in conn.execute("SELECT id FROM recordings WHERE deleted_at IS NULL AND peaks IS NULL"):
+                    jobs.put(("analyze", r["id"]))
         finally:
             conn.close()
 
@@ -331,7 +356,7 @@ def create_app(config=None):
     def row_to_dict(row, tags=()):
         keys = ("id", "title", "orig_filename", "mime", "size", "duration_s",
                 "recorded_at", "uploaded_at", "status", "tempo", "bpm",
-                "key_root", "key_mode", "notes", "rating", "used_in", "codec", "play_status")
+                "key_root", "key_mode", "notes", "rating", "used_in", "codec", "play_status", "last_played_at")
         out = {k: row[k] for k in keys}
         out["tags"] = list(tags)
         return out
@@ -406,7 +431,9 @@ def create_app(config=None):
             )
             db().commit()
             if needs_copy:
-                jobs.put(cur.lastrowid)             # convert in the background; the upload returns now
+                jobs.put(("convert", cur.lastrowid))   # convert in the background; the upload returns now
+            if app.config["FFMPEG"] and ext in INPUT_FORMAT:
+                jobs.put(("analyze", cur.lastrowid))   # and measure it (length + waveform)
             return jsonify(id=cur.lastrowid, duplicate=False), 201
         finally:
             if tmp_path.exists():
@@ -521,6 +548,27 @@ def create_app(config=None):
                               False, "private, no-cache")
         return send_audio(audio_dir / row["filename"], row["mime"], row["orig_filename"],
                           False, "private, no-cache")
+
+    @bp.get("/api/recordings/<int:rec_id>/analysis")
+    @require_auth()
+    def analysis(rec_id):
+        """Length and waveform for the player. `peaks` is null until the server has measured the
+        recording, and an empty list if it could not (the player then draws a plain line)."""
+        row = live_row(rec_id)
+        peaks = None if row["peaks"] is None else json.loads(row["peaks"])
+        resp = jsonify(duration_s=row["duration_s"], peaks=peaks)
+        resp.headers["Cache-Control"] = "private, no-cache"
+        return resp
+
+    @bp.post("/api/recordings/<int:rec_id>/played")
+    @require_auth()
+    def mark_played(rec_id):
+        """Called by the player once a recording has really been listened to (not just skipped past)."""
+        live_row(rec_id)
+        now = utcnow_iso()
+        db().execute("UPDATE recordings SET last_played_at = ? WHERE id = ?", (now, rec_id))
+        db().commit()
+        return jsonify(ok=True, last_played_at=now)
 
     @bp.get("/api/about")
     @require_auth()
