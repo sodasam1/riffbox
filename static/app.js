@@ -307,7 +307,8 @@ function buildRow(rec) {
     render();
     if (openEditId !== null) {
       const first = document.querySelector("#list form.edit input");
-      if (first) first.focus();
+      // put the cursor in the Title box, except on a touch screen, where that would throw the keyboard up at once
+      if (first && !window.matchMedia("(pointer: coarse)").matches) first.focus();
     }
   });
   const side = el("div", { class: "side" }, edit,
@@ -701,6 +702,57 @@ $("#pb-loop").addEventListener("click", () => { loopOn = !loopOn; syncLoopUI(); 
 $("#pb-clear").addEventListener("click", () => { loopA = loopB = null; loopOn = false; syncLoopUI(); });
 
 new ResizeObserver(drawWave).observe(wave);
+
+// Collapse the player to one slim row: by the button (remembered), and automatically while typing on a small or
+// touch screen, so a phone keyboard doesn't leave the form with a sliver of screen.
+const playerBar = $("#playerbar"), barToggle = $("#pb-toggle");
+let barMini = stored.get("mini") === "1";
+let typing = false;
+const isTextField = (n) => Boolean(n && n.matches && !n.closest("#playerbar") &&
+  n.matches('textarea, select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"])'));
+const smallScreen = () => window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
+function applyBar() {
+  const collapsed = barMini || typing;
+  playerBar.classList.toggle("mini", collapsed);
+  barToggle.textContent = collapsed ? "▴" : "▾";
+  barToggle.setAttribute("aria-label", collapsed ? "Expand the player" : "Collapse the player");
+  barToggle.setAttribute("aria-expanded", String(!collapsed));
+  if (!collapsed) drawWave();
+}
+// Collapse at once when a text box gets the cursor; expand only after it has been gone for a moment and no finger or
+// mouse button is down. Expanding the instant focus moved (e.g. onto a button being pressed) made the bar jump up over
+// the very spot being tapped, so the tap landed on the player and the button never got its click.
+let typingTimer = null, pointerDown = false;
+function syncTyping() {
+  const now = smallScreen() && isTextField(document.activeElement);
+  if (now) {
+    clearTimeout(typingTimer); typingTimer = null;
+    if (!typing) { typing = true; applyBar(); }
+    return;
+  }
+  if (!typing || typingTimer) return;
+  typingTimer = setTimeout(function settle() {
+    typingTimer = null;
+    if (smallScreen() && isTextField(document.activeElement)) return;
+    if (pointerDown) { typingTimer = setTimeout(settle, 150); return; }
+    typing = false; applyBar();
+  }, 300);
+}
+document.addEventListener("pointerdown", () => { pointerDown = true; }, true);
+for (const ev of ["pointerup", "pointercancel"]) document.addEventListener(ev, () => { pointerDown = false; }, true);
+barToggle.addEventListener("click", () => {
+  const collapsedNow = barMini || typing;                 // collapsed for either reason: the button expands it
+  if (typing && document.activeElement && document.activeElement.blur) document.activeElement.blur();   // also puts the keyboard away
+  clearTimeout(typingTimer); typingTimer = null;
+  typing = false;
+  barMini = !collapsedNow;
+  stored.set("mini", barMini ? "1" : "0");
+  applyBar();
+});
+document.addEventListener("focusin", syncTyping);
+document.addEventListener("focusout", syncTyping);
+setInterval(syncTyping, 1000);                                                // safety net: a field removed while focused
+applyBar();
 
 // ---- Library sidebar: search, tag/tempo/key filters, sorting ----------------------------------------
 const SORT_WORDS = {      // what the direction button says, per sort

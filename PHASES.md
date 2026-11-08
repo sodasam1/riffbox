@@ -72,3 +72,9 @@ Do not start a phase until the previous gate is ticked.
             minute. Try the waveform, scrubbing, speed, loop and download on the phone and on the computer.
 - [ ] **Phase 7** Ratings + triage mode.
 - [ ] **Phase 8** Hardening + backup + restore drill.
+
+## Player collapse (owner request: the player blocked a phone screen while typing)
+The player bar has a collapse button (▾/▴) that folds it to one slim row (play, title, time), remembered between
+visits; on a small or touch screen it also collapses by itself while a text box has focus and expands afterwards;
+the player's own speed menu does not count. Opening an edit form no longer puts the cursor in the Title box on a
+touch screen (that raised the keyboard at once). Checked by `tests/e2e/collapse.cjs` (breakages caught).

@@ -105,6 +105,18 @@ a.dl { color: var(--accent); font-size: .9rem; }
 .pb-loop button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .pb-loop button.set { border-color: var(--accent); color: var(--accent); }
 .pb-loop button:disabled, #pb-play:disabled { opacity: .45; cursor: default; }
+#pb-toggle { min-width: 36px; min-height: 36px; padding: 0 .5rem; flex: none; }
+
+/* Collapsed ("mini") player: a single slim row with play, title, time and the expand button. The waveform and
+   the other controls fold away, so the form being typed in (and the phone keyboard) keep the screen. */
+#playerbar.mini { grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; column-gap: 10px; row-gap: 0;
+                  padding: 8px 10px; }
+#playerbar.mini .pb-top, #playerbar.mini .pb-controls { display: contents; }
+#playerbar.mini #wave, #playerbar.mini #pb-speed, #playerbar.mini .pb-loop, #playerbar.mini #pb-dl { display: none; }
+#playerbar.mini #pb-play { order: -1; width: 40px; height: 40px; }
+#playerbar.mini .pb-title { order: 0; }
+#playerbar.mini .pb-time { order: 1; }
+#playerbar.mini #pb-toggle { order: 2; }
 
 /* ---- phase 4: inbox/library switch, details, intake form ---- */
 #views { display: flex; gap: 8px; margin: .2rem 0 .8rem; }
