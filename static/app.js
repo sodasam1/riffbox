@@ -65,6 +65,15 @@ function fmtDate(iso) {
   return isNaN(d) ? iso : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 }
 
+// The automatic name ("Idea, Nov 8 3:42pm") is built here, from the same local time the date line
+// shows. (The server only knows UTC, so a name it generated would disagree with the date line.)
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function autoTitle(d) {
+  const h = d.getHours();
+  return "Idea, " + MONTHS[d.getMonth()] + " " + d.getDate() + " " + (h % 12 || 12) + ":" +
+         String(d.getMinutes()).padStart(2, "0") + (h < 12 ? "am" : "pm");
+}
+
 function markPlaying() {
   for (const li of document.querySelectorAll("#list li")) {
     const on = Number(li.dataset.id) === playingId && !player.paused;
@@ -308,7 +317,7 @@ function buildForm(rec) {
     const picked = form.querySelector('input[name="tempo-' + id + '"]:checked');
     const bpmText = bpm.value.trim();
     const payload = {
-      title: title.value,
+      title: title.value.trim() || autoTitle(new Date(rec.recorded_at)),   // blank title = regenerate it
       tags: [...tagBox.querySelectorAll('.tagbtn[aria-pressed="true"]')].map((b) => b.dataset.tag),
       tempo: picked && picked.value ? picked.value : null,
       bpm: bpmText === "" ? null : Number(bpmText),
@@ -361,7 +370,9 @@ function uploadOne(file, row) {
     const state = row.querySelector(".state");
     const fd = new FormData();
     fd.append("file", file, file.name);
-    if (file.lastModified) fd.append("recorded_at", new Date(file.lastModified).toISOString());
+    const recorded = file.lastModified ? new Date(file.lastModified) : new Date();
+    if (file.lastModified) fd.append("recorded_at", recorded.toISOString());
+    fd.append("title", autoTitle(recorded));
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "api/upload");
     xhr.upload.addEventListener("progress", (e) => {

@@ -18,9 +18,13 @@ function wav(freq, seconds = 2, rate = 8000) {
   for (let i = 0; i < n; i++) buf.writeInt16LE(Math.round(8000 * Math.sin(2 * Math.PI * freq * i / rate)), 44 + i * 2);
   return buf;
 }
+// Fixed modification times (the browser sends these as "recorded at"). The browser runs in Pacific/Auckland
+// (UTC+13 in November), where local time and UTC clearly differ: 03:42Z is 4:42pm there.
+const stamps = ["2026-11-08T03:42:00Z", "2026-11-08T03:50:00Z", "2026-11-08T04:05:00Z"];
 const files = [110, 220, 330].map((f, i) => {
   const p = path.join(tmp, `memo-${i}.wav`);
   fs.writeFileSync(p, wav(f));
+  fs.utimesSync(p, new Date(stamps[i]), new Date(stamps[i]));
   return p;
 });
 
@@ -45,7 +49,8 @@ async function waitUp() {
   try {
     await waitUp();
     browser = await chromium.launch();
-    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1,
+                                           timezoneId: "Pacific/Auckland", locale: "en-US" });
     const page = await ctx.newPage();
     const problems = [];
     let n401 = 0, n400 = 0;                       // deliberate: logged-out session check; one rejected save
@@ -76,6 +81,14 @@ async function waitUp() {
     assert.strictEqual(await rows().count(), 2);
     assert.strictEqual(await tabText("#tab-library"), "Library");
     console.log("ok  two uploads appear in the Inbox with a count of 2");
+
+    // the automatic name and the date line must tell the same (local) time, not UTC
+    assert.deepStrictEqual(await page.locator("#list .title").allTextContents(),
+      ["Idea, Nov 8 4:50pm", "Idea, Nov 8 4:42pm"]);
+    const shown = await page.locator("#list").innerText();
+    assert.match(shown, /4:50\s*PM/); assert.match(shown, /4:42\s*PM/);
+    assert.doesNotMatch(shown, /3:50|3:42/, "no UTC times anywhere");
+    console.log("ok  automatic names use the same local time as the date line (4:50pm = 03:50 UTC + 13h)");
 
     // --- tag one recording using every field
     await rows().first().locator("button.edit-btn").click();
@@ -171,6 +184,19 @@ async function waitUp() {
     await page.waitForFunction(() => document.querySelector("#list > li") !== null);
     assert.strictEqual(await rows().count(), 1, "the new upload shows up once the form is closed");
     console.log("ok  corrected value saves; the new upload appears");
+
+    // clearing the Title box regenerates the name in local time (this also repairs older UTC-based names)
+    await page.click("#tab-library");
+    const plain = page.locator("#list > li", { hasText: "Idea, Nov 8 4:42pm" });
+    await plain.locator("button.edit-btn").click();
+    await page.locator("#list form.edit input[id^=f-title-]").fill("temporary name");
+    await page.locator("#list form.edit button[type=submit]").click();
+    await page.locator("#list > li", { hasText: "temporary name" }).waitFor();
+    await page.locator("#list > li", { hasText: "temporary name" }).locator("button.edit-btn").click();
+    await page.locator("#list form.edit input[id^=f-title-]").fill("   ");
+    await page.locator("#list form.edit button[type=submit]").click();
+    await page.locator("#list > li", { hasText: "Idea, Nov 8 4:42pm" }).waitFor();
+    console.log("ok  clearing the Title box regenerates the local-time name");
 
     assert.deepStrictEqual(problems, [], "browser errors: " + problems.join(" | "));
     assert.strictEqual(n401, 1, "exactly one expected 401 (logged-out session check), got " + n401);
