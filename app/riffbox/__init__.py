@@ -27,6 +27,7 @@ from flask import (Blueprint, Flask, Response, abort, g, jsonify, redirect, requ
 
 from . import backup as backups
 from . import exporter
+from .health import assess as assess_health
 from .intake import Invalid, MAX_TAGS_TOTAL, normalize_tag, validate_patch
 from .library import build_query, parse_filters
 from .media import INPUT_FORMAT, analyze_audio, convert_to_flac, mp4_audio_codec
@@ -61,6 +62,12 @@ def sniff_audio_ext(head):
     if head[:3] == b"ID3" or (head[0] == 0xFF and head[1] & 0xE0 == 0xE0):
         return ".mp3"
     return None
+
+
+def disk_usage(path):
+    """(total, free) bytes of the disk holding `path`. Module-level so tests can pretend the disk is full."""
+    usage = shutil.disk_usage(path)
+    return usage.total, usage.free
 
 
 def default_ffmpeg():
@@ -596,6 +603,28 @@ def create_app(config=None):
         tags = tags_for([r["id"] for r in rows])
         return jsonify(recordings=[{**row_to_dict(r, tags.get(r["id"], ())), "deleted_at": r["deleted_at"]} for r in rows])
 
+    @bp.get("/api/resurface")
+    @require_auth()
+    def resurface():
+        """Hearted Library ideas not played for `days` days (0 = every hearted one), never-played first, then the
+        longest ago. `hearts` is how many hearted ideas exist at all."""
+        try:
+            days = int(request.args.get("days", "30"))
+        except ValueError:
+            return bad_request("days must be a whole number")
+        if not 0 <= days <= 3650:
+            return bad_request("days must be between 0 and 3650")
+        cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        base = "FROM recordings WHERE deleted_at IS NULL AND status = 'tagged' AND rating = 'heart'"
+        hearts = db().execute("SELECT COUNT(*) " + base).fetchone()[0]
+        rows = db().execute(
+            "SELECT * " + base + " AND (? = 0 OR last_played_at IS NULL OR last_played_at < ?)"
+            " ORDER BY last_played_at IS NOT NULL, last_played_at ASC, recorded_at ASC, id ASC", (days, cutoff)).fetchall()
+        tags = tags_for([r["id"] for r in rows])
+        resp = jsonify(recordings=[row_to_dict(r, tags.get(r["id"], ())) for r in rows], hearts=hearts, days=days)
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+
     @bp.get("/api/tags")
     @require_auth()
     def list_tags():
@@ -685,6 +714,27 @@ def create_app(config=None):
     # ---- backup and export page ---------------------------------------------------------------------
     backup_runner = backups.Runner(data_dir, app.config["BACKUP_DIR"]) if app.config["BACKUP_DIR"] else None
 
+    def library_health(original_bytes, recordings, backup):
+        total, free = disk_usage(data_dir)
+        on_disk = sum(p.stat().st_size for p in audio_dir.iterdir() if p.is_file() and not p.name.startswith("."))
+        now = dt.datetime.now(dt.timezone.utc)
+        first = db().execute("SELECT MIN(uploaded_at) FROM recordings").fetchone()[0]
+        history = min(90.0, (now - dt.datetime.strptime(first, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)).total_seconds() / 86400) if first else 0.0
+        cutoff = (now - dt.timedelta(days=history)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        recent = db().execute("SELECT COALESCE(SUM(size), 0) FROM recordings WHERE uploaded_at >= ?", (cutoff,)).fetchone()[0]
+        age = same_disk = None
+        if backup:
+            same_disk = False
+            try:
+                same_disk = os.stat(app.config["BACKUP_DIR"]).st_dev == os.stat(data_dir).st_dev
+            except OSError:
+                pass
+            if backup["latest"]:
+                age = (now - dt.datetime.strptime(backup["latest"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)).total_seconds() / 86400
+        return assess_health(disk_total=total, disk_free=free, audio_bytes=on_disk, original_bytes=original_bytes,
+                             recent_bytes=recent, history_days=history, backup=backup, backup_same_disk=bool(same_disk),
+                             backup_age_days=age, recordings=recordings)
+
     @bp.get("/api/data")
     @require_auth()
     def data_overview():
@@ -695,6 +745,7 @@ def create_app(config=None):
         out = {"recordings": row["live"], "trashed": row["trashed"], "audio_bytes": row["bytes"], "backup": None}
         if backup_runner:
             out["backup"] = {**backups.status(data_dir, app.config["BACKUP_DIR"]), "job": backup_runner.job}
+        out["health"] = library_health(row["bytes"], row["live"] + row["trashed"], out["backup"])
         resp = jsonify(out)
         resp.headers["Cache-Control"] = "no-store"
         return resp

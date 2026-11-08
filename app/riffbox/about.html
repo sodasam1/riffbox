@@ -3,7 +3,7 @@
      Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model, Keeping your data portable.
      UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
 
-<p class="meta">Last updated: 8 Nov 2026, after adding the phone upload Shortcuts' server side. Written from what was checked on your server and
+<p class="meta">Last updated: 8 Nov 2026, after adding Resurface, compact rows and the backup status line. Written from what was checked on your server and
 in the tests, not from assumptions; anything unverified is marked as such.</p>
 
 <h2>Planned features</h2>
@@ -23,9 +23,6 @@ committed build order; these are the extras that come after, or alongside, them.
     Control Center) retries. Steps and the test list are in <code>deploy/SHORTCUT.md</code>.</li>
   <li><strong>Record-and-send Shortcut</strong> (Action Button, Back Tap or Lock Screen) that records and
     uploads directly, skipping the Voice Memos app.</li>
-  <li><strong>Shuffle and "not played in a while"</strong>: a button that plays a random hearted idea, and a
-    list of ideas you haven't opened in 30+ days, to get you back to old material. (The last-played times it
-    needs are recorded since Phase 6, and you can already sort the Library by last played.)</li>
   <li><strong>Weekly email digest</strong> of a few forgotten hearted ideas, sent through your server's
     existing mail setup (<code>smtpd</code> and smtp2go), so no new service is needed.</li>
   <li><strong>Possible later:</strong> small waveform thumbnails in the list.</li>
@@ -90,6 +87,11 @@ phone, a check by you) before the next one starts. That keeps any problem confin
   </tbody>
 </table>
 </div>
+<p><strong>Added since Phase 8</strong> (built and tested; they wait for your check on real devices): the
+<strong>Backup and export</strong> page with a status line (disk space, growth forecast, backup state), the iPhone
+<strong>Outbox</strong> upload Shortcuts, <strong>Resurface</strong> (hearted ideas you have not played for a while,
+and a <em>Surprise me</em> button), a <strong>Cozy / Compact</strong> row-size switch for the Library, and a Trash tab
+that is set apart from Inbox and Library.</p>
 
 <h2>Context</h2>
 <p><strong>The problem.</strong> Ideas were recorded as voice memos, then moved by hand into Obsidian and

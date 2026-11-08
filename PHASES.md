@@ -117,3 +117,16 @@ the file name loses its extension; `GET /api/token-check`; every 401 carries a m
 Shortcut recipes (Flush Riffbox Outbox, Send to Riffbox), the Control Center step and a phone test list.
 **Not verifiable from the build machine:** the Shortcuts themselves and how the iPhone behaves (uploads, locked phone,
 long memos). Deploy gate: routine deploy, then SHORTCUT.md section 6.
+
+## Resurface, compact rows, backup status line, Trash tab (owner request)
+- **Backup and export: status line.** `app/riffbox/health.py` (pure, unit-tested thresholds): disk free (warn under 10%, bad
+  under 5% or 1 GB), growth forecast from the last 90 days of uploads (counts FLAC copies, and counts everything twice when
+  the backup folder is on the same disk; no forecast under 14 days of history), backup age (warn after 3 days, bad after 14),
+  audio files not yet backed up, "no backup set up". Shown at the top of the page.
+- **Resurface.** `GET /api/resurface?days=N` (0 = every ♥): hearted Library ideas not played for N days, never-played first.
+  A tab with a time choice (remembered) and *Surprise me* (random, not the one already playing; falls back to any ♥ when
+  everything was played lately).
+- **Cozy / Compact** switch for the Library (remembered): one slim line per recording; desktop rows 135 px -> 44 px in the
+  browser test. The phone header now wraps instead of colliding (a bug from adding the Backup and export link).
+- **Trash tab** is set apart (far right, dashed) and its page has its own heading, note and muted rows.
+- Tests: `test_health_resurface.py`, `tests/e2e/phase9.cjs`. Deploy gate: routine deploy, then try the four things on the phone.

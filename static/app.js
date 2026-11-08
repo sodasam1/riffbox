@@ -76,6 +76,13 @@ async function loadData() {
   if (!r.ok) { err.textContent = "Could not load this page (error " + r.status + ")."; err.hidden = false; return; }
   const d = await r.json();
   if (location.hash !== "#data") return;                 // the user already left
+  const st = d.health, box = $("#data-status");
+  box.hidden = false;
+  box.className = "status-line " + st.level;
+  $("#status-head").textContent = (st.level === "ok" ? "✓ " : st.level === "warn" ? "⚠ " : "✖ ") + st.headline;
+  $("#status-sum").textContent = st.summary;
+  const list = $("#status-items");
+  list.replaceChildren(...st.items.filter((i) => i.text !== st.headline).map((i) => el("li", { class: i.level }, i.text)));
   $("#data-summary").textContent = d.recordings + (d.recordings === 1 ? " recording" : " recordings") +
     (d.trashed ? " (plus " + d.trashed + " in the Trash)" : "") + " · " + fmtBytes(d.audio_bytes) + " of original audio";
   $("#data-trash-n").textContent = d.trashed ? "(" + d.trashed + ")" : "";
@@ -260,7 +267,11 @@ player.addEventListener("error", async () => {
 // ---- inbox / library, details, and the intake form -------------------------------------------
 // Uploads land in the Inbox. Saving the form (even completely empty) moves a recording to the Library.
 const KEY_ROOTS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
-let view = "inbox";            // which list is showing: "inbox" | "library" | "trash"
+let view = "inbox";            // which list is showing: "inbox" | "library" | "resurface" | "trash"
+let resurfaceRecs = [];        // hearted ideas not played for a while (fetched while that tab is open)
+let resurfaceHearts = 0;       // how many hearted ideas exist at all
+let resurfaceDays = 30;
+let density = "cozy";          // Library row size: "cozy" | "compact"
 let trashRecs = [];            // recordings moved to the Trash (only fetched while that tab is open)
 let trashCount = 0;
 let inboxRecs = [];            // everything not yet saved to the Library
@@ -288,6 +299,9 @@ const stored = {
   if (["recorded", "uploaded", "title", "bpm", "length", "played"].includes(s)) filters.sort = s;
   if (o === "asc" || o === "desc") filters.order = o;
   if (p === "0") autoPreview = false;
+  if (stored.get("density") === "compact") density = "compact";
+  const rd = Number(stored.get("resurface-days"));
+  if ([0, 7, 30, 90, 180, 365].includes(rd) && stored.get("resurface-days") !== null) resurfaceDays = rd;
 }
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -312,10 +326,25 @@ function setView(next) {
   openEditId = null;
   notify("");
   render();
+  if (next === "trash" || next === "resurface") loadList();      // these lists are only fetched while open
 }
 $("#tab-inbox").addEventListener("click", () => setView("inbox"));
 $("#tab-library").addEventListener("click", () => setView("library"));
-$("#tab-trash").addEventListener("click", () => { setView("trash"); loadList(); });
+$("#tab-resurface").addEventListener("click", () => setView("resurface"));
+$("#tab-trash").addEventListener("click", () => setView("trash"));
+
+// Library row size: cozy (the full row) or compact (one slim line, to see more at once). Remembered on this device.
+function applyDensity() {
+  const compact = view === "library" && density === "compact";
+  $("#list").classList.toggle("compact", compact);
+  $("#results").classList.toggle("compact", compact);
+  $("#dens-cozy").setAttribute("aria-pressed", String(density === "cozy"));
+  $("#dens-compact").setAttribute("aria-pressed", String(density === "compact"));
+  $("#density").hidden = view !== "library";
+}
+for (const [id, value] of [["#dens-cozy", "cozy"], ["#dens-compact", "compact"]]) {
+  $(id).addEventListener("click", () => { density = value; stored.set("density", value); applyDensity(); const li = document.querySelector("#list li.selected"); if (li) li.scrollIntoView({ block: "nearest" }); });
+}
 
 function updateTabs() {
   const inbox = inboxRecs.length;
@@ -324,6 +353,7 @@ function updateTabs() {
   $("#tab-trash").hidden = !trashCount && view !== "trash";
   $("#tab-trash").textContent = "Trash" + (trashCount ? " (" + trashCount + ")" : "");
   $("#tab-trash").setAttribute("aria-pressed", String(view === "trash"));
+  $("#tab-resurface").setAttribute("aria-pressed", String(view === "resurface"));
   $("#tab-inbox").setAttribute("aria-pressed", String(view === "inbox"));
   $("#tab-library").setAttribute("aria-pressed", String(view === "library"));
 }
@@ -335,7 +365,17 @@ const filtersActive = () => Boolean(filters.q.trim() || filters.tags.length || b
 function render() {
   updateTabs();
   const inLibrary = view === "library";
-  const shown = inLibrary ? libRecs : view === "trash" ? trashRecs : inboxRecs;
+  const shown = inLibrary ? libRecs : view === "trash" ? trashRecs : view === "resurface" ? resurfaceRecs : inboxRecs;
+  $("#lib-title").textContent = view === "trash" ? "Trash" : view === "resurface" ? "Resurface" : "Recordings";
+  $("#app").classList.toggle("in-trash", view === "trash");
+  $("#trash-note").hidden = view !== "trash";
+  $("#resurface-bar").hidden = view !== "resurface";
+  if (view === "resurface") {
+    $("#resurface-days").value = String(resurfaceDays);
+    $("#resurface-text").textContent = !resurfaceHearts ? "Heart (♥) some ideas in the Library and they will come back here."
+      : resurfaceRecs.length + " of your " + resurfaceHearts + " hearted " + (resurfaceHearts === 1 ? "idea has" : "ideas have") +
+        (resurfaceDays ? " not been played in " + $("#resurface-days").selectedOptions[0].textContent : " been listed") + ". Never-played ones come first, then the longest ago.";
+  }
   const ul = $("#list");
   ul.replaceChildren();
   ul.classList.toggle("library", inLibrary);
@@ -348,6 +388,7 @@ function render() {
   if (!shown.length) {
     empty.textContent = (inboxRecs.length + libTotal) === 0 ? "Nothing yet. Upload a voice memo above."
       : view === "trash" ? "The Trash is empty."
+      : view === "resurface" ? (resurfaceHearts ? "Every hearted idea has been played recently. Pick a shorter time, or press Surprise me for any ♥." : "No hearted ideas yet.")
       : !inLibrary ? "Nothing waiting to be tagged. Switch to Library to browse what you've saved."
       : libTotal === 0 ? "Nothing in the Library yet. Open a recording in the Inbox and save it, and it moves here."
       : "No recordings match these filters. Use Clear filters to start over.";
@@ -357,9 +398,10 @@ function render() {
   $("#triage-start").textContent = "Triage the Inbox (" + inboxRecs.length + ")";
   $("#count").textContent = shown.length ? "(" + shown.length + ")" : "";
   if (inLibrary) updateFilterUI();
-  playStatus = new Map([...inboxRecs, ...libRecs].map((rec) => [rec.id, rec.play_status]));
+  playStatus = new Map([...inboxRecs, ...libRecs, ...resurfaceRecs].map((rec) => [rec.id, rec.play_status]));
   if (selectedId !== null && !shown.some((r) => r.id === selectedId)) selectedId = null;   // filtered out
   for (const rec of shown) ul.append(view === "trash" ? buildTrashRow(rec) : buildRow(rec));
+  applyDensity();
   markPlaying();
 }
 
@@ -367,7 +409,8 @@ function buildRow(rec) {
   const btn = el("button", { class: "play", type: "button" }, "▶");
   btn.addEventListener("click", () => togglePlay(rec));
   const meta = el("div", { class: "meta when" }, whenText(rec) +
-    (rec.duration_s ? " · " + fmtTime(rec.duration_s) : "") + " · " + fmtSize(rec.size));
+    (rec.duration_s ? " · " + fmtTime(rec.duration_s) : "") + " · " + fmtSize(rec.size) +
+    (view === "resurface" ? " · " + (rec.last_played_at ? "last played " + ago(rec.last_played_at) : "never played") : ""));
   if (rec.play_status === "pending") meta.append(el("span", { class: "chip" }, "preparing playback…"));
   if (rec.play_status === "failed") meta.append(el("span", { class: "chip" }, "no play copy"));
   const info = el("div", { class: "info" }, el("div", { class: "title" }, rec.title), meta);
@@ -611,11 +654,12 @@ function libraryQuery() {
 async function loadList() {
   clearTimeout(pollTimer);
   const seq = ++loadSeq;
-  let inbox, lib, tags, trash;
+  let inbox, lib, tags, trash, forgotten;
   try {
-    [inbox, lib, tags, trash] = await Promise.all([
+    [inbox, lib, tags, trash, forgotten] = await Promise.all([
       api("recordings?status=inbox"), api("recordings?" + libraryQuery()), api("tags"),
-      view === "trash" ? api("trash") : Promise.resolve(null)]);
+      view === "trash" ? api("trash") : Promise.resolve(null),
+      view === "resurface" ? api("resurface?days=" + resurfaceDays) : Promise.resolve(null)]);
   } catch (e) {
     if (seq === loadSeq) { notify("Could not reach the server. Check your connection and try again."); schedulePoll(); }
     return;
@@ -630,6 +674,7 @@ async function loadList() {
   libRatings = libBody.ratings;
   trashCount = inboxBody.trashed;
   if (trash && trash.ok) trashRecs = (await trash.json()).recordings;
+  if (forgotten && forgotten.ok) { const body = await forgotten.json(); resurfaceRecs = body.recordings; resurfaceHearts = body.hearts; }
   if (tags.ok) allTags = (await tags.json()).tags;
   if (openEditId !== null) updateTabs();     // never rebuild the list under a form someone is typing in
   else render();
@@ -1059,6 +1104,34 @@ $("#filters-toggle").addEventListener("click", () => {
   $("#filters-toggle").setAttribute("aria-expanded", String(open));
 });
 
+// ---- Resurface: hearted ideas you have not played for a while ----------------------------------------
+$("#resurface-days").addEventListener("change", (e) => {
+  resurfaceDays = Number(e.target.value);
+  stored.set("resurface-days", String(resurfaceDays));
+  loadList();
+});
+let surprising = false;
+$("#surprise").addEventListener("click", async () => {
+  if (surprising) return;
+  surprising = true;
+  try {
+    let pool = resurfaceRecs, anyHeart = false;
+    if (!pool.length && resurfaceHearts) {                    // all hearted ideas were played lately: draw from every one
+      const r = await api("resurface?days=0");
+      if (r.status === 401) { show("login"); return; }
+      if (r.ok) { pool = (await r.json()).recordings; anyHeart = true; }
+    }
+    if (!pool.length) { notify("Nothing hearted yet. Heart (♥) some ideas in the Library first."); return; }
+    const choices = pool.length > 1 ? pool.filter((r) => r.id !== playingId) : pool;     // not the one already playing
+    const rec = choices[Math.floor(Math.random() * choices.length)];
+    setSelected(rec.id);
+    startPlay(rec);
+    notify("Playing \u201c" + rec.title + "\u201d" + (rec.last_played_at ? ", last played " + ago(rec.last_played_at) : ", which you have never played") +
+           (anyHeart ? " (every hearted idea was played lately, so this is any \u2665)." : "."));
+  } catch (e) { notify("Could not reach the server. Check your connection and try again."); }
+  finally { surprising = false; }
+});
+
 // ---- marks: ♥ interesting, ✓ used in a song, ✗ no longer interesting ---------------------------------
 const MARKS = [["heart", "♥", "Interesting"], ["check", "✓", "Used in a song"], ["x", "✗", "No longer interesting"]];
 
@@ -1268,7 +1341,7 @@ document.addEventListener("keydown", (e) => {
 // play each recording as you land on it, like auditioning samples. Space plays or pauses the
 // highlighted one. Keys typed in a form field are never taken over.
 const listEl = $("#list");
-const recById = (id) => [...inboxRecs, ...libRecs].find((r) => r.id === id);
+const recById = (id) => [...inboxRecs, ...libRecs, ...resurfaceRecs].find((r) => r.id === id);
 
 function previewIfWanted(id) {
   setSelected(id);

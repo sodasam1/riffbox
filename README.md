@@ -74,7 +74,6 @@ ffmpeg the bar still works but shows a plain line and no lengths. `app/riffbox/m
   uploads directly, skipping the Voice Memos app.
 - **Weekly email digest** of a few forgotten hearted ideas, sent through the server's
   existing `smtpd` and smtp2go relay.
-- Shuffle button and a "not played in 30+ days" list.
 - **Serve the page from `htdocs` instead of the app (owner's preferred direction).** Today the
   Python app serves the page files (`static/index.html`, `app.js`, `style.css`) along with the
   API, and relayd sends everything under `/ideas` to the app. The plan is to let httpd serve the

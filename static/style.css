@@ -17,9 +17,10 @@ body {
 main, #app { max-width: 52rem; margin: 0 auto; padding: 0 16px 14rem; }   /* room to scroll past the player */
 h1 { font-size: 1.4rem; margin: 1.2rem 0 .8rem; }
 h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 2rem 0 .6rem; }
-header { display: flex; justify-content: space-between; align-items: center; }
+header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .3rem 1rem; }
 a { color: var(--accent); }
-header nav { display: flex; align-items: center; gap: 16px; }
+header nav { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 4px 16px; }
+header nav a, header nav button { white-space: nowrap; }
 a.quiet { color: var(--muted); font-size: .9rem; }
 a.quiet:hover { color: var(--accent); }
 
@@ -260,3 +261,48 @@ a.btn.primary { background: var(--accent); color: var(--accent-text); border-col
 #data-view h3 { font-size: 1.05rem; margin: 1.6rem 0 .4rem; }
 #data-view p { max-width: 62ch; }
 #data-view code { font-size: .88em; background: var(--panel); padding: .05rem .3rem; border-radius: 4px; word-break: break-word; }
+
+/* ---- tabs: Trash is set apart, Resurface and the row-size switch ---- */
+#views { flex-wrap: wrap; align-items: center; }
+#tab-trash { margin-left: auto; background: transparent; border-style: dashed; color: var(--muted); }
+#views #tab-trash[aria-pressed="true"] { background: var(--panel); color: var(--text); border-color: var(--muted); border-style: solid; }
+#density { display: inline-flex; margin-left: 8px; }
+#density button { min-height: 36px; padding: .3rem .7rem; font-size: .85rem; }
+#density button:first-child { border-radius: 6px 0 0 6px; }
+#density button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+#density button[aria-pressed="true"] { background: var(--panel); color: var(--text); border-color: var(--accent); position: relative; font-weight: 700; }
+#app.in-trash #lib-h { color: var(--muted); }
+#app.in-trash #list li { color: var(--muted); border-left: 3px solid var(--line); }
+#trash-note { margin: 0 0 .8rem; }
+.resurface-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 .8rem; }
+.resurface-controls select { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: .4rem .5rem; min-height: 40px; }
+#resurface-text { margin: 0 0 .4rem; }
+
+/* ---- compact rows (Library): one slim line per recording ---- */
+#list.compact li { padding: .15rem 10px; align-items: center; }
+#list.compact .play { width: 30px; height: 30px; margin-top: 0; font-size: .7rem; }
+#list.compact .notes, #list.compact form.edit .meta { display: none; }
+#list.compact .side { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 2px 10px; }
+#list.compact .ratebtn { min-width: 28px; min-height: 28px; font-size: .95rem; }
+#list.compact .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+#list.compact .when, #list.compact .details { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 899px) {
+  #list.compact .tags, #list.compact .details { display: none; }
+  #list.compact li .info { display: grid; gap: 0; }
+  #list.compact .dl { display: none; }          /* the player bar still has Download; Cozy rows show it here */
+}
+@media (min-width: 900px) {
+  #results.compact { --cols: 30px minmax(7rem, 2fr) minmax(6rem, 2fr) 11rem 9.5rem 14rem; }   /* room for Edit, Download and the marks on one line */
+  #list.library.compact li { padding: .1rem 10px; }
+  #list.library.compact .side { flex-wrap: nowrap; white-space: nowrap; }
+  #list.library.compact .tags { flex-wrap: nowrap; overflow: hidden; }
+}
+
+/* ---- Backup and export: the status line ---- */
+:root { --warn: #b7791f; }
+@media (prefers-color-scheme: dark) { :root { --warn: #d29922; } }
+.status-line { border: 1px solid var(--line); border-left-width: 5px; border-radius: 8px; padding: .6rem .9rem; margin: 0 0 1rem; max-width: 62ch; }
+.status-line.ok { border-left-color: var(--ok); } .status-line.warn { border-left-color: var(--warn); } .status-line.bad { border-left-color: var(--err); }
+.status-line p { margin: 0; } .status-line ul { margin: .4rem 0 0; padding-left: 1.1rem; list-style: disc; }
+.status-line li.warn { color: var(--warn); } .status-line li.bad { color: var(--err); }
+#status-head { font-weight: 600; }

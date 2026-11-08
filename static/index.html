@@ -36,6 +36,11 @@
   <section id="data-view" aria-labelledby="data-h" hidden>
     <p><a id="data-back" href="#">← Back to recordings</a></p>
     <h2 id="data-h" class="how-title">Backup and export</h2>
+    <div id="data-status" class="status-line" hidden>
+      <p id="status-head"></p>
+      <p id="status-sum" class="meta"></p>
+      <ul id="status-items"></ul>
+    </div>
     <p id="data-summary" class="meta" aria-live="polite">Loading…</p>
 
     <h3>Export everything</h3>
@@ -80,11 +85,27 @@
   </section>
 
   <section aria-labelledby="lib-h">
-    <h2 id="lib-h">Recordings <span id="count"></span></h2>
+    <h2 id="lib-h"><span id="lib-title">Recordings</span> <span id="count"></span></h2>
     <div id="views" role="group" aria-label="Which recordings to show">
       <button id="tab-inbox" type="button" aria-pressed="true">Inbox</button>
       <button id="tab-library" type="button" aria-pressed="false">Library</button>
+      <button id="tab-resurface" type="button" aria-pressed="false">Resurface</button>
+      <span id="density" role="group" aria-label="Row size" hidden>
+        <button id="dens-cozy" type="button" aria-pressed="true">Cozy</button><button id="dens-compact" type="button" aria-pressed="false">Compact</button>
+      </span>
       <button id="tab-trash" type="button" aria-pressed="false" hidden>Trash</button>
+    </div>
+    <p id="trash-note" class="meta" hidden>Deleted recordings wait here and are still on the server. Press Restore to bring one back.</p>
+    <div id="resurface-bar" hidden>
+      <p id="resurface-text" class="meta" aria-live="polite"></p>
+      <p class="resurface-controls">
+        <label for="resurface-days">Not played in</label>
+        <select id="resurface-days">
+          <option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option>
+          <option value="180">6 months</option><option value="365">a year</option><option value="0">any time</option>
+        </select>
+        <button id="surprise" type="button" class="primary">Surprise me</button>
+      </p>
     </div>
     <button id="triage-start" type="button" class="primary" hidden>Triage the Inbox</button>
     <p id="notice" role="status" aria-live="polite" hidden></p>
