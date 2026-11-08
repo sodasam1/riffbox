@@ -1,0 +1,10 @@
+# /etc/riffbox.conf   (owner root, group _riffbox, mode 640)
+RIFFBOX_DATA_DIR=/var/riffbox
+# The app is served at https://sanjaysubramanian.com/ideas/
+RIFFBOX_BASE_PATH=/ideas
+RIFFBOX_STATIC_DIR=/usr/local/riffbox/static
+# Long random strings. Generate each with:  openssl rand -hex 32
+RIFFBOX_SECRET=CHANGE-ME
+RIFFBOX_UPLOAD_TOKEN=CHANGE-ME
+# What you type to log in to the web UI:
+RIFFBOX_PASSPHRASE=CHANGE-ME

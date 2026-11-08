@@ -1,0 +1,15 @@
+#!/bin/ksh
+# OpenBSD rc.d script for Riffbox. Install to /etc/rc.d/riffbox (mode 555).
+
+daemon="/usr/local/bin/python3"
+daemon_flags="-m waitress --listen=127.0.0.1:8100 --threads=4 wsgi:app"
+daemon_user="_riffbox"
+daemon_execdir="/usr/local/riffbox/app"
+daemon_logger="daemon.info"
+
+. /etc/rc.d/rc.subr
+
+rc_bg=YES
+rc_reload=NO
+
+rc_cmd $1
