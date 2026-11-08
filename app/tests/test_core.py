@@ -35,6 +35,12 @@ def test_token_cannot_read_audio(client):
     assert r.status_code == 401  # upload token is add-only for audio
 
 
+def test_session_status(client, authed):
+    assert authed.get("/api/session").get_json() == {"ok": True}
+    fresh = client.application.test_client()
+    assert fresh.get("/api/session").status_code == 401
+
+
 def test_logout(authed):
     authed.post("/api/logout")
     assert authed.get("/api/recordings").status_code == 401

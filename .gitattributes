@@ -1,0 +1,5 @@
+# Always check files out with Unix (LF) line endings, even with Git for Windows' default
+# autocrlf setting. A CRLF in deploy/rc.d/riffbox ("#!/bin/ksh\r") breaks it on OpenBSD.
+* text=auto eol=lf
+deploy/rc.d/* text eol=lf
+*.sh text eol=lf

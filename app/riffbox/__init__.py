@@ -11,7 +11,10 @@ import os
 import secrets
 import sqlite3
 import tempfile
+import threading
+import time
 import uuid
+from collections import deque
 from functools import wraps
 from pathlib import Path
 
@@ -24,6 +27,18 @@ ALLOWED_EXT = {
 FALLBACK_MIME = {".m4a": "audio/mp4", ".caf": "audio/x-caf", ".aac": "audio/aac"}
 
 SCHEMA = Path(__file__).with_name("schema.sql")
+
+# Login throttling: after PER_CLIENT_MAX wrong passphrases from one client (or GLOBAL_MAX from
+# anyone) inside WINDOW seconds, logins get HTTP 429 until the oldest failure ages out.
+LOGIN_WINDOW = 15 * 60
+LOGIN_PER_CLIENT_MAX = 5
+LOGIN_GLOBAL_MAX = 30
+LOOPBACK = ("127.0.0.1", "::1")
+
+
+def _now():
+    # Module-level so tests can replace the clock.
+    return time.monotonic()
 
 
 def utcnow_iso():
@@ -124,17 +139,77 @@ def create_app(config=None):
             return wrapper
         return deco
 
+    # ---- login throttling (in memory; resets when the service restarts) ---------
+    throttle_lock = threading.Lock()
+    failures = {}                 # client key -> deque of failure times
+    global_failures = deque()
+
+    def client_key():
+        """Who is asking. waitress only listens on loopback, so every real connection comes from
+        relayd, which *sets* X-Forwarded-For to the true client address (any client-supplied value
+        is overwritten). Trust that header only for loopback peers."""
+        addr = request.remote_addr or "?"
+        if addr in LOOPBACK:
+            forwarded = request.headers.get("X-Forwarded-For", "")
+            last = forwarded.split(",")[-1].strip()
+            if last:
+                return last
+        return addr
+
+    def _prune(dq, now):
+        while dq and now - dq[0] >= LOGIN_WINDOW:
+            dq.popleft()
+
+    def login_wait(key, now):
+        """Seconds the client must wait (0 = allowed). Caller holds throttle_lock."""
+        mine = failures.get(key)
+        if mine is not None:
+            _prune(mine, now)
+            if not mine:
+                del failures[key]
+        _prune(global_failures, now)
+        wait = 0
+        if mine and len(mine) >= LOGIN_PER_CLIENT_MAX:
+            wait = max(wait, LOGIN_WINDOW - (now - mine[0]))
+        if len(global_failures) >= LOGIN_GLOBAL_MAX:
+            wait = max(wait, LOGIN_WINDOW - (now - global_failures[0]))
+        return int(wait) + 1 if wait > 0 else 0
+
     @bp.post("/api/login")
     def login():
+        key = client_key()
+        now = _now()
+        with throttle_lock:
+            if len(failures) > 1000:             # bound memory
+                for k in list(failures):
+                    _prune(failures[k], now)
+                    if not failures[k]:
+                        del failures[k]
+            wait = login_wait(key, now)
+        if wait:
+            resp = jsonify(error="too many attempts", retry_after=wait)
+            resp.status_code = 429
+            resp.headers["Retry-After"] = str(wait)
+            return resp
         body = request.get_json(silent=True) or {}
         supplied = str(body.get("passphrase", ""))
         expected = app.config["PASSPHRASE"]
         if expected and hmac.compare_digest(supplied.encode(), expected.encode()):
+            with throttle_lock:
+                failures.pop(key, None)
             session.clear()
             session.permanent = True
             session["ok"] = True
             return jsonify(ok=True)
+        with throttle_lock:
+            failures.setdefault(key, deque()).append(now)
+            global_failures.append(now)
         return jsonify(error="bad passphrase"), 401
+
+    @bp.get("/api/session")
+    @require_auth()
+    def session_status():
+        return jsonify(ok=True)
 
     @bp.post("/api/logout")
     def logout():
@@ -208,7 +283,7 @@ def create_app(config=None):
                 tmp_path.unlink()
 
     @bp.get("/api/recordings")
-    @require_auth(allow_token=True)
+    @require_auth()      # the upload token is add-only: it must not be able to read the library
     def list_recordings():
         rows = db().execute(
             "SELECT * FROM recordings WHERE deleted_at IS NULL ORDER BY recorded_at DESC, id DESC"
@@ -246,7 +321,7 @@ def create_app(config=None):
 
     @bp.get("/static/<path:name>")
     def static_files(name):
-        return send_from_directory(app.config["STATIC_DIR"], name, max_age=3600)
+        return send_from_directory(app.config["STATIC_DIR"], name, max_age=0)
 
     app.register_blueprint(bp, url_prefix=base)
     if base:
