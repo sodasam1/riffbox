@@ -99,14 +99,19 @@ async function waitUp() {
       await page.waitForSelector("#playerbar:not([hidden])");
       const g = await page.evaluate(() => {
         const r = document.querySelector("#playerbar").getBoundingClientRect();
-        const a = document.querySelector("#player").getBoundingClientRect();
+        const top = document.querySelector(".pb-top").getBoundingClientRect();
+        const controls = document.querySelector(".pb-controls").getBoundingClientRect();
+        const wave = document.querySelector("#wave").getBoundingClientRect();
+        const play = document.querySelector("#pb-play").getBoundingClientRect();
         return { gapBottom: innerHeight - r.bottom, gapLeft: r.left, gapRight: innerWidth - r.right,
-                 padTop: a.top - r.top, padBottom: r.bottom - a.bottom, padSide: a.left - r.left, audioH: a.height };
+                 padTop: top.top - r.top, padBottom: r.bottom - controls.bottom, padSide: wave.left - r.left,
+                 audioH: play.height, barH: r.height, vh: innerHeight };
       });
       assert.ok(g.gapBottom >= 12, `${w}px: bar is clear of the bottom edge (${g.gapBottom})`);
       assert.ok(g.gapLeft >= 12 && g.gapRight >= 12 || w > 700, `${w}px: bar is clear of the side edges`);
       assert.ok(g.padTop >= 8 && g.padBottom >= 8 && g.padSide >= 8, `${w}px: the controls have padding inside the bar`);
       assert.ok(g.audioH >= 40, `${w}px: controls are tall enough to tap (${g.audioH})`);
+      assert.ok(g.barH <= g.vh * 0.32, `${w}px: the player bar does not take over the screen (${g.barH} of ${g.vh}px)`);
       await page.screenshot({ path: path.join(tmp, `bar-${w}.png`) });
     }
     console.log("ok  player bar floats clear of the edges with padding, on phone and desktop widths");

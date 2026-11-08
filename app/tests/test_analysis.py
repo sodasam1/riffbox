@@ -1,6 +1,5 @@
 """Phase 6: waveform + length analysis, the 'played' marker, and the length / last-played sorts."""
 import io
-import json
 import shutil
 import sqlite3
 import stat
@@ -164,7 +163,7 @@ def test_upload_is_measured_in_the_background(make_app, tmp_path):
 def test_alac_is_both_converted_and_measured(make_app, tmp_path):
     app = make_app()
     c = app.test_client()
-    rid = upload(c, tone_then_silence(tmp_path, "m.m4a", ("-c:a", "alac")).read_bytes(), "m.m4a")
+    upload(c, tone_then_silence(tmp_path, "m.m4a", ("-c:a", "alac")).read_bytes(), "m.m4a")
     settle(app)
     login(c)
     rec = c.get("/api/recordings").get_json()["recordings"][0]

@@ -50,7 +50,20 @@ Do not start a phase until the previous gate is ticked.
       - Deviation from the original plan: sorting by length and by last played is deferred to Phase 6, because
         neither value is recorded until then (`duration_s` is filled by the waveform step; `last_played_at` needs
         the player to report plays).
-- [ ] **Phase 6** Player polish (waveform, scrub, speed, loop, download), plus recording each recording's length and
-      last-played time, which unlocks the two deferred sorts and the "not played in a while" list.
+- [ ] **Phase 6** Player polish (branch `phase-6`; not merged to `main` until the owner asks).
+      - Design change from the original plan: the waveform and length are measured on the server with ffmpeg
+        (once per upload, in the background worker; older recordings at the next restart) instead of decoding in
+        the browser, which would load whole files into a phone's memory and cannot read Apple Lossless in Chrome.
+        So the waveform needs ffmpeg, which the owner already installed.
+      - [x] Local gate: `pytest` 199 passed (`test_analysis.py`: peak summarising incl. odd chunk boundaries, real
+            ffmpeg on six formats, garbage and disguised-playlist files, failed ffmpeg, restart/backfill, the
+            `played` marker, sort by length and last played); `node tests/e2e/phase6.cjs` (Chromium, desktop and
+            phone): waveform drawn, scrubbing by click/drag/keyboard, speed with pitch kept and remembered, A-B
+            loop (checked by watching the playback position for 3.6 s), Shift+drag, whole-recording loop, "played"
+            only after a real listen, lengths and the two new sorts, phone layout. Loop, played-marker and
+            scrubbing tests were each checked by breaking the code and watching them fail.
+      - [ ] Deploy gate: routine deploy (no new package; ffmpeg is already installed and configured). After
+            `sh ~/install-riffbox.sh` the restart measures existing recordings: waveforms should appear within a
+            minute. Try the waveform, scrubbing, speed, loop and download on the phone and on the computer.
 - [ ] **Phase 7** Ratings + triage mode.
 - [ ] **Phase 8** Hardening + backup + restore drill.

@@ -49,6 +49,13 @@ progress, context, what the guide and `ti.sh` established, architecture, and the
 `app/riffbox/about.html` and is only served to a logged-in session (`GET /api/about`), because it describes
 the server setup; the public page files contain none of it. Keep it up to date (see `PHASES.md`).
 
+## Player, waveform and lengths (phase 6)
+
+The player bar shows a waveform you can click or drag, speed control (pitch preserved), an A-B loop and a
+Download link. The waveform and each recording's length are measured by the server with `ffmpeg` shortly after
+upload (and at start-up for recordings that have not been measured), so nothing heavy runs on a phone. Without
+ffmpeg the bar still works but shows a plain line and no lengths. `app/riffbox/media.py` does the measuring.
+
 ## Security notes
 
 - Logins are throttled: 5 wrong passphrases per client (30 from anyone) within 15 minutes returns

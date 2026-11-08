@@ -3,7 +3,7 @@
      Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model.
      UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
 
-<p class="meta">Last updated: 8 Nov 2026, after Phase 5 and its follow-up fixes. Written from what was checked on your server and
+<p class="meta">Last updated: 8 Nov 2026, after building Phase 6. Written from what was checked on your server and
 in the tests, not from assumptions; anything unverified is marked as such.</p>
 
 <h2>Planned features</h2>
@@ -22,7 +22,8 @@ committed build order; these are the extras that come after, or alongside, them.
   <li><strong>Record-and-send Shortcut</strong> (Action Button, Back Tap or Lock Screen) that records and
     uploads directly, skipping the Voice Memos app.</li>
   <li><strong>Shuffle and "not played in a while"</strong>: a button that plays a random hearted idea, and a
-    list of ideas you haven't opened in 30+ days, to get you back to old material.</li>
+    list of ideas you haven't opened in 30+ days, to get you back to old material. (The last-played times it
+    needs are recorded since Phase 6, and you can already sort the Library by last played.)</li>
   <li><strong>Weekly email digest</strong> of a few forgotten hearted ideas, sent through your server's
     existing mail setup (<code>smtpd</code> and smtp2go), so no new service is needed.</li>
   <li><strong>Possible later:</strong> small waveform thumbnails in the list, and an export-everything zip.</li>
@@ -57,15 +58,18 @@ phone, a check by you) before the next one starts. That keeps any problem confin
       use the up and down arrows to move through it, auditioning each one as you land on it (switchable), and
       Space to play or pause. Sorting by length or by last played arrives with Phase 6, once those are
       recorded.</td><td><span class="status done">Done</span></td></tr>
-    <tr><td>6</td><td><strong>Player polish</strong>: a scrubbable waveform (peaks computed in the browser
-      and saved; for Apple Lossless memos this has to come from the FLAC copy, because Chrome can't decode the
-      original), playback speed, an A-B loop, and download of the untouched original. Also records each
-      recording's length and when it was last played, which unlocks sorting by those and the "not played in a
-      while" list.</td><td><span class="status next">Next</span></td></tr>
+    <tr><td>6</td><td><strong>Player polish</strong>: a player bar with a waveform you can click or drag to jump
+      around, speed control that keeps the pitch, an A-B loop (A and B buttons, or Shift + drag on the waveform
+      to select a section; Loop on its own repeats the whole recording), and a Download link to the untouched
+      original. The waveform and each recording's length are measured once by the server (with ffmpeg) soon after
+      upload, so your phone never has to decode the whole file; recordings uploaded earlier are measured the next
+      time the service restarts. Lengths now show in the list, the player records when you last <em>really</em>
+      listened to a recording (not when you skip past it), and the Library can be sorted by length and by last
+      played.</td><td><span class="status done">Built; awaiting your check</span></td></tr>
     <tr><td>7</td><td><strong>Ratings and triage</strong>: heart, check ("used in a song") and X ("no longer
       interesting") marks with filters (X hidden from "All" by default), a "used in" note for checks, and a
       card-by-card triage mode for working through the Inbox with keyboard shortcuts.</td>
-      <td><span class="status">Planned</span></td></tr>
+      <td><span class="status next">Next</span></td></tr>
     <tr><td>8</td><td><strong>Hardening and backup</strong>: delete with restore, a mobile layout pass, a
       nightly backup of the database and audio, and a practice restore to prove it works. (Login attempt
       limiting was pulled forward and is already live.)</td><td><span class="status">Planned</span></td></tr>
@@ -111,8 +115,8 @@ build must go in small tested phases.</p>
   <li><strong>Mail:</strong> the server runs its own mail software and sends outgoing mail through smtp2go.
     The planned weekly digest would reuse this.</li>
   <li><strong>Software already present:</strong> the script installs curl, rsync, Radicale, links, mutt and
-    dovecot. Python came along with Radicale. Riffbox added Flask, waitress and (for the FLAC copies)
-    ffmpeg.</li>
+    dovecot. Python came along with Radicale. Riffbox added Flask, waitress and (for the FLAC copies and the
+    waveforms) ffmpeg.</li>
 </ul>
 
 <h2>Architecture</h2>
@@ -137,8 +141,9 @@ audio files. Everything else on your domain is still handled by httpd exactly as
       passphrase, address prefix and the ffmpeg path. Deploys never touch it.</td></tr>
     <tr><td>Your data</td><td><code>/var/riffbox</code></td><td>The SQLite database and the
       <code>audio/</code> folder. Deploys never touch it.</td></tr>
-    <tr><td>Optional helper</td><td><code>ffmpeg</code></td><td>Only used to make FLAC copies. Without it the
-      app still works; Apple Lossless memos just have no copy for Chrome.</td></tr>
+    <tr><td>Optional helper</td><td><code>ffmpeg</code></td><td>Makes the FLAC copies and measures each recording's
+      length and waveform. Without it the app still works, but there is no waveform or length, and Apple Lossless
+      memos have no copy for Chrome.</td></tr>
   </tbody>
 </table>
 </div>
@@ -153,6 +158,10 @@ audio files. Everything else on your domain is still handled by httpd exactly as
     uses (no extra tool needed). If it is Apple Lossless, a single background worker converts it to FLAC
     (lossless in both directions; the tests compare the decoded audio sample for sample). The player uses
     the FLAC copy; <em>Download</em> always gives you the original, byte for byte.</li>
+  <li><strong>Measuring:</strong> in the same background worker, ffmpeg decodes each upload to a small, quiet
+    version of itself just long enough to find its length and draw 200 points of waveform. It is forced to read the
+    file as the type its name says, so a file cannot pose as something else, such as a playlist pointing at other
+    files. A file that cannot be measured is remembered, so it is not retried forever.</li>
   <li><strong>Playback:</strong> audio is served in ranges, which is what lets the browser jump to any point
     in a recording without downloading the whole thing.</li>
 </ul>
@@ -213,9 +222,9 @@ shown in your browser's local time.</p>
     <tr><td><code>notes</code></td><td>Free text, up to 5,000 characters.</td><td>Yes</td></tr>
     <tr><td><code>codec</code></td><td>What audio format the file holds (for example <code>alac</code> or <code>aac</code>), read from the file itself.</td><td>Yes</td></tr>
     <tr><td><code>play_status</code>, <code>play_filename</code>, <code>play_error</code></td><td>State of the FLAC playback copy (<code>pending</code>, <code>ready</code>, <code>failed</code>), its file name, and the last error (for the server log only, never shown on the page).</td><td>Yes</td></tr>
-    <tr><td><code>duration_s</code>, <code>peaks</code></td><td>Length, and the points used to draw the waveform.</td><td>Phase 6</td></tr>
+    <tr><td><code>duration_s</code>, <code>peaks</code></td><td>Length in seconds, and 200 points used to draw the waveform (empty if the file could not be measured). Measured once by the server.</td><td>Yes</td></tr>
     <tr><td><code>rating</code>, <code>used_in</code></td><td>Heart, check or X, and which song a checked idea became.</td><td>Phase 7</td></tr>
-    <tr><td><code>last_played_at</code></td><td>When it was last played.</td><td>Phase 6 starts recording it; then sorting and the "not played in a while" list</td></tr>
+    <tr><td><code>last_played_at</code></td><td>When it was last played.</td><td>Yes (set once you've really listened; the "not played in a while" list is still planned)</td></tr>
     <tr><td><code>deleted_at</code></td><td>Marks a recording as deleted without erasing it. The app already hides these.</td><td>Phase 8 adds the delete and restore buttons</td></tr>
   </tbody>
 </table>
