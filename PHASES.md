@@ -33,7 +33,20 @@ Do not start a phase until the previous gate is ticked.
             wipes an open form. `phase3.cjs` still passes.
       - [x] Deploy gate: routine deploy (no new package, no database step, no config change); tag and save one of your
             real memos on the phone and on the computer.
-- [ ] **Phase 5** Library browser (filters, search, sort, keyboard preview).
-- [ ] **Phase 6** Player polish (waveform, scrub, speed, loop, download).
+- [ ] **Phase 5** Library browser (branch `phase-5`; not merged to `main` until the owner asks).
+      - [x] Local gate: `pytest` 166 passed (`app/tests/test_library.py`: every filter, AND/OR tags, tempo, key,
+            search over title/notes/tag names with literal `%` and `_`, sorts incl. BPM nulls last, validation,
+            SQL-injection attempts, auth; also checked by deliberately breaking the filter code three ways);
+            `node tests/e2e/phase5.cjs` (Chromium, desktop and 390px phone): filters, search, sort remembered across
+            reload, click/arrow/Space with auto-preview on and off, keys inside a form left alone, filters wait for an
+            open form, phone layout with collapsible filters and no sideways scroll. Phases 3, 4 and the how-to page
+            tests still pass.
+      - [ ] Deploy gate: routine deploy (no new package, no database step, no config change); try it on a few dozen
+            real recordings on the computer and the phone.
+      - Deviation from the original plan: sorting by length and by last played is deferred to Phase 6, because
+        neither value is recorded until then (`duration_s` is filled by the waveform step; `last_played_at` needs
+        the player to report plays).
+- [ ] **Phase 6** Player polish (waveform, scrub, speed, loop, download), plus recording each recording's length and
+      last-played time, which unlocks the two deferred sorts and the "not played in a while" list.
 - [ ] **Phase 7** Ratings + triage mode.
 - [ ] **Phase 8** Hardening + backup + restore drill.

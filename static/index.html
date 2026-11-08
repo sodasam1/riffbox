@@ -49,9 +49,58 @@
       <button id="tab-library" type="button" aria-pressed="false">Library</button>
     </div>
     <p id="notice" role="status" aria-live="polite" hidden></p>
-    <p id="empty" hidden></p>
-    <ul id="list"></ul>
-    <p id="audio-error" class="error" role="alert" hidden></p>
+    <div id="browser">
+      <aside id="filters" aria-label="Filter and sort the Library" hidden>
+        <button id="filters-toggle" type="button" aria-expanded="false" aria-controls="filters-panel">Filters</button>
+        <div id="filters-panel">
+          <div class="field">
+            <label for="f-q">Search</label>
+            <input id="f-q" type="search" placeholder="Title, notes or tag" autocomplete="off" maxlength="200">
+          </div>
+          <fieldset>
+            <legend>Tags</legend>
+            <div id="f-tags" class="tagbox" role="group" aria-label="Filter by tag"></div>
+            <div class="matchrow">
+              <span class="radio"><input type="radio" name="f-match" id="f-match-all" value="all" checked><label for="f-match-all">Has all selected</label></span>
+              <span class="radio"><input type="radio" name="f-match" id="f-match-any" value="any"><label for="f-match-any">Has any selected</label></span>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Tempo</legend>
+            <span class="radio"><input type="checkbox" id="f-tempo-slow" value="slow"><label for="f-tempo-slow">Slow</label></span>
+            <span class="radio"><input type="checkbox" id="f-tempo-medium" value="medium"><label for="f-tempo-medium">Medium</label></span>
+            <span class="radio"><input type="checkbox" id="f-tempo-fast" value="fast"><label for="f-tempo-fast">Fast</label></span>
+          </fieldset>
+          <div class="keyrow">
+            <div class="field"><label for="f-root">Key</label><select id="f-root"><option value="">Any</option></select></div>
+            <div class="field"><label for="f-mode">Major / minor</label>
+              <select id="f-mode"><option value="">Any</option><option value="major">major</option><option value="minor">minor</option></select></div>
+          </div>
+          <div class="field">
+            <label for="f-sort">Sort by</label>
+            <div class="sortrow">
+              <select id="f-sort">
+                <option value="recorded">Recorded</option>
+                <option value="uploaded">Uploaded</option>
+                <option value="title">Title</option>
+                <option value="bpm">BPM</option>
+              </select>
+              <button id="f-order" type="button">↓</button>
+            </div>
+          </div>
+          <span class="radio"><input type="checkbox" id="f-preview" checked><label for="f-preview">Play as I move through the list</label></span>
+          <p id="f-count" class="meta" role="status" aria-live="polite"></p>
+          <button id="f-clear" type="button">Clear filters</button>
+        </div>
+      </aside>
+      <div id="results">
+        <div id="colhead" aria-hidden="true"><span></span><span>Title</span><span>Tags</span><span>Tempo · key</span><span>Recorded</span><span></span></div>
+        <p id="empty" hidden></p>
+        <ul id="list" tabindex="0" aria-label="Recordings"></ul>
+        <p id="kbd-hint" class="meta" hidden>Click a recording or Tab to the list, then ↑ ↓ to move and Space to play or pause.</p>
+        <p id="audio-error" class="error" role="alert" hidden></p>
+      </div>
+    </div>
   </section>
   </div>
 </div>

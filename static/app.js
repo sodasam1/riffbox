@@ -108,17 +108,35 @@ function markPlaying() {
 
 let playStatus = new Map();    // recording id -> play_status from the latest list ("pending", "failed", ...)
 
-function togglePlay(rec) {
+// Start `rec` from the beginning (or, if it is already the loaded recording, make sure it is playing).
+function startPlay(rec) {
   $("#audio-error").hidden = true;
-  // After an error, clicking again reloads the source (a FLAC play copy may be ready by now).
+  // After an error, starting again reloads the source (a FLAC play copy may be ready by now).
   if (playingId === rec.id && !player.error) {
-    if (player.paused) player.play(); else player.pause();
+    if (player.paused) player.play().catch(() => {});
     return;
   }
   playingId = rec.id;
   player.src = "api/play/" + rec.id;     // the FLAC play copy if there is one, else the original
   player.play().catch(() => {});
   markPlaying();
+}
+
+function togglePlay(rec) {
+  setSelected(rec.id);
+  if (playingId === rec.id && !player.error && !player.paused) { player.pause(); return; }
+  startPlay(rec);
+}
+
+// Highlight a row (the one the arrow keys move from, and Space plays).
+function setSelected(id) {
+  selectedId = id;
+  for (const li of document.querySelectorAll("#list > li")) {
+    const on = Number(li.dataset.id) === id;
+    li.classList.toggle("selected", on);
+    if (on) { li.setAttribute("aria-current", "true"); li.scrollIntoView({ block: "nearest" }); }
+    else li.removeAttribute("aria-current");
+  }
 }
 
 player.addEventListener("play", markPlaying);
@@ -158,10 +176,29 @@ player.addEventListener("error", async () => {
 // Uploads land in the Inbox. Saving the form (even completely empty) moves a recording to the Library.
 const KEY_ROOTS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
 let view = "inbox";            // which list is showing: "inbox" | "library"
-let allRecs = [];
+let inboxRecs = [];            // everything not yet saved to the Library
+let libRecs = [];              // Library recordings matching the current filters (the server does the filtering)
+let libTotal = 0;              // Library size before any filter
 let allTags = [];
 let openEditId = null;         // at most one edit form open at a time
+let selectedId = null;         // the highlighted row; arrow keys move it, Space plays it
 let pollTimer = null;
+let loadSeq = 0;               // numbers each load so a slow, older response can't overwrite a newer one
+
+// What the Library sidebar is asking for. Sort and the preview switch are remembered between visits
+// (a per-device convenience only: everything still works if the browser refuses to store them).
+const filters = { q: "", tags: [], match: "all", tempo: [], key_root: "", key_mode: "", sort: "recorded", order: "desc" };
+let autoPreview = true;
+const stored = {
+  get(k) { try { return localStorage.getItem("riffbox." + k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem("riffbox." + k, v); } catch (e) { /* storage unavailable */ } },
+};
+{
+  const s = stored.get("sort"), o = stored.get("order"), p = stored.get("preview");
+  if (["recorded", "uploaded", "title", "bpm"].includes(s)) filters.sort = s;
+  if (o === "asc" || o === "desc") filters.order = o;
+  if (p === "0") autoPreview = false;
+}
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -189,28 +226,40 @@ $("#tab-inbox").addEventListener("click", () => setView("inbox"));
 $("#tab-library").addEventListener("click", () => setView("library"));
 
 function updateTabs() {
-  const inbox = allRecs.filter((r) => r.status === "inbox").length;
-  const library = allRecs.length - inbox;
+  const inbox = inboxRecs.length;
   $("#tab-inbox").textContent = "Inbox" + (inbox ? " (" + inbox + ")" : "");
-  $("#tab-library").textContent = "Library" + (library ? " (" + library + ")" : "");
+  $("#tab-library").textContent = "Library" + (libTotal ? " (" + libTotal + ")" : "");
   $("#tab-inbox").setAttribute("aria-pressed", String(view === "inbox"));
   $("#tab-library").setAttribute("aria-pressed", String(view === "library"));
 }
 
+const filtersActive = () => Boolean(filters.q.trim() || filters.tags.length || filters.tempo.length ||
+                                    filters.key_root || filters.key_mode);
+
 function render() {
   updateTabs();
-  const shown = allRecs.filter((r) => (view === "inbox") === (r.status === "inbox"));
+  const inLibrary = view === "library";
+  const shown = inLibrary ? libRecs : inboxRecs;
   const ul = $("#list");
   ul.replaceChildren();
+  ul.classList.toggle("library", inLibrary);
+  $("#app").classList.toggle("wide", inLibrary);           // the Library table gets more room
+  $("#filters").hidden = !inLibrary;
+  $("#browser").classList.toggle("with-filters", inLibrary);
+  $("#colhead").hidden = !inLibrary || !shown.length;
   const empty = $("#empty");
   empty.hidden = shown.length > 0;
   if (!shown.length) {
-    empty.textContent = allRecs.length === 0 ? "Nothing yet. Upload a voice memo above."
-      : view === "inbox" ? "Nothing waiting to be tagged. Switch to Library to browse what you've saved."
-      : "Nothing in the Library yet. Open a recording in the Inbox and save it, and it moves here.";
+    empty.textContent = (inboxRecs.length + libTotal) === 0 ? "Nothing yet. Upload a voice memo above."
+      : !inLibrary ? "Nothing waiting to be tagged. Switch to Library to browse what you've saved."
+      : libTotal === 0 ? "Nothing in the Library yet. Open a recording in the Inbox and save it, and it moves here."
+      : "No recordings match these filters. Use Clear filters to start over.";
   }
+  $("#kbd-hint").hidden = !shown.length;
   $("#count").textContent = shown.length ? "(" + shown.length + ")" : "";
-  playStatus = new Map(allRecs.map((rec) => [rec.id, rec.play_status]));
+  if (inLibrary) updateFilterUI();
+  playStatus = new Map([...inboxRecs, ...libRecs].map((rec) => [rec.id, rec.play_status]));
+  if (selectedId !== null && !shown.some((r) => r.id === selectedId)) selectedId = null;   // filtered out
   for (const rec of shown) ul.append(buildRow(rec));
   markPlaying();
 }
@@ -218,10 +267,10 @@ function render() {
 function buildRow(rec) {
   const btn = el("button", { class: "play", type: "button" }, "▶");
   btn.addEventListener("click", () => togglePlay(rec));
-  const meta = el("div", { class: "meta" }, fmtDate(rec.recorded_at) + " · " + fmtSize(rec.size));
+  const meta = el("div", { class: "meta when" }, fmtDate(rec.recorded_at) + " · " + fmtSize(rec.size));
   if (rec.play_status === "pending") meta.append(el("span", { class: "chip" }, "preparing playback…"));
   if (rec.play_status === "failed") meta.append(el("span", { class: "chip" }, "no play copy"));
-  const info = el("div", {}, el("div", { class: "title" }, rec.title), meta);
+  const info = el("div", { class: "info" }, el("div", { class: "title" }, rec.title), meta);
   const details = detailsText(rec);
   if (details) info.append(el("div", { class: "meta details" }, details));
   if (rec.tags.length) {
@@ -244,6 +293,7 @@ function buildRow(rec) {
   const side = el("div", { class: "side" }, edit,
     el("a", { class: "dl", href: "api/audio/" + rec.id + "?download=1" }, "Download"));
   const li = el("li", { "data-id": String(rec.id), "data-title": rec.title }, btn, info, side);
+  if (rec.id === selectedId) { li.classList.add("selected"); li.setAttribute("aria-current", "true"); }
   if (openEditId === rec.id) li.append(buildForm(rec));
   return li;
 }
@@ -329,7 +379,7 @@ function buildForm(rec) {
   const err = el("p", { class: "error", role: "alert", hidden: "" });
   const save = el("button", { type: "submit", class: "primary" }, rec.status === "inbox" ? "Save and move to Library" : "Save");
   const cancel = el("button", { type: "button" }, "Cancel");
-  cancel.addEventListener("click", () => { openEditId = null; render(); });
+  cancel.addEventListener("click", () => { openEditId = null; notify(""); render(); });
   const actions = el("div", { class: "actions" }, save, cancel);
   let back = null;
   if (rec.status !== "inbox") { back = el("button", { type: "button", class: "link" }, "Move back to Inbox"); actions.append(back); }
@@ -367,11 +417,28 @@ function buildForm(rec) {
   return form;
 }
 
+function libraryQuery() {
+  const p = new URLSearchParams({ status: "tagged", sort: filters.sort, order: filters.order });
+  if (filters.q.trim()) p.set("q", filters.q.trim());
+  if (filters.tags.length) { p.set("tags", filters.tags.join(",")); p.set("match", filters.match); }
+  if (filters.tempo.length) p.set("tempo", filters.tempo.join(","));
+  if (filters.key_root) p.set("key_root", filters.key_root);
+  if (filters.key_mode) p.set("key_mode", filters.key_mode);
+  return p.toString();
+}
+
 async function loadList() {
   clearTimeout(pollTimer);
-  const [recs, tags] = await Promise.all([api("recordings"), api("tags")]);
-  if (recs.status === 401) { show("login"); return; }
-  allRecs = (await recs.json()).recordings;
+  const seq = ++loadSeq;
+  const [inbox, lib, tags] = await Promise.all([
+    api("recordings?status=inbox"), api("recordings?" + libraryQuery()), api("tags")]);
+  if (inbox.status === 401 || lib.status === 401) { if (seq === loadSeq) show("login"); return; }
+  if (!inbox.ok || !lib.ok) { notify("Could not load your recordings (error " + (lib.ok ? inbox.status : lib.status) + ")."); return; }
+  const [inboxBody, libBody] = await Promise.all([inbox.json(), lib.json()]);
+  if (seq !== loadSeq) return;                // a newer load is already on its way; this answer is stale
+  inboxRecs = inboxBody.recordings;
+  libRecs = libBody.recordings;
+  libTotal = libBody.total;
   if (tags.ok) allTags = (await tags.json()).tags;
   if (openEditId !== null) updateTabs();     // never rebuild the list under a form someone is typing in
   else render();
@@ -382,9 +449,133 @@ async function loadList() {
 // (but not while a form is open: that would throw away what is being typed).
 function schedulePoll() {
   clearTimeout(pollTimer);
-  if (!allRecs.some((rec) => rec.play_status === "pending")) return;
+  if (![...inboxRecs, ...libRecs].some((rec) => rec.play_status === "pending")) return;
   pollTimer = setTimeout(() => { if (openEditId !== null) schedulePoll(); else loadList(); }, 3000);
 }
+
+// ---- Library sidebar: search, tag/tempo/key filters, sorting ----------------------------------------
+const SORT_WORDS = {      // what the direction button says, per sort
+  recorded: { desc: "Newest first", asc: "Oldest first" },
+  uploaded: { desc: "Newest first", asc: "Oldest first" },
+  title: { asc: "A to Z", desc: "Z to A" },
+  bpm: { desc: "Highest first", asc: "Lowest first" },
+};
+const DEFAULT_ORDER = { recorded: "desc", uploaded: "desc", title: "asc", bpm: "desc" };
+
+for (const k of KEY_ROOTS) $("#f-root").append(el("option", { value: k }, k));
+let renderedTagKey = "";
+
+function updateFilterUI() {
+  // tag buttons are only rebuilt when the set of tags changes, so a click never steals keyboard focus
+  const key = allTags.join("\n");
+  if (key !== renderedTagKey) {
+    renderedTagKey = key;
+    const box = $("#f-tags");
+    box.replaceChildren();
+    for (const t of allTags) {
+      const b = el("button", { type: "button", class: "tagbtn", "data-tag": t, "aria-pressed": "false" }, t);
+      b.addEventListener("click", () => {
+        const i = filters.tags.indexOf(t);
+        if (i >= 0) filters.tags.splice(i, 1); else filters.tags.push(t);
+        filtersChanged(0);
+      });
+      box.append(b);
+    }
+  }
+  for (const b of $("#f-tags").children) b.setAttribute("aria-pressed", String(filters.tags.includes(b.dataset.tag)));
+  const words = SORT_WORDS[filters.sort][filters.order];
+  $("#f-order").textContent = (filters.order === "desc" ? "↓ " : "↑ ") + words;
+  $("#f-order").setAttribute("aria-label", "Sort direction: " + words + ". Press to reverse.");
+  $("#f-sort").value = filters.sort;
+  $("#f-preview").checked = autoPreview;
+  $("#f-clear").disabled = !filtersActive();
+  const n = [filters.q.trim(), filters.tags.length, filters.tempo.length, filters.key_root, filters.key_mode].filter(Boolean).length;
+  $("#filters-toggle").textContent = n ? "Filters (" + n + " active)" : "Filters";
+  $("#f-count").textContent = libTotal === 0 ? ""
+    : filtersActive() ? libRecs.length + " of " + libTotal + " recordings" : libTotal + (libTotal === 1 ? " recording" : " recordings");
+}
+
+let filterTimer = null;
+function filtersChanged(delay) {
+  clearTimeout(filterTimer);
+  if (openEditId !== null) notify("Filters apply when you save or cancel the open form.");
+  filterTimer = setTimeout(loadList, delay);
+  if (openEditId === null) updateFilterUI();
+}
+
+$("#f-q").addEventListener("input", (e) => { filters.q = e.target.value; filtersChanged(200); });
+for (const r of document.querySelectorAll('input[name="f-match"]')) {
+  r.addEventListener("change", () => { filters.match = r.value; if (filters.tags.length > 1) filtersChanged(0); else updateFilterUI(); });
+}
+for (const c of document.querySelectorAll('[id^="f-tempo-"]')) {
+  c.addEventListener("change", () => {
+    filters.tempo = [...document.querySelectorAll('[id^="f-tempo-"]')].filter((x) => x.checked).map((x) => x.value);
+    filtersChanged(0);
+  });
+}
+$("#f-root").addEventListener("change", (e) => { filters.key_root = e.target.value; filtersChanged(0); });
+$("#f-mode").addEventListener("change", (e) => { filters.key_mode = e.target.value; filtersChanged(0); });
+$("#f-sort").addEventListener("change", (e) => {
+  filters.sort = e.target.value;
+  filters.order = DEFAULT_ORDER[filters.sort];
+  stored.set("sort", filters.sort); stored.set("order", filters.order);
+  filtersChanged(0);
+});
+$("#f-order").addEventListener("click", () => {
+  filters.order = filters.order === "desc" ? "asc" : "desc";
+  stored.set("order", filters.order);
+  filtersChanged(0);
+});
+$("#f-preview").addEventListener("change", (e) => { autoPreview = e.target.checked; stored.set("preview", autoPreview ? "1" : "0"); });
+$("#f-clear").addEventListener("click", () => {
+  Object.assign(filters, { q: "", tags: [], match: "all", tempo: [], key_root: "", key_mode: "" });
+  $("#f-q").value = ""; $("#f-root").value = ""; $("#f-mode").value = "";
+  $("#f-match-all").checked = true;
+  for (const c of document.querySelectorAll('[id^="f-tempo-"]')) c.checked = false;
+  filtersChanged(0);
+});
+$("#filters-toggle").addEventListener("click", () => {
+  const open = $("#filters").classList.toggle("open");
+  $("#filters-toggle").setAttribute("aria-expanded", String(open));
+});
+
+// ---- moving through the list with the keyboard -----------------------------------------------------
+// Click a row (or Tab to the list), then Up/Down move the highlight and, with "play as I move" on,
+// play each recording as you land on it, like auditioning samples. Space plays or pauses the
+// highlighted one. Keys typed in a form field are never taken over.
+const listEl = $("#list");
+const recById = (id) => [...inboxRecs, ...libRecs].find((r) => r.id === id);
+
+function previewIfWanted(id) {
+  setSelected(id);
+  const rec = recById(id);
+  if (autoPreview && rec) startPlay(rec);
+}
+
+listEl.addEventListener("click", (e) => {
+  if (e.target.closest("button, a, form, input, select, textarea, label")) return;
+  const li = e.target.closest("#list > li");
+  if (!li) return;
+  listEl.focus({ preventScroll: true });
+  previewIfWanted(Number(li.dataset.id));
+});
+
+listEl.addEventListener("keydown", (e) => {
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  if (e.target.closest("form, input, textarea, select")) return;
+  const rows = [...listEl.children];
+  if (!rows.length) return;
+  const at = rows.findIndex((li) => Number(li.dataset.id) === selectedId);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    const next = at < 0 ? 0 : Math.min(rows.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)));
+    previewIfWanted(Number(rows[next].dataset.id));
+  } else if (e.key === " " && !e.target.closest("button, a")) {      // on a button, Space already means "press it"
+    e.preventDefault();
+    const rec = recById(selectedId !== null ? selectedId : Number(rows[0].dataset.id));
+    if (rec) togglePlay(rec);
+  }
+});
 
 // ---- upload ------------------------------------------------------------------
 function uploadOne(file, row) {

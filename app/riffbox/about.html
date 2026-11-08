@@ -3,7 +3,7 @@
      Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model.
      UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
 
-<p class="meta">Last updated: 8 Nov 2026, after Phase 4. Written from what was checked on your server and
+<p class="meta">Last updated: 8 Nov 2026, after building Phase 5. Written from what was checked on your server and
 in the tests, not from assumptions; anything unverified is marked as such.</p>
 
 <h2>Planned features</h2>
@@ -50,14 +50,18 @@ phone, a check by you) before the next one starts. That keeps any problem confin
       all optional. Saving, even an empty form, moves a recording from the Inbox to the Library. Also fixed
       afterwards: automatic names now use your local time.</td>
       <td><span class="status done">Done</span></td></tr>
-    <tr><td>5</td><td><strong>Library browser</strong> in the style of a DAW sample browser: filter by tags
-      (match all or any), by key and tempo, search titles and notes, sort by date recorded, uploaded,
-      title or length, move through the list with the arrow keys with auto-preview, and play or pause with
-      the space bar.</td><td><span class="status next">Next</span></td></tr>
+    <tr><td>5</td><td><strong>Library browser</strong> in the style of a DAW sample browser: a table with a
+      filter sidebar (on a phone the filters fold behind a button). Filter by tags (has all or has any of the
+      selected), by tempo and by key; search across titles, notes and tag names; sort by date recorded, date
+      uploaded, title or BPM (recordings with no BPM always go last). Click a recording or Tab to the list, then
+      use the up and down arrows to move through it, auditioning each one as you land on it (switchable), and
+      Space to play or pause. Sorting by length or by last played arrives with Phase 6, once those are
+      recorded.</td><td><span class="status done">Built; awaiting your check</span></td></tr>
     <tr><td>6</td><td><strong>Player polish</strong>: a scrubbable waveform (peaks computed in the browser
       and saved; for Apple Lossless memos this has to come from the FLAC copy, because Chrome can't decode the
-      original), playback speed, an A-B loop, and download of the untouched original.</td>
-      <td><span class="status">Planned</span></td></tr>
+      original), playback speed, an A-B loop, and download of the untouched original. Also records each
+      recording's length and when it was last played, which unlocks sorting by those and the "not played in a
+      while" list.</td><td><span class="status next">Next</span></td></tr>
     <tr><td>7</td><td><strong>Ratings and triage</strong>: heart, check ("used in a song") and X ("no longer
       interesting") marks with filters (X hidden from "All" by default), a "used in" note for checks, and a
       card-by-card triage mode for working through the Inbox with keyboard shortcuts.</td>
@@ -211,7 +215,7 @@ shown in your browser's local time.</p>
     <tr><td><code>play_status</code>, <code>play_filename</code>, <code>play_error</code></td><td>State of the FLAC playback copy (<code>pending</code>, <code>ready</code>, <code>failed</code>), its file name, and the last error (for the server log only, never shown on the page).</td><td>Yes</td></tr>
     <tr><td><code>duration_s</code>, <code>peaks</code></td><td>Length, and the points used to draw the waveform.</td><td>Phase 6</td></tr>
     <tr><td><code>rating</code>, <code>used_in</code></td><td>Heart, check or X, and which song a checked idea became.</td><td>Phase 7</td></tr>
-    <tr><td><code>last_played_at</code></td><td>When it was last played.</td><td>Planned (shuffle and "not played in a while")</td></tr>
+    <tr><td><code>last_played_at</code></td><td>When it was last played.</td><td>Phase 6 starts recording it; then sorting and the "not played in a while" list</td></tr>
     <tr><td><code>deleted_at</code></td><td>Marks a recording as deleted without erasing it. The app already hides these.</td><td>Phase 8 adds the delete and restore buttons</td></tr>
   </tbody>
 </table>

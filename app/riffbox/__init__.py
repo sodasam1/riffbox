@@ -23,7 +23,8 @@ from types import SimpleNamespace
 from flask import (Blueprint, Flask, abort, g, jsonify, redirect, request,
                    send_file, send_from_directory, session)
 
-from .intake import (Invalid, MAX_TAGS_TOTAL, STATUSES, normalize_tag, validate_patch)
+from .intake import Invalid, MAX_TAGS_TOTAL, normalize_tag, validate_patch
+from .library import build_query, parse_filters
 from .media import convert_to_flac, mp4_audio_codec
 
 ALLOWED_EXT = {
@@ -414,17 +415,23 @@ def create_app(config=None):
     @bp.get("/api/recordings")
     @require_auth()      # the upload token is add-only: it must not be able to read the library
     def list_recordings():
-        status = request.args.get("status")
-        if status is not None and status not in STATUSES:
-            return bad_request("status must be inbox or tagged")
-        sql = "SELECT * FROM recordings WHERE deleted_at IS NULL"
-        params = []
-        if status:
-            sql += " AND status = ?"
-            params.append(status)
-        rows = db().execute(sql + " ORDER BY recorded_at DESC, id DESC", params).fetchall()
+        """Recordings matching the filters in the query string (see library.py). `count` is how many
+        matched; `total` is how many exist in this status before any filter, for "12 of 40"."""
+        try:
+            filters = parse_filters(request.args)
+        except Invalid as exc:
+            return bad_request(str(exc))
+        sql, params = build_query(filters)
+        rows = db().execute(sql, params).fetchall()
+        total_sql = "SELECT COUNT(*) FROM recordings WHERE deleted_at IS NULL"
+        total_params = []
+        if filters["status"]:
+            total_sql += " AND status = ?"
+            total_params.append(filters["status"])
+        total = db().execute(total_sql, total_params).fetchone()[0]
         tags = tags_for([r["id"] for r in rows])
-        return jsonify(recordings=[row_to_dict(r, tags.get(r["id"], ())) for r in rows])
+        return jsonify(recordings=[row_to_dict(r, tags.get(r["id"], ())) for r in rows],
+                       count=len(rows), total=total)
 
     @bp.patch("/api/recordings/<int:rec_id>")
     @require_auth()
