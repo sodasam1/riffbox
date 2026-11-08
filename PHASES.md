@@ -130,3 +130,22 @@ long memos). Deploy gate: routine deploy, then SHORTCUT.md section 6.
   browser test. The phone header now wraps instead of colliding (a bug from adding the Backup and export link).
 - **Trash tab** is set apart (far right, dashed) and its page has its own heading, note and muted rows.
 - Tests: `test_health_resurface.py`, `tests/e2e/phase9.cjs`. Deploy gate: routine deploy, then try the four things on the phone.
+
+## Whole-code review 2 (clean-up without changing behaviour, plus bugs and glitches)
+**Clean-up (no behaviour change):** login throttling moved out of the 800-line `create_app` into `throttle.py` (a small class
+with a fake-clock-friendly constructor); the status-line data gathering into `health.collect`; `sniff_audio_ext` into
+`media.py`; in `app.js` one `sendJson` helper (5 copies), one `loggedOut()` check (11 copies), one `NETWORK_ERROR` text
+(10 copies), one size formatter instead of two, and dead code removed (`cap`, the `.tempo` and `.hint` CSS rules).
+**Bugs and glitches fixed (each has a test in `tests/e2e/polish.cjs`, which fails on the old code):**
+- A long title with no spaces pushed the player bar's time, Download and collapse button off a phone screen (the grid column
+  was not allowed to shrink).
+- Between 900 and 1150 px the Library table was up to 90 px wider than the screen, and the marks stuck out of the table at
+  every desktop width (their column was 32 px too narrow). The table now starts at 1150 px; narrower screens use the stacked rows.
+- The date field in the edit form was unstyled (small, light grey box in dark mode); BPM and Tap tempo sat on two lines
+  because of a CSS specificity slip.
+- Opening Edit on a desktop left the form hidden behind the expanded player; the page now scrolls it clear.
+- "94 KB" could split across two lines; sizes now keep their unit attached.
+- Text links were 22 px tall (hard to tap); their hit area is now 30 px or more without moving anything.
+- Text contrast in light mode: accent orange, the warning colour and the delete link were below 4.5:1; slightly darker values.
+- The keyboard hint showed in the Trash, where the arrow keys do nothing. Log out while offline now says so instead of
+  showing the login page while still signed in.

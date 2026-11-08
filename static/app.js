@@ -17,6 +17,15 @@ function el(tag, attrs, ...kids) {
 async function api(path, opts) {
   return fetch("api/" + path, { credentials: "same-origin", ...opts });
 }
+const sendJson = (path, method, body) =>
+  api(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+const NETWORK_ERROR = "Could not reach the server. Check your connection and try again.";
+// A 401 means the session ended: show the login page. Returns true so callers can stop.
+function loggedOut(r) {
+  if (r.status !== 401) return false;
+  show("login");
+  return true;
+}
 
 // ---- login ---------------------------------------------------------------
 function show(view) {
@@ -46,11 +55,11 @@ async function route() {
   const body = $("#how-body");
   try {
     const r = await api("about");
-    if (r.status === 401) { show("login"); return; }
+    if (loggedOut(r)) return;
     if (r.ok) body.innerHTML = await r.text();      // our own file from our own server, never user input
     else body.textContent = "Could not load this page (error " + r.status + ").";
   } catch (e) {
-    body.textContent = "Could not reach the server. Check your connection and try again.";
+    body.textContent = NETWORK_ERROR;
   }
 }
 window.addEventListener("hashchange", route);
@@ -58,7 +67,6 @@ window.addEventListener("hashchange", route);
 // ---- "Backup and export": download the export, see the server backup, start one -----------------------
 // The downloads are plain links (the browser shows the progress); only the backup status needs script.
 let dataTimer = null;
-function fmtBytes(n) { return n >= 1073741824 ? (n / 1073741824).toFixed(2) + " GB" : n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB"; }
 function ago(iso) {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
   if (mins < 2) return "just now";
@@ -71,8 +79,8 @@ async function loadData() {
   const err = $("#data-err");
   err.hidden = true;
   let r;
-  try { r = await api("data"); } catch (e) { err.textContent = "Could not reach the server. Check your connection and try again."; err.hidden = false; return; }
-  if (r.status === 401) { show("login"); return; }
+  try { r = await api("data"); } catch (e) { err.textContent = NETWORK_ERROR; err.hidden = false; return; }
+  if (loggedOut(r)) return;
   if (!r.ok) { err.textContent = "Could not load this page (error " + r.status + ")."; err.hidden = false; return; }
   const d = await r.json();
   if (location.hash !== "#data") return;                 // the user already left
@@ -84,7 +92,7 @@ async function loadData() {
   const list = $("#status-items");
   list.replaceChildren(...st.items.filter((i) => i.text !== st.headline).map((i) => el("li", { class: i.level }, i.text)));
   $("#data-summary").textContent = d.recordings + (d.recordings === 1 ? " recording" : " recordings") +
-    (d.trashed ? " (plus " + d.trashed + " in the Trash)" : "") + " · " + fmtBytes(d.audio_bytes) + " of original audio";
+    (d.trashed ? " (plus " + d.trashed + " in the Trash)" : "") + " · " + fmtSize(d.audio_bytes) + " of original audio";
   $("#data-trash-n").textContent = d.trashed ? "(" + d.trashed + ")" : "";
   $("#data-trash").disabled = d.trashed === 0;
   $("#backup-off").hidden = d.backup !== null;
@@ -106,14 +114,14 @@ $("#backup-now").addEventListener("click", async () => {
   $("#backup-now").disabled = true;
   try {
     const r = await api("backup", { method: "POST" });
-    if (r.status === 401) { show("login"); return; }
+    if (loggedOut(r)) return;
     if (!r.ok && r.status !== 409) {
       const body = await r.json().catch(() => ({}));
       $("#backup-msg").textContent = body.error || "Could not start the backup (error " + r.status + ").";
       $("#backup-now").disabled = false;
       return;
     }
-  } catch (e) { $("#backup-msg").textContent = "Could not reach the server."; $("#backup-now").disabled = false; return; }
+  } catch (e) { $("#backup-msg").textContent = NETWORK_ERROR; $("#backup-now").disabled = false; return; }
   loadData();
 });
 
@@ -123,13 +131,9 @@ $("#login-form").addEventListener("submit", async (e) => {
   err.hidden = true;
   let r;
   try {
-    r = await api("login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ passphrase: $("#pass").value }),
-    });
+    r = await sendJson("login", "POST", { passphrase: $("#pass").value });
   } catch (e) {
-    err.textContent = "Could not reach the server. Check your connection and try again.";
+    err.textContent = NETWORK_ERROR;
     err.hidden = false;
     return;
   }
@@ -143,7 +147,8 @@ $("#login-form").addEventListener("submit", async (e) => {
 
 $("#logout").addEventListener("click", async () => {
   player.pause();
-  await api("logout", { method: "POST" });
+  try { await api("logout", { method: "POST" }); }
+  catch (e) { notify("Could not log out: " + NETWORK_ERROR); return; }       // still logged in, so do not pretend otherwise
   history.replaceState(null, "", location.pathname + location.search);   // leave "#how" behind
   show("login");
 });
@@ -152,8 +157,11 @@ $("#logout").addEventListener("click", async () => {
 const player = $("#player");
 let playingId = null;
 
-function fmtSize(bytes) {
-  return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(bytes / 1024)) + " KB";
+// Sizes use a non-breaking space so "94 KB" never splits across two lines.
+function fmtSize(n) {
+  const nb = "\u00a0";
+  return n >= 1073741824 ? (n / 1073741824).toFixed(2) + nb + "GB" : n >= 1048576 ? (n / 1048576).toFixed(1) + nb + "MB"
+       : Math.max(1, Math.round(n / 1024)) + nb + "KB";
 }
 
 // Dates. Every recording has a date uploaded and a date recorded. The date recorded starts out as the date
@@ -245,7 +253,7 @@ player.addEventListener("error", async () => {
   try {
     const r = await fetch("api/play/" + id, { headers: { Range: "bytes=0-0" }, credentials: "same-origin" });
     const status = playStatus.get(id);
-    if (r.status === 401) { show("login"); return; }
+    if (loggedOut(r)) return;
     if (r.status === 404) text = "That recording's audio file is missing on the server.";
     else if (!r.ok) text = "The server could not send this file (error " + r.status + ").";
     else if (mediaCode === 2) text = "A network problem interrupted loading the audio. Try again.";
@@ -257,7 +265,7 @@ player.addEventListener("error", async () => {
                                      : "The server has no playable copy of it. ") +
                 "Use Download to play it in VLC or another player, or open this page in Safari.";
   } catch (e) {
-    text = "Could not reach the server. Check your connection and try again.";
+    text = NETWORK_ERROR;
   }
   if (playingId !== id) return;                            // user already moved on to another recording
   msg.textContent = text;
@@ -303,8 +311,6 @@ const stored = {
   const rd = Number(stored.get("resurface-days"));
   if ([0, 7, 30, 90, 180, 365].includes(rd) && stored.get("resurface-days") !== null) resurfaceDays = rd;
 }
-
-const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function detailsText(rec) {
   const parts = [];
@@ -393,7 +399,7 @@ function render() {
       : libTotal === 0 ? "Nothing in the Library yet. Open a recording in the Inbox and save it, and it moves here."
       : "No recordings match these filters. Use Clear filters to start over.";
   }
-  $("#kbd-hint").hidden = !shown.length;
+  $("#kbd-hint").hidden = !shown.length || view === "trash";      // arrow keys do nothing in the Trash
   $("#triage-start").hidden = !(view === "inbox" && inboxRecs.length && !triage);
   $("#triage-start").textContent = "Triage the Inbox (" + inboxRecs.length + ")";
   $("#count").textContent = shown.length ? "(" + shown.length + ")" : "";
@@ -456,7 +462,7 @@ function buildTrashRow(rec) {
     restore.disabled = true;
     try {
       const r = await api("recordings/" + rec.id + "/restore", { method: "POST" });
-      if (r.status === 401) { show("login"); return; }
+      if (loggedOut(r)) return;
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
         notify(body.error || "Could not restore it (error " + r.status + ").");
@@ -465,7 +471,7 @@ function buildTrashRow(rec) {
       }
       await loadList();
       notify("Restored to the " + (rec.status === "inbox" ? "Inbox" : "Library") + ".");
-    } catch (e) { notify("Could not reach the server. Check your connection and try again."); restore.disabled = false; }
+    } catch (e) { notify(NETWORK_ERROR); restore.disabled = false; }
   });
   const meta = el("div", { class: "meta when" }, "Deleted " + fmtDay(rec.deleted_at) + " · " + fmtSize(rec.size));
   const info = el("div", { class: "info" }, el("div", { class: "title" }, rec.title), meta);
@@ -502,8 +508,7 @@ function buildForm(rec) {
   const createTag = async () => {
     tagErr.hidden = true;
     if (!newTag.value.trim()) return;
-    const r = await api("tags", { method: "POST", headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ name: newTag.value }) });
+    const r = await sendJson("tags", "POST", { name: newTag.value });
     const body = await r.json().catch(() => ({}));
     if (!r.ok) { tagErr.textContent = body.error || "Could not add that tag."; tagErr.hidden = false; return; }
     const existing = tagBox.querySelector('[data-tag="' + CSS.escape(body.name) + '"]');
@@ -591,9 +596,9 @@ function buildForm(rec) {
     clearTimeout(armed); armed = null;
     try {
       const r = await api("recordings/" + id, { method: "DELETE" });
-      if (r.status === 401) { show("login"); return; }
+      if (loggedOut(r)) return;
       if (!r.ok) { err.textContent = "Could not delete (error " + r.status + ")."; err.hidden = false; del.textContent = "Delete"; return; }
-    } catch (e) { err.textContent = "Could not reach the server."; err.hidden = false; del.textContent = "Delete"; return; }
+    } catch (e) { err.textContent = NETWORK_ERROR; err.hidden = false; del.textContent = "Delete"; return; }
     if (playingId === id) { player.pause(); }
     openEditId = null;
     await loadList();
@@ -620,9 +625,8 @@ function buildForm(rec) {
       used_in: mark === "check" ? (usedIn.value.trim() || null) : null,
     };
     if (dateChanged) payload.recorded_at = dateInput.value ? localNoon(dateInput.value) : null;   // null = use the upload date
-    const r = await api("recordings/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" },
-                                             body: JSON.stringify(payload) });
-    if (r.status === 401) { show("login"); return; }
+    const r = await sendJson("recordings/" + id, "PATCH", payload);
+    if (loggedOut(r)) return;
     if (!r.ok) {
       const body = await r.json().catch(() => ({}));
       err.textContent = body.error || "Could not save (error " + r.status + ").";
@@ -661,7 +665,7 @@ async function loadList() {
       view === "trash" ? api("trash") : Promise.resolve(null),
       view === "resurface" ? api("resurface?days=" + resurfaceDays) : Promise.resolve(null)]);
   } catch (e) {
-    if (seq === loadSeq) { notify("Could not reach the server. Check your connection and try again."); schedulePoll(); }
+    if (seq === loadSeq) { notify(NETWORK_ERROR); schedulePoll(); }
     return;
   }
   if (inbox.status === 401 || lib.status === 401) { if (seq === loadSeq) show("login"); return; }
@@ -975,6 +979,9 @@ barToggle.addEventListener("click", () => {
   stored.set("mini", barMini ? "1" : "0");
   applyBar();
 });
+// Tell the page how tall the floating player is, so scrolling a row or form into view keeps it clear of the player.
+new ResizeObserver(() => document.documentElement.style.setProperty("--bar-h", (playerBar.offsetHeight ? playerBar.offsetHeight + 28 : 0) + "px"))
+  .observe(playerBar);
 document.addEventListener("focusin", syncTyping);
 document.addEventListener("focusout", syncTyping);
 setInterval(syncTyping, 1000);                                                // safety net: a field removed while focused
@@ -1118,7 +1125,7 @@ $("#surprise").addEventListener("click", async () => {
     let pool = resurfaceRecs, anyHeart = false;
     if (!pool.length && resurfaceHearts) {                    // all hearted ideas were played lately: draw from every one
       const r = await api("resurface?days=0");
-      if (r.status === 401) { show("login"); return; }
+      if (loggedOut(r)) return;
       if (r.ok) { pool = (await r.json()).recordings; anyHeart = true; }
     }
     if (!pool.length) { notify("Nothing hearted yet. Heart (♥) some ideas in the Library first."); return; }
@@ -1128,7 +1135,7 @@ $("#surprise").addEventListener("click", async () => {
     startPlay(rec);
     notify("Playing \u201c" + rec.title + "\u201d" + (rec.last_played_at ? ", last played " + ago(rec.last_played_at) : ", which you have never played") +
            (anyHeart ? " (every hearted idea was played lately, so this is any \u2665)." : "."));
-  } catch (e) { notify("Could not reach the server. Check your connection and try again."); }
+  } catch (e) { notify(NETWORK_ERROR); }
   finally { surprising = false; }
 });
 
@@ -1136,9 +1143,8 @@ $("#surprise").addEventListener("click", async () => {
 const MARKS = [["heart", "♥", "Interesting"], ["check", "✓", "Used in a song"], ["x", "✗", "No longer interesting"]];
 
 async function setMark(rec, value) {
-  const r = await api("recordings/" + rec.id, { method: "PATCH", headers: { "Content-Type": "application/json" },
-                                                body: JSON.stringify({ rating: value }) });
-  if (r.status === 401) { show("login"); return; }
+  const r = await sendJson("recordings/" + rec.id, "PATCH", { rating: value });
+  if (loggedOut(r)) return;
   if (!r.ok) { notify("Could not save that mark (error " + r.status + ")."); return; }
   const saved = (await r.json()).recording;
   rec.rating = saved.rating; rec.used_in = saved.used_in;
@@ -1260,16 +1266,15 @@ async function saveCard(data) {
   const session = triage;
   let r;
   try {
-    r = await api("recordings/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tags: data.tags, rating: data.rating, notes: data.notes, status: "tagged",
-                           used_in: data.rating === "check" ? (data.used_in || null) : null }) });
+    r = await sendJson("recordings/" + id, "PATCH", { tags: data.tags, rating: data.rating, notes: data.notes, status: "tagged",
+                                                      used_in: data.rating === "check" ? (data.used_in || null) : null });
   } catch (e) {
-    err.textContent = "Could not reach the server. Check your connection and try again.";
+    err.textContent = NETWORK_ERROR;
     err.hidden = false;
     return;
   }
   if (session !== triage) return;               // triage was closed while this was saving
-  if (r.status === 401) { show("login"); return; }
+  if (loggedOut(r)) return;
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));
     err.textContent = body.error || "Could not save (error " + r.status + ").";

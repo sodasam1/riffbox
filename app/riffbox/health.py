@@ -1,5 +1,8 @@
-"""The status line on the Backup and export page: is there room, is it growing, is it backed up? Pure functions
-(no Flask, no disk access), so every threshold is unit-tested with made-up numbers."""
+"""The status line on the Backup and export page: is there room, is it growing, is it backed up?
+`assess` is pure (made-up numbers in, verdict out) so every threshold is unit-tested; `collect` reads the real disk and
+database and feeds it. No Flask."""
+import datetime as dt
+import os
 
 GB = 1024 ** 3
 MIN_HISTORY_DAYS = 14          # less history than this and a growth forecast would be a guess
@@ -85,3 +88,30 @@ def assess(*, disk_total, disk_free, audio_bytes, original_bytes, recent_bytes, 
     else:
         head = next(i["text"] for i in sorted(items, key=lambda i: -LEVELS.index(i["level"])) if i["level"] != "ok")
     return {"level": level, "headline": head, "summary": " · ".join(summary), "items": items}
+
+
+def _parse(stamp):
+    return dt.datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+
+
+def collect(conn, data_dir, audio_dir, backup_dir, backup, original_bytes, recordings, disk_usage):
+    """Gather the real numbers (disk, audio folder, upload history, backup folder) and return assess()'s verdict.
+    `conn` is an open database connection; `disk_usage(path)` returns (total, free) bytes."""
+    total, free = disk_usage(data_dir)
+    on_disk = sum(p.stat().st_size for p in audio_dir.iterdir() if p.is_file() and not p.name.startswith("."))
+    now = dt.datetime.now(dt.timezone.utc)
+    first = conn.execute("SELECT MIN(uploaded_at) FROM recordings").fetchone()[0]
+    history = min(90.0, (now - _parse(first)).total_seconds() / 86400) if first else 0.0
+    cutoff = (now - dt.timedelta(days=history)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    recent = conn.execute("SELECT COALESCE(SUM(size), 0) FROM recordings WHERE uploaded_at >= ?", (cutoff,)).fetchone()[0]
+    same_disk, age = False, None
+    if backup:
+        try:
+            same_disk = os.stat(backup_dir).st_dev == os.stat(data_dir).st_dev
+        except OSError:
+            pass
+        if backup["latest"]:
+            age = (now - _parse(backup["latest"])).total_seconds() / 86400
+    return assess(disk_total=total, disk_free=free, audio_bytes=on_disk, original_bytes=original_bytes,
+                  recent_bytes=recent, history_days=history, backup=backup, backup_same_disk=same_disk,
+                  backup_age_days=age, recordings=recordings)

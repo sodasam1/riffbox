@@ -17,20 +17,42 @@ import tempfile
 import threading
 import time
 import uuid
-from collections import deque
 from functools import wraps
 from pathlib import Path
 from types import SimpleNamespace
 
-from flask import (Blueprint, Flask, Response, abort, g, jsonify, redirect, request,
-                   send_file, send_from_directory, session)
+from flask import (
+    Blueprint,
+    Flask,
+    Response,
+    abort,
+    g,
+    jsonify,
+    redirect,
+    request,
+    send_file,
+    send_from_directory,
+    session,
+)
 
 from . import backup as backups
 from . import exporter
-from .health import assess as assess_health
-from .intake import Invalid, MAX_TAGS_TOTAL, normalize_tag, validate_patch
+from .health import collect as collect_health
+from .intake import MAX_TAGS_TOTAL, Invalid, normalize_tag, validate_patch
 from .library import build_query, parse_filters
-from .media import INPUT_FORMAT, analyze_audio, convert_to_flac, mp4_audio_codec
+from .media import (
+    INPUT_FORMAT,
+    analyze_audio,
+    convert_to_flac,
+    mp4_audio_codec,
+    sniff_audio_ext,
+)
+from .throttle import (  # noqa: F401  (re-exported for the tests)
+    LOGIN_GLOBAL_MAX,
+    LOGIN_PER_CLIENT_MAX,
+    LOGIN_WINDOW,
+    LoginThrottle,
+)
 
 ALLOWED_EXT = {
     ".m4a", ".mp3", ".wav", ".aac", ".caf", ".aif", ".aiff", ".ogg", ".flac", ".mp4",
@@ -38,30 +60,6 @@ ALLOWED_EXT = {
 FALLBACK_MIME = {".m4a": "audio/mp4", ".caf": "audio/x-caf", ".aac": "audio/aac"}
 MP4_EXT = (".m4a", ".mp4")        # containers whose audio codec we can read
 NEW_COLUMNS = ("codec", "play_status", "play_filename", "play_error")
-
-
-def sniff_audio_ext(head):
-    """The file extension an audio file's first bytes call for, or None. The iPhone Shortcuts app sometimes
-    hands over a file whose name has lost its extension; the content still says what it is."""
-    if len(head) < 12:
-        return None
-    if head[4:8] == b"ftyp":
-        return ".m4a"
-    if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
-        return ".wav"
-    if head[:4] == b"fLaC":
-        return ".flac"
-    if head[:4] == b"OggS":
-        return ".ogg"
-    if head[:4] == b"caff":
-        return ".caf"
-    if head[:4] == b"FORM" and head[8:12] in (b"AIFF", b"AIFC"):
-        return ".aiff"
-    if head[0] == 0xFF and head[1] & 0xF6 == 0xF0:      # ADTS frame header: raw AAC
-        return ".aac"
-    if head[:3] == b"ID3" or (head[0] == 0xFF and head[1] & 0xE0 == 0xE0):
-        return ".mp3"
-    return None
 
 
 def disk_usage(path):
@@ -79,9 +77,6 @@ ABOUT = Path(__file__).with_name("about.html")        # the private "How this wo
 
 # Login throttling: after PER_CLIENT_MAX wrong passphrases from one client (or GLOBAL_MAX from
 # anyone) inside WINDOW seconds, logins get HTTP 429 until the oldest failure ages out.
-LOGIN_WINDOW = 15 * 60
-LOGIN_PER_CLIENT_MAX = 5
-LOGIN_GLOBAL_MAX = 30
 LOOPBACK = ("127.0.0.1", "::1")
 
 
@@ -323,10 +318,8 @@ def create_app(config=None):
             return wrapper
         return deco
 
-    # ---- login throttling (in memory; resets when the service restarts) ---------
-    throttle_lock = threading.Lock()
-    failures = {}                 # client key -> deque of failure times
-    global_failures = deque()
+    # ---- login throttling (see throttle.py) ---------------------------------------------------------
+    throttle = LoginThrottle(lambda: _now())        # looked up on each use, so tests can replace _now
 
     def client_key():
         """Who is asking. waitress only listens on loopback, so every real connection comes from
@@ -340,36 +333,10 @@ def create_app(config=None):
                 return last
         return addr
 
-    def _prune(dq, now):
-        while dq and now - dq[0] >= LOGIN_WINDOW:
-            dq.popleft()
-
-    def login_wait(key, now):
-        """Seconds the client must wait (0 = allowed). Caller holds throttle_lock."""
-        mine = failures.get(key)
-        if mine is not None:
-            _prune(mine, now)
-            if not mine:
-                del failures[key]
-        _prune(global_failures, now)
-        wait = 0
-        if mine and len(mine) >= LOGIN_PER_CLIENT_MAX:
-            wait = max(wait, LOGIN_WINDOW - (now - mine[0]))
-        if len(global_failures) >= LOGIN_GLOBAL_MAX:
-            wait = max(wait, LOGIN_WINDOW - (now - global_failures[0]))
-        return int(wait) + 1 if wait > 0 else 0
-
     @bp.post("/api/login")
     def login():
         key = client_key()
-        now = _now()
-        with throttle_lock:
-            if len(failures) > 1000:             # bound memory
-                for k in list(failures):
-                    _prune(failures[k], now)
-                    if not failures[k]:
-                        del failures[k]
-            wait = login_wait(key, now)
+        wait = throttle.wait_for(key)
         if wait:
             resp = jsonify(error="too many attempts", retry_after=wait)
             resp.status_code = 429
@@ -379,15 +346,12 @@ def create_app(config=None):
         supplied = str(body.get("passphrase", ""))
         expected = app.config["PASSPHRASE"]
         if expected and hmac.compare_digest(supplied.encode(), expected.encode()):
-            with throttle_lock:
-                failures.pop(key, None)
+            throttle.succeeded(key)
             session.clear()
             session.permanent = True
             session["ok"] = True
             return jsonify(ok=True)
-        with throttle_lock:
-            failures.setdefault(key, deque()).append(now)
-            global_failures.append(now)
+        throttle.failed(key)
         return jsonify(error="bad passphrase"), 401
 
     @bp.get("/api/session")
@@ -715,25 +679,8 @@ def create_app(config=None):
     backup_runner = backups.Runner(data_dir, app.config["BACKUP_DIR"]) if app.config["BACKUP_DIR"] else None
 
     def library_health(original_bytes, recordings, backup):
-        total, free = disk_usage(data_dir)
-        on_disk = sum(p.stat().st_size for p in audio_dir.iterdir() if p.is_file() and not p.name.startswith("."))
-        now = dt.datetime.now(dt.timezone.utc)
-        first = db().execute("SELECT MIN(uploaded_at) FROM recordings").fetchone()[0]
-        history = min(90.0, (now - dt.datetime.strptime(first, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)).total_seconds() / 86400) if first else 0.0
-        cutoff = (now - dt.timedelta(days=history)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        recent = db().execute("SELECT COALESCE(SUM(size), 0) FROM recordings WHERE uploaded_at >= ?", (cutoff,)).fetchone()[0]
-        age = same_disk = None
-        if backup:
-            same_disk = False
-            try:
-                same_disk = os.stat(app.config["BACKUP_DIR"]).st_dev == os.stat(data_dir).st_dev
-            except OSError:
-                pass
-            if backup["latest"]:
-                age = (now - dt.datetime.strptime(backup["latest"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)).total_seconds() / 86400
-        return assess_health(disk_total=total, disk_free=free, audio_bytes=on_disk, original_bytes=original_bytes,
-                             recent_bytes=recent, history_days=history, backup=backup, backup_same_disk=bool(same_disk),
-                             backup_age_days=age, recordings=recordings)
+        return collect_health(db(), data_dir, audio_dir, app.config["BACKUP_DIR"], backup, original_bytes, recordings,
+                              disk_usage=lambda path: disk_usage(path))      # looked up on each use, so tests can fake a full disk
 
     @bp.get("/api/data")
     @require_auth()

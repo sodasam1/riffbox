@@ -24,6 +24,30 @@ WINDOW = 160                       # samples per window = 20 ms
 PEAK_BINS = 200                    # points in the stored waveform
 
 
+def sniff_audio_ext(head):
+    """The file extension an audio file's first bytes call for, or None. The iPhone Shortcuts app sometimes
+    hands over a file whose name has lost its extension; the content still says what it is."""
+    if len(head) < 12:
+        return None
+    if head[4:8] == b"ftyp":
+        return ".m4a"
+    if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
+        return ".wav"
+    if head[:4] == b"fLaC":
+        return ".flac"
+    if head[:4] == b"OggS":
+        return ".ogg"
+    if head[:4] == b"caff":
+        return ".caf"
+    if head[:4] == b"FORM" and head[8:12] in (b"AIFF", b"AIFC"):
+        return ".aiff"
+    if head[0] == 0xFF and head[1] & 0xF6 == 0xF0:      # ADTS frame header: raw AAC
+        return ".aac"
+    if head[:3] == b"ID3" or (head[0] == 0xFF and head[1] & 0xE0 == 0xE0):
+        return ".mp3"
+    return None
+
+
 def _children(buf, start, end):
     """Yield (type, payload_start, payload_end) for the boxes packed between start and end."""
     pos = start

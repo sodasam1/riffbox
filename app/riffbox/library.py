@@ -4,7 +4,16 @@ Pure (no Flask): the request arguments come in as a plain mapping, so every rule
 against a real database. Nothing from the request is ever pasted into the SQL text: values go in as
 parameters, and the sort column comes from a fixed table.
 """
-from .intake import BPM_RANGE, Invalid, KEY_MODES, KEY_ROOTS, RATINGS, STATUSES, TEMPOS, normalize_tag
+from .intake import (
+    BPM_RANGE,
+    KEY_MODES,
+    KEY_ROOTS,
+    RATINGS,
+    STATUSES,
+    TEMPOS,
+    Invalid,
+    normalize_tag,
+)
 
 SORTS = {
     "recorded": "r.recorded_at",

@@ -1,6 +1,6 @@
 :root {
   --bg: #fff; --panel: #f3f3f5; --text: #17171a; --muted: #6b6b76;
-  --line: #d9d9df; --accent: #d9480f; --accent-text: #fff; --err: #b42318;
+  --line: #d9d9df; --accent: #c8400b; --accent-text: #fff; --err: #b42318;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -9,7 +9,7 @@
   }
 }
 * { box-sizing: border-box; }
-html { color-scheme: light dark; }
+html { color-scheme: light dark; scroll-padding-bottom: calc(var(--bar-h, 12rem) + 8px); }   /* --bar-h is set from the player's height */
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -19,7 +19,7 @@ h1 { font-size: 1.4rem; margin: 1.2rem 0 .8rem; }
 h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 2rem 0 .6rem; }
 header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .3rem 1rem; }
 a { color: var(--accent); }
-header nav { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 4px 16px; }
+header nav { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px 16px; }
 header nav a, header nav button { white-space: nowrap; }
 a.quiet { color: var(--muted); font-size: .9rem; }
 a.quiet:hover { color: var(--accent); }
@@ -89,7 +89,7 @@ a.dl { color: var(--accent); font-size: .9rem; }
   padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
   box-shadow: 0 6px 22px rgb(0 0 0 / .22);
 }
-#playerbar { display: grid; gap: 8px; }
+#playerbar { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }     /* minmax(0, ...) lets a long title shrink instead of widening the bar */
 #playerbar[hidden] { display: none; }
 .pb-top { display: flex; align-items: baseline; gap: 12px; font-size: .9rem; }
 .pb-title { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -136,7 +136,7 @@ a.dl { color: var(--accent); font-size: .9rem; }
 form.edit { grid-column: 1 / -1; display: grid; gap: 14px; padding: 12px 0 6px; }
 form.edit .field { display: grid; gap: 4px; }
 form.edit label, form.edit legend { font-size: .85rem; color: var(--muted); }
-form.edit input[type=text], form.edit input[type=number], form.edit select, form.edit textarea {
+form.edit input[type=text], form.edit input[type=number], form.edit input[type=date], form.edit select, form.edit textarea {
   font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line);
   border-radius: 6px; padding: .5rem .6rem; width: 100%; min-height: 40px;
 }
@@ -148,18 +148,17 @@ form.edit legend { padding: 0; margin-bottom: 4px; }
 .tagbtn[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .addtag { display: flex; gap: 8px; }
 .addtag input { flex: 1; }
-.tempo { grid-template-columns: 1fr; }
 .radio { display: inline-flex; align-items: center; gap: 4px; margin-right: 14px; }
 .radio label { color: var(--text); font-size: 1rem; }
 .radio input { width: auto; min-height: 0; }
 .bpm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.bpm input { width: 6rem; }
+form.edit .bpm input { width: 6rem; }
 .keyrow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 form.edit .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 form.edit .error { margin: 0; }
 
 /* ---- phase 5: Library browser ---- */
-:root { --cols: 44px minmax(7rem, 2fr) minmax(7rem, 2fr) 12.5rem 10.5rem 5.5rem; }   /* the Library table's columns */
+:root { --cols: 44px minmax(7rem, 2fr) minmax(7rem, 2fr) 12.5rem 10.5rem 7.5rem; }   /* the Library table's columns */
 #app.wide { max-width: 72rem; }
 #list:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 #list li.selected { background: var(--panel); box-shadow: inset 3px 0 0 var(--accent); }
@@ -209,7 +208,9 @@ form.edit .error { margin: 0; }
   #filters { position: sticky; top: 12px; margin: 0; }
   #filters-toggle { display: none; }
   #filters-panel { display: grid; padding-top: 0; }
-
+}
+/* The Library as a table needs about 52rem next to the filters (the marks alone are 7.5rem); narrower screens keep the stacked rows. */
+@media (min-width: 1150px) {
   #colhead { display: grid; grid-template-columns: var(--cols); gap: 0 12px; padding: 0 10px 6px; margin: 0 -10px;
              color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em;
              border-bottom: 1px solid var(--line); }
@@ -247,13 +248,12 @@ form.edit .error { margin: 0; }
 #triage-card .key { display: inline-block; min-width: 1.2em; margin-right: .35em; padding: 0 .25em; border-radius: 4px;
                     background: var(--bg); color: var(--muted); font-size: .8em; text-align: center; }
 #triage-card .tagbtn[aria-pressed="true"] .key { background: transparent; color: inherit; }
-#triage-card .hint { color: var(--muted); font-size: .8rem; margin-left: .4rem; }
 #triage-card textarea, #triage-card input[type=text] { font: inherit; color: var(--text); background: var(--bg);
   border: 1px solid var(--line); border-radius: 6px; padding: .5rem .6rem; width: 100%; }
 #triage-card .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 #triage-help { margin: 0; }
 
-button.link.danger { color: #e5484d; }
+button.link.danger { color: var(--err); }
 
 a.btn { display: inline-block; font: inherit; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text);
         padding: .55rem 1rem; text-decoration: none; }
@@ -286,23 +286,27 @@ a.btn.primary { background: var(--accent); color: var(--accent-text); border-col
 #list.compact .ratebtn { min-width: 28px; min-height: 28px; font-size: .95rem; }
 #list.compact .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 #list.compact .when, #list.compact .details { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media (max-width: 899px) {
+@media (max-width: 1149px) {
   #list.compact .tags, #list.compact .details { display: none; }
   #list.compact li .info { display: grid; gap: 0; }
   #list.compact .dl { display: none; }          /* the player bar still has Download; Cozy rows show it here */
 }
-@media (min-width: 900px) {
-  #results.compact { --cols: 30px minmax(7rem, 2fr) minmax(6rem, 2fr) 11rem 9.5rem 14rem; }   /* room for Edit, Download and the marks on one line */
+@media (min-width: 1150px) {
+  #results.compact { --cols: 30px minmax(7rem, 2fr) minmax(5rem, 2fr) 11rem 9rem 14rem; }   /* room for Edit, Download and the marks on one line */
   #list.library.compact li { padding: .1rem 10px; }
   #list.library.compact .side { flex-wrap: nowrap; white-space: nowrap; }
   #list.library.compact .tags { flex-wrap: nowrap; overflow: hidden; }
 }
 
 /* ---- Backup and export: the status line ---- */
-:root { --warn: #b7791f; }
+:root { --warn: #946010; }
 @media (prefers-color-scheme: dark) { :root { --warn: #d29922; } }
 .status-line { border: 1px solid var(--line); border-left-width: 5px; border-radius: 8px; padding: .6rem .9rem; margin: 0 0 1rem; max-width: 62ch; }
 .status-line.ok { border-left-color: var(--ok); } .status-line.warn { border-left-color: var(--warn); } .status-line.bad { border-left-color: var(--err); }
 .status-line p { margin: 0; } .status-line ul { margin: .4rem 0 0; padding-left: 1.1rem; list-style: disc; }
 .status-line li.warn { color: var(--warn); } .status-line li.bad { color: var(--err); }
 #status-head { font-weight: 600; }
+
+/* Text links are about 22px tall; give them a finger-sized hit area without moving anything. */
+header nav a, header nav button.link, #how-back, #data-back, #data-db, .pb-top .dl { padding: 6px 4px; margin: -6px -4px; }
+#list .side .dl, #list .side .edit-btn, #list .side .restore-btn { padding: 4px; margin: -4px; }   /* stacked 6px apart: a little less so the areas barely touch */
