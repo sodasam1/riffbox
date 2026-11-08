@@ -122,33 +122,236 @@ player.addEventListener("error", async () => {
   msg.hidden = false;
 });
 
+// ---- inbox / library, details, and the intake form -------------------------------------------
+// Uploads land in the Inbox. Saving the form (even completely empty) moves a recording to the Library.
+const KEY_ROOTS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+let view = "inbox";            // which list is showing: "inbox" | "library"
+let allRecs = [];
+let allTags = [];
+let openEditId = null;         // at most one edit form open at a time
 let pollTimer = null;
+
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+function detailsText(rec) {
+  const parts = [];
+  if (rec.tempo) parts.push(cap(rec.tempo));
+  if (rec.bpm) parts.push(rec.bpm + " BPM");
+  if (rec.key_root || rec.key_mode) parts.push([rec.key_root, rec.key_mode].filter(Boolean).join(" "));
+  return parts.join(" · ");
+}
+
+function notify(text) {
+  const n = $("#notice");
+  n.textContent = text;
+  n.hidden = !text;
+}
+
+function setView(next) {
+  view = next;
+  openEditId = null;
+  notify("");
+  render();
+}
+$("#tab-inbox").addEventListener("click", () => setView("inbox"));
+$("#tab-library").addEventListener("click", () => setView("library"));
+
+function updateTabs() {
+  const inbox = allRecs.filter((r) => r.status === "inbox").length;
+  const library = allRecs.length - inbox;
+  $("#tab-inbox").textContent = "Inbox" + (inbox ? " (" + inbox + ")" : "");
+  $("#tab-library").textContent = "Library" + (library ? " (" + library + ")" : "");
+  $("#tab-inbox").setAttribute("aria-pressed", String(view === "inbox"));
+  $("#tab-library").setAttribute("aria-pressed", String(view === "library"));
+}
+
+function render() {
+  updateTabs();
+  const shown = allRecs.filter((r) => (view === "inbox") === (r.status === "inbox"));
+  const ul = $("#list");
+  ul.replaceChildren();
+  const empty = $("#empty");
+  empty.hidden = shown.length > 0;
+  if (!shown.length) {
+    empty.textContent = allRecs.length === 0 ? "Nothing yet. Upload a voice memo above."
+      : view === "inbox" ? "Nothing waiting to be tagged. Switch to Library to browse what you've saved."
+      : "Nothing in the Library yet. Open a recording in the Inbox and save it, and it moves here.";
+  }
+  $("#count").textContent = shown.length ? "(" + shown.length + ")" : "";
+  playStatus = new Map(allRecs.map((rec) => [rec.id, rec.play_status]));
+  for (const rec of shown) ul.append(buildRow(rec));
+  markPlaying();
+}
+
+function buildRow(rec) {
+  const btn = el("button", { class: "play", type: "button" }, "▶");
+  btn.addEventListener("click", () => togglePlay(rec));
+  const meta = el("div", { class: "meta" }, fmtDate(rec.recorded_at) + " · " + fmtSize(rec.size));
+  if (rec.play_status === "pending") meta.append(el("span", { class: "chip" }, "preparing playback…"));
+  if (rec.play_status === "failed") meta.append(el("span", { class: "chip" }, "no play copy"));
+  const info = el("div", {}, el("div", { class: "title" }, rec.title), meta);
+  const details = detailsText(rec);
+  if (details) info.append(el("div", { class: "meta details" }, details));
+  if (rec.tags.length) {
+    const tags = el("div", { class: "tags" });
+    for (const t of rec.tags) tags.append(el("span", { class: "chip tag" }, t));
+    info.append(tags);
+  }
+  if (rec.notes) info.append(el("div", { class: "meta notes" }, rec.notes));
+  const edit = el("button", { class: "link edit-btn", type: "button", "aria-expanded": String(openEditId === rec.id) },
+    rec.status === "inbox" ? "Tag" : "Edit");
+  edit.addEventListener("click", () => {
+    openEditId = openEditId === rec.id ? null : rec.id;
+    notify("");
+    render();
+    if (openEditId !== null) {
+      const first = document.querySelector("#list form.edit input");
+      if (first) first.focus();
+    }
+  });
+  const side = el("div", { class: "side" }, edit,
+    el("a", { class: "dl", href: "api/audio/" + rec.id + "?download=1" }, "Download"));
+  const li = el("li", { "data-id": String(rec.id), "data-title": rec.title }, btn, info, side);
+  if (openEditId === rec.id) li.append(buildForm(rec));
+  return li;
+}
+
+function field(labelText, control, id) {
+  return el("div", { class: "field" }, el("label", { for: id }, labelText), control);
+}
+
+function buildForm(rec) {
+  const id = rec.id;
+  const form = el("form", { class: "edit", novalidate: "" });
+
+  const title = el("input", { id: "f-title-" + id, type: "text", maxlength: "200", value: rec.title });
+  form.append(field("Title", title, "f-title-" + id));
+
+  // instruments: toggle buttons, plus a box for new ones
+  const tagBox = el("div", { class: "tagbox", role: "group", "aria-label": "Instruments and ideas" });
+  const addToggle = (name, on) => {
+    const b = el("button", { type: "button", class: "tagbtn", "data-tag": name, "aria-pressed": String(on) }, name);
+    b.addEventListener("click", () => b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true")));
+    tagBox.append(b);
+  };
+  for (const t of allTags) addToggle(t, rec.tags.includes(t));
+  const newTag = el("input", { id: "f-newtag-" + id, type: "text", maxlength: "30", placeholder: "new tag" });
+  const addBtn = el("button", { type: "button" }, "Add tag");
+  const tagErr = el("p", { class: "error", role: "alert", hidden: "" });
+  const createTag = async () => {
+    tagErr.hidden = true;
+    if (!newTag.value.trim()) return;
+    const r = await api("tags", { method: "POST", headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({ name: newTag.value }) });
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) { tagErr.textContent = body.error || "Could not add that tag."; tagErr.hidden = false; return; }
+    const existing = tagBox.querySelector('[data-tag="' + CSS.escape(body.name) + '"]');
+    if (existing) existing.setAttribute("aria-pressed", "true");
+    else { allTags.push(body.name); addToggle(body.name, true); }
+    newTag.value = "";
+  };
+  addBtn.addEventListener("click", createTag);
+  newTag.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); createTag(); } });
+  form.append(el("fieldset", {}, el("legend", {}, "What's in it?"), tagBox,
+    el("div", { class: "addtag" }, newTag, addBtn), tagErr));
+
+  // tempo: word, optional number, tap-along
+  const tempo = el("fieldset", { class: "tempo" }, el("legend", {}, "Tempo"));
+  for (const [value, label] of [["", "Not set"], ["slow", "Slow"], ["medium", "Medium"], ["fast", "Fast"]]) {
+    const rid = "f-tempo-" + id + "-" + (value || "none");
+    const radio = el("input", { type: "radio", name: "tempo-" + id, id: rid, value });
+    if ((rec.tempo || "") === value) radio.checked = true;
+    tempo.append(el("span", { class: "radio" }, radio, el("label", { for: rid }, label)));
+  }
+  const bpm = el("input", { id: "f-bpm-" + id, type: "number", min: "20", max: "400", inputmode: "numeric",
+                            value: rec.bpm == null ? "" : String(rec.bpm) });
+  const tap = el("button", { type: "button" }, "Tap tempo");
+  let taps = [];
+  tap.addEventListener("click", () => {
+    const now = performance.now();
+    if (taps.length && now - taps[taps.length - 1] > 2000) taps = [];      // a pause starts over
+    taps.push(now);
+    taps = taps.slice(-8);
+    if (taps.length >= 2) {
+      const avg = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
+      bpm.value = String(Math.min(400, Math.max(20, Math.round(60000 / avg))));
+    }
+  });
+  tempo.append(el("div", { class: "bpm" }, el("label", { for: "f-bpm-" + id }, "BPM (optional)"), bpm, tap));
+  form.append(tempo);
+
+  // key
+  const root = el("select", { id: "f-root-" + id });
+  root.append(el("option", { value: "" }, "—"));
+  for (const k of KEY_ROOTS) root.append(el("option", { value: k }, k));
+  root.value = rec.key_root || "";
+  const mode = el("select", { id: "f-mode-" + id });
+  mode.append(el("option", { value: "" }, "—"), el("option", { value: "major" }, "major"), el("option", { value: "minor" }, "minor"));
+  mode.value = rec.key_mode || "";
+  form.append(el("div", { class: "keyrow" }, field("Key", root, "f-root-" + id), field("Major / minor", mode, "f-mode-" + id)));
+
+  const notes = el("textarea", { id: "f-notes-" + id, rows: "3", maxlength: "5000" });
+  notes.value = rec.notes || "";
+  form.append(field("Notes", notes, "f-notes-" + id));
+
+  const err = el("p", { class: "error", role: "alert", hidden: "" });
+  const save = el("button", { type: "submit", class: "primary" }, rec.status === "inbox" ? "Save and move to Library" : "Save");
+  const cancel = el("button", { type: "button" }, "Cancel");
+  cancel.addEventListener("click", () => { openEditId = null; render(); });
+  const actions = el("div", { class: "actions" }, save, cancel);
+  let back = null;
+  if (rec.status !== "inbox") { back = el("button", { type: "button", class: "link" }, "Move back to Inbox"); actions.append(back); }
+  form.append(err, actions);
+
+  const submit = async (status) => {
+    err.hidden = true;
+    const picked = form.querySelector('input[name="tempo-' + id + '"]:checked');
+    const bpmText = bpm.value.trim();
+    const payload = {
+      title: title.value,
+      tags: [...tagBox.querySelectorAll('.tagbtn[aria-pressed="true"]')].map((b) => b.dataset.tag),
+      tempo: picked && picked.value ? picked.value : null,
+      bpm: bpmText === "" ? null : Number(bpmText),
+      key_root: root.value || null,
+      key_mode: mode.value || null,
+      notes: notes.value,
+      status,
+    };
+    const r = await api("recordings/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" },
+                                             body: JSON.stringify(payload) });
+    if (r.status === 401) { show("login"); return; }
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      err.textContent = body.error || "Could not save (error " + r.status + ").";
+      err.hidden = false;
+      return;
+    }
+    openEditId = null;
+    await loadList();
+    notify(status === "inbox" ? "Moved back to Inbox." : rec.status === "inbox" ? "Saved. Moved to Library." : "Saved.");
+  };
+  form.addEventListener("submit", (e) => { e.preventDefault(); submit("tagged"); });
+  if (back) back.addEventListener("click", () => submit("inbox"));
+  return form;
+}
 
 async function loadList() {
   clearTimeout(pollTimer);
-  const r = await api("recordings");
-  if (r.status === 401) { show("login"); return; }
-  const { recordings } = await r.json();
-  const ul = $("#list");
-  ul.replaceChildren();
-  $("#empty").hidden = recordings.length > 0;
-  $("#count").textContent = recordings.length ? "(" + recordings.length + ")" : "";
-  playStatus = new Map(recordings.map((rec) => [rec.id, rec.play_status]));
-  for (const rec of recordings) {
-    const btn = el("button", { class: "play", type: "button" }, "▶");
-    btn.addEventListener("click", () => togglePlay(rec));
-    const meta = el("div", { class: "meta" }, fmtDate(rec.recorded_at) + " · " + fmtSize(rec.size));
-    if (rec.status === "inbox") meta.append(el("span", { class: "chip" }, "inbox"));
-    if (rec.play_status === "pending") meta.append(el("span", { class: "chip" }, "preparing playback…"));
-    if (rec.play_status === "failed") meta.append(el("span", { class: "chip" }, "no play copy"));
-    const dl = el("a", { class: "dl", href: "api/audio/" + rec.id + "?download=1" }, "Download");
-    const li = el("li", { "data-id": String(rec.id), "data-title": rec.title },
-      btn, el("div", {}, el("div", { class: "title" }, rec.title), meta), dl);
-    ul.append(li);
-  }
-  markPlaying();
-  // While the server is still converting something, check again shortly so the chip clears itself.
-  if (recordings.some((rec) => rec.play_status === "pending")) pollTimer = setTimeout(loadList, 3000);
+  const [recs, tags] = await Promise.all([api("recordings"), api("tags")]);
+  if (recs.status === 401) { show("login"); return; }
+  allRecs = (await recs.json()).recordings;
+  if (tags.ok) allTags = (await tags.json()).tags;
+  if (openEditId !== null) updateTabs();     // never rebuild the list under a form someone is typing in
+  else render();
+  schedulePoll();
+}
+
+// While the server is still converting something, check again shortly so the chip clears itself
+// (but not while a form is open: that would throw away what is being typed).
+function schedulePoll() {
+  clearTimeout(pollTimer);
+  if (!allRecs.some((rec) => rec.play_status === "pending")) return;
+  pollTimer = setTimeout(() => { if (openEditId !== null) schedulePoll(); else loadList(); }, 3000);
 }
 
 // ---- upload ------------------------------------------------------------------

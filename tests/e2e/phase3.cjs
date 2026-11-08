@@ -74,10 +74,9 @@ async function waitUp() {
     assert.strictEqual(await page.textContent("#count"), "(2)");
     console.log("ok  upload 2 files + duplicate detected; list shows 2");
 
-    // titles come from the generated default, status chip shows inbox
+    // titles come from the generated default
     const titles = await page.$$eval("#list .title", (n) => n.map((x) => x.textContent));
     assert.ok(titles.every((t) => t.startsWith("Idea, ")), "default titles: " + titles);
-    assert.strictEqual((await page.$$("#list .chip")).length, 2);
 
     // playback
     const first = page.locator("#list li").first().locator(".play");

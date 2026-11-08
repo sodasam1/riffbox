@@ -23,6 +23,7 @@ from types import SimpleNamespace
 from flask import (Blueprint, Flask, abort, g, jsonify, redirect, request,
                    send_file, send_from_directory, session)
 
+from .intake import (Invalid, MAX_TAGS_TOTAL, STATUSES, normalize_tag, validate_patch)
 from .media import convert_to_flac, mp4_audio_codec
 
 ALLOWED_EXT = {
@@ -325,11 +326,30 @@ def create_app(config=None):
         db().execute("SELECT 1").fetchone()
         return jsonify(status="ok")
 
-    def row_to_dict(row):
+    def row_to_dict(row, tags=()):
         keys = ("id", "title", "orig_filename", "mime", "size", "duration_s",
                 "recorded_at", "uploaded_at", "status", "tempo", "bpm",
                 "key_root", "key_mode", "notes", "rating", "used_in", "codec", "play_status")
-        return {k: row[k] for k in keys}
+        out = {k: row[k] for k in keys}
+        out["tags"] = list(tags)
+        return out
+
+    def tags_for(ids):
+        """{recording id: [tag names]} in the order tags were created (seeded ones first)."""
+        if not ids:
+            return {}
+        marks = ",".join("?" * len(ids))
+        found = {}
+        for r in db().execute(
+            f"SELECT rt.recording_id AS rid, rt.tag AS tag FROM recording_tags rt"
+            f" JOIN tags t ON t.name = rt.tag WHERE rt.recording_id IN ({marks}) ORDER BY t.rowid",
+            list(ids),
+        ):
+            found.setdefault(r["rid"], []).append(r["tag"])
+        return found
+
+    def bad_request(message):
+        return jsonify(error=message), 400
 
     @bp.post("/api/upload")
     @require_auth(allow_token=True)
@@ -393,10 +413,67 @@ def create_app(config=None):
     @bp.get("/api/recordings")
     @require_auth()      # the upload token is add-only: it must not be able to read the library
     def list_recordings():
-        rows = db().execute(
-            "SELECT * FROM recordings WHERE deleted_at IS NULL ORDER BY recorded_at DESC, id DESC"
-        ).fetchall()
-        return jsonify(recordings=[row_to_dict(r) for r in rows])
+        status = request.args.get("status")
+        if status is not None and status not in STATUSES:
+            return bad_request("status must be inbox or tagged")
+        sql = "SELECT * FROM recordings WHERE deleted_at IS NULL"
+        params = []
+        if status:
+            sql += " AND status = ?"
+            params.append(status)
+        rows = db().execute(sql + " ORDER BY recorded_at DESC, id DESC", params).fetchall()
+        tags = tags_for([r["id"] for r in rows])
+        return jsonify(recordings=[row_to_dict(r, tags.get(r["id"], ())) for r in rows])
+
+    @bp.patch("/api/recordings/<int:rec_id>")
+    @require_auth()
+    def update_recording(rec_id):
+        """Change a recording's details. Every field is optional; saving an unchanged or empty
+        form is fine. `status: "tagged"` is what moves a recording out of the inbox."""
+        row = live_row(rec_id)
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict):
+            return bad_request("send a JSON object")
+        known = {r["name"] for r in db().execute("SELECT name FROM tags")}
+        try:
+            cols, tag_list = validate_patch(body, known, default_title(row["recorded_at"]))
+        except Invalid as exc:
+            return bad_request(str(exc))
+        conn = db()
+        if cols:    # column names come from validate_patch's fixed set, never from the request
+            conn.execute("UPDATE recordings SET " + ", ".join(f"{c} = ?" for c in cols) + " WHERE id = ?",
+                         [*cols.values(), rec_id])
+        if tag_list is not None:
+            conn.execute("DELETE FROM recording_tags WHERE recording_id = ?", (rec_id,))
+            conn.executemany("INSERT INTO recording_tags (recording_id, tag) VALUES (?, ?)",
+                             [(rec_id, t) for t in tag_list])
+        conn.commit()
+        fresh = live_row(rec_id)
+        return jsonify(recording=row_to_dict(fresh, tags_for([rec_id]).get(rec_id, ())))
+
+    @bp.get("/api/tags")
+    @require_auth()
+    def list_tags():
+        return jsonify(tags=[r["name"] for r in db().execute("SELECT name FROM tags ORDER BY rowid")])
+
+    @bp.post("/api/tags")
+    @require_auth()
+    def create_tag():
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict):
+            return bad_request("send a JSON object")
+        try:
+            name = normalize_tag(body.get("name"))
+        except Invalid as exc:
+            return bad_request(str(exc))
+        conn = db()
+        if conn.execute("SELECT 1 FROM tags WHERE name = ?", (name,)).fetchone():
+            return jsonify(name=name, created=False), 200
+        if conn.execute("SELECT COUNT(*) FROM tags").fetchone()[0] >= MAX_TAGS_TOTAL:
+            return bad_request(f"at most {MAX_TAGS_TOTAL} tags")
+        conn.execute("INSERT INTO tags (name) VALUES (?)", (name,))
+        conn.commit()
+        return jsonify(name=name, created=True), 201
 
     def live_row(rec_id):
         row = db().execute(

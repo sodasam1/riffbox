@@ -34,7 +34,12 @@
 
   <section aria-labelledby="lib-h">
     <h2 id="lib-h">Recordings <span id="count"></span></h2>
-    <p id="empty" hidden>Nothing yet. Upload a voice memo above.</p>
+    <div id="views" role="group" aria-label="Which recordings to show">
+      <button id="tab-inbox" type="button" aria-pressed="true">Inbox</button>
+      <button id="tab-library" type="button" aria-pressed="false">Library</button>
+    </div>
+    <p id="notice" role="status" aria-live="polite" hidden></p>
+    <p id="empty" hidden></p>
     <ul id="list"></ul>
     <p id="audio-error" class="error" role="alert" hidden></p>
     <audio id="player" controls preload="none"></audio>

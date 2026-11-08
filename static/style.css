@@ -54,3 +54,42 @@ a.dl { color: var(--accent); font-size: .9rem; }
 
 audio { position: fixed; left: 0; right: 0; bottom: 0; width: 100%; background: var(--panel); }
 @media (min-width: 700px) { audio { left: 50%; transform: translateX(-50%); max-width: 52rem; border-radius: 8px 8px 0 0; } }
+
+/* ---- phase 4: inbox/library switch, details, intake form ---- */
+#views { display: flex; gap: 8px; margin: .2rem 0 .8rem; }
+#views button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+#notice { background: var(--panel); border-left: 4px solid var(--accent); padding: .5rem .8rem; margin: 0 0 .8rem; }
+#empty { color: var(--muted); }
+
+#list li { align-items: start; }
+#list li .play { margin-top: 2px; }
+#list .side { display: grid; justify-items: end; gap: 6px; }
+.details { color: var(--text); }
+.notes { white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.chip.tag { margin-left: 0; background: var(--panel); }
+
+form.edit { grid-column: 1 / -1; display: grid; gap: 14px; padding: 12px 0 6px; }
+form.edit .field { display: grid; gap: 4px; }
+form.edit label, form.edit legend { font-size: .85rem; color: var(--muted); }
+form.edit input[type=text], form.edit input[type=number], form.edit select, form.edit textarea {
+  font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 6px; padding: .5rem .6rem; width: 100%; min-height: 40px;
+}
+form.edit textarea { resize: vertical; }
+form.edit fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
+form.edit legend { padding: 0; margin-bottom: 4px; }
+.tagbox { display: flex; flex-wrap: wrap; gap: 6px; }
+.tagbtn { border-radius: 99px; padding: .3rem .8rem; min-height: 36px; }
+.tagbtn[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.addtag { display: flex; gap: 8px; }
+.addtag input { flex: 1; }
+.tempo { grid-template-columns: 1fr; }
+.radio { display: inline-flex; align-items: center; gap: 4px; margin-right: 14px; }
+.radio label { color: var(--text); font-size: 1rem; }
+.radio input { width: auto; min-height: 0; }
+.bpm { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bpm input { width: 6rem; }
+.keyrow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+form.edit .actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+form.edit .error { margin: 0; }
