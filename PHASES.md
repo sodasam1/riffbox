@@ -160,5 +160,13 @@ with a fake-clock-friendly constructor); the status-line data gathering into `he
 - **Select mode + bulk actions:** `POST /api/bulk` (add or remove tags, mark, status, trash; all or nothing; the same "used in only
   for ✓" rule as a single change); checkboxes with shift-click ranges, select all, rows hidden by a filter are un-ticked, two-press trash.
 - **Random:** plays a different recording from the list on screen, in the Library (a tag filter narrows the draw) and in the Inbox (not during triage).
-- **Header Menu** (Backup and export, How this works, Log out); **one-line upload bar** with drop-anywhere; the "Recordings (n)" heading is gone.
+- **Header Menu** (Backup and export, How this works, theme switch, Log out); **one-line upload bar** with drop-anywhere; the "Recordings (n)" heading is gone.
 - Tests: `test_bulk.py`, `tests/e2e/phase10.cjs` (and the older browser tests updated for the Menu and the new default order).
+
+## Minimal theme (owner request)
+A second look for the same page, chosen in the Menu ("Switch to the minimal theme" / "...standard theme") and remembered per device.
+`static/theme.js` (6 lines, in the `<head>`) applies it before the first paint, so there is no flash; the stylesheet's last section
+overrides colours and a few shapes under `html[data-theme="minimal"]` (one ink colour, hairlines instead of boxes, plain tags,
+underlined tabs, a player docked edge to edge, underlined form fields, neutral links). Light and dark both work. Nothing about
+behaviour changes. Tests: `tests/e2e/theme.cjs` (switch, remembered, applied before first paint, no overflow 320-1600 px in every
+view, tags still fit whole, contrast 4.5:1 or better, switching back restores the standard look exactly).

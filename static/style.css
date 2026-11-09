@@ -351,3 +351,83 @@ a.btn.primary { background: var(--accent); color: var(--accent-text); border-col
 /* Text links are about 22px tall; give them a finger-sized hit area without moving anything. */
 #menu-btn, #how-back, #data-back, #data-db, .pb-top .dl { padding: 6px 4px; margin: -6px -4px; }
 #list .side .dl, #list .side .edit-btn, #list .side .restore-btn { padding: 4px; margin: -4px; }   /* stacked 6px apart: a little less so the areas barely touch */
+
+/* ======================================================================================================
+   Minimal theme (chosen in the Menu; static/theme.js sets data-theme="minimal" on <html> before first paint).
+   Same page, same controls: no fills, no pills, no shadows, one ink colour, hairlines instead of boxes.
+   ====================================================================================================== */
+html[data-theme="minimal"] {
+  --bg: #fff; --panel: #f6f6f6; --text: #111; --muted: #6b6b6b; --line: #e4e4e4;
+  --accent: #111; --accent-text: #fff; --err: #b00020; --ok: #111; --ok-text: #fff; --warn: #8a5a00;
+}
+@media (prefers-color-scheme: dark) {
+  html[data-theme="minimal"] {
+    --bg: #101010; --panel: #1a1a1a; --text: #ececec; --muted: #9a9a9a; --line: #2c2c2c;
+    --accent: #ececec; --accent-text: #101010; --err: #ff8a80; --ok: #ececec; --ok-text: #101010; --warn: #e0b050;
+  }
+}
+html[data-theme="minimal"] body { font-size: 15px; line-height: 1.45; }
+html[data-theme="minimal"] h1 { font-size: 1.15rem; font-weight: 600; }
+html[data-theme="minimal"] h2 { text-transform: none; letter-spacing: 0; font-weight: 500; }
+/* controls: outlined, square-ish, no fills; primary = solid ink */
+html[data-theme="minimal"] button, html[data-theme="minimal"] a.btn { background: transparent; border-radius: 4px; border-color: var(--line); }
+html[data-theme="minimal"] button:hover:not(:disabled), html[data-theme="minimal"] a.btn:hover { border-color: var(--text); }
+html[data-theme="minimal"] button[type=submit], html[data-theme="minimal"] button.primary, html[data-theme="minimal"] a.btn.primary {
+  background: var(--text); color: var(--bg); border-color: var(--text); }
+html[data-theme="minimal"] button.link { border: 0; color: var(--text); }
+html[data-theme="minimal"] a, html[data-theme="minimal"] .pick { color: var(--text); }
+html[data-theme="minimal"] button.link.danger { color: var(--err); }
+/* tabs become plain words with an underline under the current one */
+html[data-theme="minimal"] #views { gap: 4px 18px; border-bottom: 1px solid var(--line); padding-bottom: 0; margin-bottom: 1rem; }
+html[data-theme="minimal"] #views > button, html[data-theme="minimal"] #library-tools button { border: 0; background: none; border-radius: 0; padding: .35rem 0; min-height: 36px; color: var(--muted); }
+html[data-theme="minimal"] #views button[aria-pressed="true"] { background: none; color: var(--text); font-weight: 600; box-shadow: inset 0 -2px 0 var(--text); }
+html[data-theme="minimal"] #tab-trash { border: 0; }
+html[data-theme="minimal"] #views #tab-trash[aria-pressed="true"] { background: none; }
+html[data-theme="minimal"] #library-tools { gap: 14px; margin-left: 6px; }
+html[data-theme="minimal"] #density button:first-child, html[data-theme="minimal"] #density button:last-child { margin: 0; border-radius: 0; }
+html[data-theme="minimal"] #density { gap: 12px; }
+html[data-theme="minimal"] #density button[aria-pressed="true"], html[data-theme="minimal"] #select-toggle[aria-pressed="true"] { background: none; border: 0; color: var(--text); font-weight: 600; box-shadow: inset 0 -2px 0 var(--text); }
+html[data-theme="minimal"] #random { border: 0; color: var(--muted); }
+/* rows: hairlines only; the playing / selected row gets a thin ink rule at its left edge */
+html[data-theme="minimal"] #list li.playing, html[data-theme="minimal"] #list li.picked { background: none; }
+html[data-theme="minimal"] #list li.playing { box-shadow: inset 2px 0 var(--text); }
+html[data-theme="minimal"] #list li.selected { background: var(--panel); }
+html[data-theme="minimal"] .play { border: 0; background: none; font-size: .95rem; }
+html[data-theme="minimal"] .play:hover { background: var(--panel); }
+html[data-theme="minimal"] .chip, html[data-theme="minimal"] .chip.tag { border: 0; background: none; padding: 0; margin: 0 .7rem 0 0; color: var(--muted); border-radius: 0; }
+html[data-theme="minimal"] .chip.tag.more { border: 0; font-style: italic; }
+html[data-theme="minimal"] .tags { gap: 2px 0; }
+html[data-theme="minimal"] .ratebtn { border: 0; background: none; border-radius: 4px; color: var(--muted); }
+html[data-theme="minimal"] .ratebtn:hover { background: var(--panel); color: var(--text); }
+html[data-theme="minimal"] .ratebtn[aria-pressed="true"], html[data-theme="minimal"] .ratebtn[aria-pressed="true"][data-rating] { background: none; color: var(--text); box-shadow: inset 0 -2px 0 var(--text); border-radius: 0; }
+html[data-theme="minimal"] .rowsel { accent-color: var(--text); }
+/* forms and filters: underlined fields instead of boxes */
+html[data-theme="minimal"] input[type=password], html[data-theme="minimal"] form.edit input[type=text], html[data-theme="minimal"] form.edit input[type=number],
+html[data-theme="minimal"] form.edit input[type=date], html[data-theme="minimal"] form.edit select, html[data-theme="minimal"] form.edit textarea,
+html[data-theme="minimal"] #triage-card textarea, html[data-theme="minimal"] #triage-card input[type=text], html[data-theme="minimal"] #filters input[type=search],
+html[data-theme="minimal"] #filters select, html[data-theme="minimal"] #bulkbar select, html[data-theme="minimal"] .resurface-controls select, html[data-theme="minimal"] #pb-speed {
+  background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+html[data-theme="minimal"] form.edit textarea, html[data-theme="minimal"] #triage-card textarea { border: 1px solid var(--line); border-radius: 4px; }
+html[data-theme="minimal"] .tagbtn { border-radius: 4px; }
+html[data-theme="minimal"] .tagbtn[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+html[data-theme="minimal"] #bulkbar { background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding-left: 0; padding-right: 0; }
+html[data-theme="minimal"] #notice { background: none; border-left: 2px solid var(--text); }
+html[data-theme="minimal"] #triage { background: none; border-radius: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-left: 0; padding-right: 0; }
+html[data-theme="minimal"] .status-line { border-radius: 0; }
+html[data-theme="minimal"] code { background: none; border-bottom: 1px solid var(--line); border-radius: 0; }
+/* the menu and the player: flat */
+html[data-theme="minimal"] #menu { box-shadow: none; border-radius: 4px; background: var(--bg); }
+html[data-theme="minimal"] #menu a:hover, html[data-theme="minimal"] #menu button:hover { background: var(--panel); }
+html[data-theme="minimal"] #menu button, html[data-theme="minimal"] #menu a { border-radius: 2px; }
+html[data-theme="minimal"] #playerbar { left: 0; right: 0; bottom: 0; max-width: none; border-radius: 0; border-width: 1px 0 0; box-shadow: none; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+html[data-theme="minimal"] #wave { border: 0; border-radius: 0; background: transparent; }
+html[data-theme="minimal"] .pb-loop button, html[data-theme="minimal"] #pb-toggle { border-radius: 4px; }
+html[data-theme="minimal"] .pb-loop button[aria-pressed="true"] { background: none; color: var(--text); box-shadow: inset 0 -2px 0 var(--text); }
+html[data-theme="minimal"] .pb-loop button.set { color: var(--text); border-color: var(--text); }
+html[data-theme="minimal"] #pb-play { border: 0; }
+html[data-theme="minimal"] #dropveil p { border-radius: 4px; border-width: 2px; }
+html[data-theme="minimal"] .status { border-radius: 4px; }
+html[data-theme="minimal"] .status.done { background: none; color: var(--text); border-color: var(--text); }
+html[data-theme="minimal"] .status.next { color: var(--text); border-color: var(--line); }
+html[data-theme="minimal"] #menu-btn, html[data-theme="minimal"] #pick { border: 0; background: none; }
+html[data-theme="minimal"] #pick { padding: 0; text-decoration: underline; min-height: 36px; }

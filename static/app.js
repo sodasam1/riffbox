@@ -1307,6 +1307,17 @@ $("#random").addEventListener("click", () => {
   notify("Playing “" + rec.title + "”" + (view === "library" && filtersActive() ? " (picked from the filtered list)." : "."));
 });
 
+// ---- Themes: "standard" or "minimal" (static/theme.js applies the saved one before the first paint) ----------------
+function applyTheme(minimal) {
+  if (minimal) document.documentElement.dataset.theme = "minimal"; else delete document.documentElement.dataset.theme;
+  stored.set("theme", minimal ? "minimal" : "standard");
+  $("#theme-toggle").textContent = minimal ? "Switch to the standard theme" : "Switch to the minimal theme";
+  colorCache = null;                                                     // the waveform picks its colours up from the theme
+  drawWave();
+}
+$("#theme-toggle").addEventListener("click", () => applyTheme(document.documentElement.dataset.theme !== "minimal"));
+if (document.documentElement.dataset.theme === "minimal") $("#theme-toggle").textContent = "Switch to the standard theme";
+
 // ---- The header menu ---------------------------------------------------------------------------------------
 const menuBtn = $("#menu-btn"), menu = $("#menu");
 function setMenu(open) { menu.hidden = !open; menuBtn.setAttribute("aria-expanded", String(open)); }
