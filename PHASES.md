@@ -170,3 +170,11 @@ overrides colours and a few shapes under `html[data-theme="minimal"]` (one ink c
 underlined tabs, a player docked edge to edge, underlined form fields, neutral links). Light and dark both work. Nothing about
 behaviour changes. Tests: `tests/e2e/theme.cjs` (switch, remembered, applied before first paint, no overflow 320-1600 px in every
 view, tags still fit whole, contrast 4.5:1 or better, switching back restores the standard look exactly).
+
+## Editing in the Inbox (branch `inbox-edit`, not merged to `main`; owner request)
+Before: the only way to save details typed into an Inbox recording was to move it to the Library. Now an Inbox row's button says
+**Edit**, and its form has **Save** (keeps it in the Inbox; Enter in a field does the same) and **Save and move to Library**.
+A Library recording still has Save and Move back to Inbox. No server change was needed: a change request without `status`
+never moved anything. The notice says which happened ("Saved. Still in the Inbox." / "Saved. Moved to Library."). Triage mode is
+unchanged (it still saves and moves; a skipped card's typing is kept only until you leave triage). Tests: `test_inbox_edit.py`,
+`tests/e2e/inboxedit.cjs`; `phase4.cjs` was updated to click Save and move to Library where it expects a move.
