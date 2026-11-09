@@ -170,3 +170,13 @@ overrides colours and a few shapes under `html[data-theme="minimal"]` (one ink c
 underlined tabs, a player docked edge to edge, underlined form fields, neutral links). Light and dark both work. Nothing about
 behaviour changes. Tests: `tests/e2e/theme.cjs` (switch, remembered, applied before first paint, no overflow 320-1600 px in every
 view, tags still fit whole, contrast 4.5:1 or better, switching back restores the standard look exactly).
+
+## Stable tabs on desktop (branch `ui-stable-tabs`, not merged to `main`; owner request)
+Problem: switching between Inbox, Library and Resurface on desktop moved the whole page (the Library made the page wider and
+left-aligned, the others were narrow and centred), and Random jumped because the Library tools only existed on one tab.
+Fix: the page is the same width on every tab; the left column always holds that tab's own controls (Inbox: the triage button;
+Library: the filters; Resurface: the time choice and *Surprise me*; Trash: its note) and the list is always in the right
+column; the tab row has fixed slots, and controls that do not apply (row size and Select outside the Library, Random on
+Resurface and Trash) stay as invisible placeholders on desktop instead of disappearing. Phones are unchanged (the panels stack
+above the list as before, and inapplicable controls are removed). The How this works and Backup pages keep a readable width.
+Tests: `tests/e2e/stable.cjs` measures every fixed element on every tab at 900 to 1920 px (it failed on the old layout).

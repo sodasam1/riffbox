@@ -173,7 +173,8 @@ form.edit .error { margin: 0; }
 .rowsel { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); flex: none; }
 #list .c-len, #list .c-rec, #list .c-up, #list .d-short, #list .d-iso, #list .dl-short { display: none; }       /* table-only pieces */
 #list li.picked { background: var(--panel); }
-#app.wide { max-width: 96rem; }
+#app.wide { max-width: 96rem; }          /* the same width on every tab, so nothing shifts when you switch */
+#how-view, #data-view, #triage { max-width: 56rem; }
 #list:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 #list li.selected { background: var(--panel); box-shadow: inset 3px 0 0 var(--accent); }
 #list li.playing .title { color: var(--accent); }
@@ -218,8 +219,9 @@ form.edit .error { margin: 0; }
 
 #colhead { display: none; }
 @media (min-width: 900px) {
-  #browser.with-filters { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: 28px; align-items: start; }
-  #filters { position: sticky; top: 12px; margin: 0; }
+  #browser { display: grid; grid-template-columns: 16rem minmax(0, 1fr); gap: 28px; align-items: start; }
+  #results { grid-column: 2; }
+  #filters, .side-panel { position: sticky; top: 12px; margin: 0; }
   #filters-toggle { display: none; }
   #filters-panel { display: grid; padding-top: 0; }
 }
@@ -265,6 +267,12 @@ form.edit .error { margin: 0; }
 #filters-panel .showfilter .radio label { font-size: .95rem; }
 
 #triage-start { margin: 0 0 .8rem; }
+.side-panel { margin-bottom: 14px; }
+.panel-hint { margin: 0 0 .6rem; }
+@media (max-width: 899px) { .panel-hint { display: none; } }          /* on a phone the Inbox looks as it always did */
+/* On a phone a control that does not apply simply is not there; on desktop it stays as an invisible placeholder so nothing moves. */
+@media (max-width: 899px) { #library-tools.slot-off, #random.slot-off { display: none; } }
+@media (min-width: 900px) { .slot-off { visibility: hidden; } }
 #triage { background: var(--panel); border-radius: 12px; padding: 14px 16px; margin: 0 0 1rem; outline: none; }
 .triage-head { display: flex; align-items: baseline; gap: 12px; }
 .triage-head h3 { margin: 0; flex: 1; font-size: 1.05rem; }

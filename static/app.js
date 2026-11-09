@@ -364,8 +364,9 @@ function applyDensity() {
   $("#results").classList.toggle("compact", compact);
   $("#dens-cozy").setAttribute("aria-pressed", String(density === "cozy"));
   $("#dens-compact").setAttribute("aria-pressed", String(density === "compact"));
-  $("#library-tools").hidden = view !== "library";
-  $("#random").hidden = !(view === "library" || view === "inbox") || triage !== null;     // draws from the list on screen
+  // On desktop a control that does not apply to the tab stays as an invisible placeholder, so nothing else moves.
+  $("#library-tools").classList.toggle("slot-off", view !== "library");
+  $("#random").classList.toggle("slot-off", !(view === "library" || view === "inbox") || triage !== null);     // draws from the list on screen
   scheduleFitTags();
 }
 for (const [id, value] of [["#dens-cozy", "cozy"], ["#dens-compact", "compact"]]) {
@@ -393,8 +394,9 @@ function render() {
   const inLibrary = view === "library";
   const shown = inLibrary ? libRecs : view === "trash" ? trashRecs : view === "resurface" ? resurfaceRecs : inboxRecs;
   $("#app").classList.toggle("in-trash", view === "trash");
-  $("#trash-note").hidden = view !== "trash";
-  $("#resurface-bar").hidden = view !== "resurface";
+  $("#side-inbox").hidden = view !== "inbox";                       // the left column: one panel per tab
+  $("#side-resurface").hidden = view !== "resurface";
+  $("#side-trash").hidden = view !== "trash";
   if (view === "resurface") {
     $("#resurface-days").value = String(resurfaceDays);
     $("#resurface-text").textContent = !resurfaceHearts ? "Heart (♥) some ideas in the Library and they will come back here."
@@ -404,9 +406,7 @@ function render() {
   const ul = $("#list");
   ul.replaceChildren();
   ul.classList.toggle("library", inLibrary);
-  $("#app").classList.toggle("wide", inLibrary);           // the Library table gets more room
   $("#filters").hidden = !inLibrary;
-  $("#browser").classList.toggle("with-filters", inLibrary);
   $("#colhead").hidden = !inLibrary || !shown.length;
   const empty = $("#empty");
   empty.hidden = shown.length > 0;
@@ -1353,7 +1353,7 @@ function startTriage() {
   openEditId = null;
   notify("");
   $("#browser").hidden = true;
-  $("#random").hidden = true;
+  $("#random").classList.add("slot-off");
   $("#triage").hidden = false;
   $("#triage-start").hidden = true;
   renderTriage();
@@ -1364,7 +1364,7 @@ function exitTriage() {
   triage = null;
   $("#triage").hidden = true;
   $("#browser").hidden = false;
-  $("#random").hidden = view !== "inbox" && view !== "library";
+  $("#random").classList.toggle("slot-off", view !== "inbox" && view !== "library");
   player.pause();
   loadList();
 }
