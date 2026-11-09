@@ -82,7 +82,7 @@ const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
     // 2. the Library table never overflows, from 900 to 1280px, cozy or compact
     for (const mode of ["#dens-cozy", "#dens-compact"]) {
       await page.click(mode);
-      for (const w of [900, 1000, 1024, 1100, 1149, 1150, 1200, 1280]) {
+      for (const w of [900, 1000, 1100, 1200, 1239, 1240, 1280, 1600]) {
         await page.setViewportSize({ width: w, height: 800 }); await page.waitForTimeout(120);
         const m = await page.evaluate(() => ({ over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
           resultsRight: document.querySelector("#results").getBoundingClientRect().right,
@@ -110,7 +110,7 @@ const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
     console.log("ok  the date field matches the other fields; BPM and Tap tempo sit on one line");
 
     // 5. tap targets: text links have a finger-sized hit area
-    const small = await page.evaluate(() => [...document.querySelectorAll("header nav a, header nav button, #list .side .dl, #list .side .edit-btn")]
+    const small = await page.evaluate(() => [...document.querySelectorAll("#menu-btn, #list .side .dl, #list .side .edit-btn")]
       .filter((e) => e.getBoundingClientRect().width).map((e) => [e.textContent.trim(), Math.round(e.getBoundingClientRect().height)]).filter(([, h]) => h < 30));
     assert.deepStrictEqual(small, [], "links with a hit area under 30px: " + JSON.stringify(small));
     console.log("ok  header and row links have at least a 30px-tall hit area");

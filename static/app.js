@@ -289,13 +289,17 @@ let libRatings = { heart: 0, check: 0, x: 0, none: 0 };   // how many Library re
 let allTags = [];
 let openEditId = null;         // at most one edit form open at a time
 let selectedId = null;         // the highlighted row; arrow keys move it, Space plays it
+let selecting = false;         // Library "Select" mode: checkboxes and the bulk-action bar
+const picked = new Set();      // ids ticked in Select mode
+let lastPicked = null;         // for shift-click ranges
 let pollTimer = null;
 let loadSeq = 0;               // numbers each load so a slow, older response can't overwrite a newer one
 
 // What the Library sidebar is asking for. Sort and the preview switch are remembered between visits
 // (a per-device convenience only: everything still works if the browser refuses to store them).
 const filters = { q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "", rating: "all",
-                  sort: "recorded", order: "desc" };
+                  sort: "uploaded", order: "desc" };      // newest upload first unless the owner picks otherwise
+const DEFAULT_SORT = { sort: "uploaded", order: "desc" };
 const BPM_LO = 40, BPM_HI = 240;   // the slider's ends; a thumb sitting at an end means "no limit" on that side
 let autoPreview = true;
 const stored = {
@@ -319,6 +323,19 @@ function detailsText(rec) {
   if (rec.rating === "check" && rec.used_in) parts.push("used in " + rec.used_in);
   return parts.join(" · ");
 }
+// The same for the Compact table: no "BPM", and major/minor as M/m ("108 · A m").
+function shortDetails(rec) {
+  const parts = [];
+  if (rec.bpm) parts.push(String(rec.bpm));
+  if (rec.key_root || rec.key_mode) parts.push([rec.key_root, rec.key_mode === "major" ? "M" : rec.key_mode === "minor" ? "m" : ""].filter(Boolean).join(" "));
+  return parts.join(" · ");
+}
+// A date for the table: just the day on screen, the full timestamp (local, then UTC as stored) in the tooltip.
+function dateCell(cls, iso) {
+  const when = new Date(iso);
+  const tip = isNaN(when) ? iso : when.toLocaleString([], { dateStyle: "medium", timeStyle: "medium" }) + "  (" + iso + ")";
+  return el("span", { class: cls, title: tip }, el("span", { class: "d-full" }, fmtDay(iso)), el("span", { class: "d-iso" }, dayKey(iso) || iso));
+}
 
 function notify(text) {
   const n = $("#notice");
@@ -329,6 +346,7 @@ function notify(text) {
 function setView(next) {
   if (triage) exitTriage();
   view = next;
+  selecting = false; picked.clear();
   openEditId = null;
   notify("");
   render();
@@ -346,7 +364,8 @@ function applyDensity() {
   $("#results").classList.toggle("compact", compact);
   $("#dens-cozy").setAttribute("aria-pressed", String(density === "cozy"));
   $("#dens-compact").setAttribute("aria-pressed", String(density === "compact"));
-  $("#density").hidden = view !== "library";
+  $("#library-tools").hidden = view !== "library";
+  scheduleFitTags();
 }
 for (const [id, value] of [["#dens-cozy", "cozy"], ["#dens-compact", "compact"]]) {
   $(id).addEventListener("click", () => { density = value; stored.set("density", value); applyDensity(); const li = document.querySelector("#list li.selected"); if (li) li.scrollIntoView({ block: "nearest" }); });
@@ -372,7 +391,6 @@ function render() {
   updateTabs();
   const inLibrary = view === "library";
   const shown = inLibrary ? libRecs : view === "trash" ? trashRecs : view === "resurface" ? resurfaceRecs : inboxRecs;
-  $("#lib-title").textContent = view === "trash" ? "Trash" : view === "resurface" ? "Resurface" : "Recordings";
   $("#app").classList.toggle("in-trash", view === "trash");
   $("#trash-note").hidden = view !== "trash";
   $("#resurface-bar").hidden = view !== "resurface";
@@ -402,8 +420,12 @@ function render() {
   $("#kbd-hint").hidden = !shown.length || view === "trash";      // arrow keys do nothing in the Trash
   $("#triage-start").hidden = !(view === "inbox" && inboxRecs.length && !triage);
   $("#triage-start").textContent = "Triage the Inbox (" + inboxRecs.length + ")";
-  $("#count").textContent = shown.length ? "(" + shown.length + ")" : "";
-  if (inLibrary) updateFilterUI();
+  if (inLibrary) { updateFilterUI(); updateSortHeaders(); }
+  for (const id of picked) if (!libRecs.some((r) => r.id === id)) picked.delete(id);   // a filter hid it: never act on what you cannot see
+  $("#results").classList.toggle("selecting", inLibrary && selecting);
+  $("#select-toggle").setAttribute("aria-pressed", String(selecting));
+  $("#bulkbar").hidden = !(inLibrary && selecting);
+  if (inLibrary && selecting) updateBulkBar();
   playStatus = new Map([...inboxRecs, ...libRecs, ...resurfaceRecs].map((rec) => [rec.id, rec.play_status]));
   if (selectedId !== null && !shown.some((r) => r.id === selectedId)) selectedId = null;   // filtered out
   for (const rec of shown) ul.append(view === "trash" ? buildTrashRow(rec) : buildRow(rec));
@@ -414,6 +436,14 @@ function render() {
 function buildRow(rec) {
   const btn = el("button", { class: "play", type: "button" }, "▶");
   btn.addEventListener("click", () => togglePlay(rec));
+  const lead = el("div", { class: "lead" });
+  if (view === "library" && selecting) {
+    const box = el("input", { type: "checkbox", class: "rowsel", "aria-label": "Select " + rec.title });
+    box.checked = picked.has(rec.id);
+    box.addEventListener("click", (e) => pickRow(rec.id, box.checked, e.shiftKey));
+    lead.append(box);
+  }
+  lead.append(btn);
   const meta = el("div", { class: "meta when" }, whenText(rec) +
     (rec.duration_s ? " · " + fmtTime(rec.duration_s) : "") + " · " + fmtSize(rec.size) +
     (view === "resurface" ? " · " + (rec.last_played_at ? "last played " + ago(rec.last_played_at) : "never played") : ""));
@@ -421,13 +451,19 @@ function buildRow(rec) {
   if (rec.play_status === "failed") meta.append(el("span", { class: "chip" }, "no play copy"));
   const info = el("div", { class: "info" }, el("div", { class: "title" }, rec.title), meta);
   const details = detailsText(rec);
-  if (details) info.append(el("div", { class: "meta details" }, details));
+  if (details) {
+    info.append(el("div", { class: "meta details", title: details }, el("span", { class: "d-full" }, details),
+      el("span", { class: "d-short" }, shortDetails(rec))));
+  }
   if (rec.tags.length) {
     const tags = el("div", { class: "tags" });
     for (const t of rec.tags) tags.append(el("span", { class: "chip tag" }, t));
     info.append(tags);
   }
   if (rec.notes) info.append(el("div", { class: "meta notes" }, rec.notes));
+  // Table-only cells (hidden in the stacked layout, which shows the same facts in the line under the title)
+  info.append(el("span", { class: "c-len", title: fmtSize(rec.size) }, rec.duration_s ? fmtTime(rec.duration_s) : ""),
+    dateCell("c-rec", rec.recorded_at), dateCell("c-up", rec.uploaded_at));
   const edit = el("button", { class: "link edit-btn", type: "button", "aria-expanded": String(openEditId === rec.id) },
     rec.status === "inbox" ? "Tag" : "Edit");
   edit.addEventListener("click", () => {
@@ -448,8 +484,10 @@ function buildRow(rec) {
     rate.append(b);
   }
   const side = el("div", { class: "side" }, edit,
-    el("a", { class: "dl", href: "api/audio/" + rec.id + "?download=1" }, "Download"), rate);
-  const li = el("li", { "data-id": String(rec.id), "data-title": rec.title }, btn, info, side);
+    el("a", { class: "dl", href: "api/audio/" + rec.id + "?download=1", title: "Download the original", "aria-label": "Download " + rec.title },
+      el("span", { class: "dl-full" }, "Download"), el("span", { class: "dl-short", "aria-hidden": "true" }, "↓")), rate);
+  const li = el("li", { "data-id": String(rec.id), "data-title": rec.title }, lead, info, side);
+  if (picked.has(rec.id)) li.classList.add("picked");
   if (rec.id === selectedId) { li.classList.add("selected"); li.setAttribute("aria-current", "true"); }
   if (openEditId === rec.id) li.append(buildForm(rec));
   return li;
@@ -661,7 +699,7 @@ async function loadList() {
   let inbox, lib, tags, trash, forgotten;
   try {
     [inbox, lib, tags, trash, forgotten] = await Promise.all([
-      api("recordings?status=inbox"), api("recordings?" + libraryQuery()), api("tags"),
+      api("recordings?status=inbox&sort=recorded&order=desc"), api("recordings?" + libraryQuery()), api("tags"),
       view === "trash" ? api("trash") : Promise.resolve(null),
       view === "resurface" ? api("resurface?days=" + resurfaceDays) : Promise.resolve(null)]);
   } catch (e) {
@@ -1139,6 +1177,142 @@ $("#surprise").addEventListener("click", async () => {
   finally { surprising = false; }
 });
 
+// ---- sorting by clicking a column heading: first click ascending, second descending, third back to the default ----
+function updateSortHeaders() {
+  for (const b of document.querySelectorAll("#colhead button[data-sort]")) {
+    const on = b.dataset.sort === filters.sort;
+    b.setAttribute("aria-sort", on ? (filters.order === "asc" ? "ascending" : "descending") : "none");
+    b.querySelector(".caret").textContent = on ? (filters.order === "asc" ? "▲" : "▼") : "";
+  }
+}
+function cycleSort(column) {
+  if (filters.sort !== column) { filters.sort = column; filters.order = "asc"; }
+  else if (filters.order === "asc") filters.order = "desc";
+  else if (column === DEFAULT_SORT.sort) filters.order = "asc";            // desc is already the default for this one
+  else Object.assign(filters, DEFAULT_SORT);
+  stored.set("sort", filters.sort); stored.set("order", filters.order);
+  filtersChanged(0);
+}
+for (const b of document.querySelectorAll("#colhead button[data-sort]")) b.addEventListener("click", () => cycleSort(b.dataset.sort));
+
+// ---- Tags in the Compact table: whole tags that fit, then "+N" (hover for the rest). Never "b…" ----------------
+let fitTimer = null;
+function scheduleFitTags() { clearTimeout(fitTimer); fitTimer = setTimeout(fitAllTags, 30); }
+function fitTags(box) {
+  for (const old of box.querySelectorAll(".more")) old.remove();
+  const chips = [...box.querySelectorAll(".chip.tag")];
+  for (const c of chips) c.hidden = false;
+  if (!box.closest("#list").classList.contains("compact") || !window.matchMedia("(min-width: 1240px)").matches || !chips.length) return;
+  const wraps = (c) => c.offsetTop - chips[0].offsetTop > 2;                // a chip on a second line does not fit
+  const hiddenCount = chips.filter(wraps).length;
+  if (!hiddenCount) return;
+  const more = el("span", { class: "chip tag more" });
+  box.append(more);
+  let shown = chips.length - hiddenCount;
+  const place = () => {
+    for (const [i, c] of chips.entries()) c.hidden = i >= shown;
+    more.textContent = "+" + (chips.length - shown);
+    more.title = chips.slice(shown).map((c) => c.textContent).join(", ");
+  };
+  place();
+  while (shown > 0 && wraps(more)) { shown--; place(); }                    // make room for the "+N" itself
+}
+function fitAllTags() { for (const box of document.querySelectorAll("#list .tags")) fitTags(box); }
+new ResizeObserver(scheduleFitTags).observe($("#results"));
+
+// ---- Select mode and bulk actions (Library) ---------------------------------------------------------------
+function pickRow(id, on, range) {
+  if (range && lastPicked !== null) {                                       // shift-click: everything between the two ticks
+    const ids = libRecs.map((r) => r.id), a = ids.indexOf(lastPicked), b = ids.indexOf(id);
+    if (a >= 0 && b >= 0) for (const i of ids.slice(Math.min(a, b), Math.max(a, b) + 1)) { if (on) picked.add(i); else picked.delete(i); }
+  } else if (on) picked.add(id); else picked.delete(id);
+  lastPicked = id;
+  for (const li of document.querySelectorAll("#list > li")) {
+    const yes = picked.has(Number(li.dataset.id));
+    li.classList.toggle("picked", yes);
+    const box = li.querySelector(".rowsel");
+    if (box) box.checked = yes;
+  }
+  updateBulkBar();
+}
+function updateBulkBar() {
+  const n = picked.size, all = $("#bulk-all");
+  $("#bulk-count").textContent = n + " selected";
+  all.checked = n > 0 && n === libRecs.length;
+  all.indeterminate = n > 0 && n < libRecs.length;
+  const held = new Set(libRecs.filter((r) => picked.has(r.id)).flatMap((r) => r.tags));
+  fillSelect($("#bulk-add"), "Add tag…", allTags);
+  fillSelect($("#bulk-remove"), "Remove tag…", allTags.filter((t) => held.has(t)));       // only tags the selection has
+  for (const id of ["#bulk-add", "#bulk-remove", "#bulk-mark", "#bulk-inbox", "#bulk-trash"]) $(id).disabled = n === 0;
+  if (!n) disarmTrash();
+}
+function fillSelect(select, placeholder, names) {
+  const keep = [...select.options].slice(1).map((o) => o.value).join("\n");
+  if (keep === names.join("\n")) return;
+  select.replaceChildren(el("option", { value: "" }, placeholder), ...names.map((t) => el("option", { value: t }, t)));
+}
+$("#select-toggle").addEventListener("click", () => { selecting = !selecting; if (!selecting) picked.clear(); lastPicked = null; render(); });
+$("#bulk-done").addEventListener("click", () => { selecting = false; picked.clear(); lastPicked = null; render(); });
+$("#bulk-all").addEventListener("change", (e) => {
+  picked.clear();
+  if (e.target.checked) for (const r of libRecs) picked.add(r.id);
+  render();
+});
+async function bulk(changes, done) {
+  const ids = [...picked];
+  if (!ids.length) return;
+  let r;
+  try { r = await sendJson("bulk", "POST", { ids, changes }); } catch (e) { notify(NETWORK_ERROR); return; }
+  if (loggedOut(r)) return;
+  if (!r.ok) { notify((await r.json().catch(() => ({}))).error || "Could not change them (error " + r.status + ")."); return; }
+  picked.clear(); lastPicked = null; openEditId = null;
+  await loadList();
+  notify(done(ids.length));
+}
+const nRecordings = (n) => n + (n === 1 ? " recording" : " recordings");
+for (const [id, key, verb] of [["#bulk-add", "add_tags", "Added tag"], ["#bulk-remove", "remove_tags", "Removed tag"]]) {
+  $(id).addEventListener("change", (e) => {
+    const tag = e.target.value;
+    e.target.value = "";
+    if (tag) bulk({ [key]: [tag] }, (n) => verb + " “" + tag + "” on " + nRecordings(n) + ".");
+  });
+}
+$("#bulk-mark").addEventListener("change", (e) => {
+  const v = e.target.value;
+  e.target.value = "";
+  if (v) bulk({ rating: v === "none" ? null : v }, (n) => (v === "none" ? "Cleared the mark on " + nRecordings(n) + "." : "Marked " + nRecordings(n) + " " + { heart: "♥", check: "✓", x: "✗" }[v] + "."));
+});
+$("#bulk-inbox").addEventListener("click", () => bulk({ status: "inbox" }, (n) => "Moved " + nRecordings(n) + " back to the Inbox."));
+let trashArmed = null;                                   // two presses, like Delete in the form: the first only asks
+function disarmTrash() { clearTimeout(trashArmed); trashArmed = null; $("#bulk-trash").textContent = "Move to Trash"; }
+$("#bulk-trash").addEventListener("click", () => {
+  if (!trashArmed) {
+    $("#bulk-trash").textContent = "Press again to trash " + picked.size;
+    trashArmed = setTimeout(disarmTrash, 4000);
+    return;
+  }
+  disarmTrash();
+  bulk({ trash: true }, (n) => "Moved " + nRecordings(n) + " to the Trash. The Trash tab can restore them.");
+});
+
+// ---- Random: a different recording from the list on screen each time ------------------------------------
+$("#random").addEventListener("click", () => {
+  if (!libRecs.length) { notify("Nothing to pick from: the list is empty."); return; }
+  const choices = libRecs.length > 1 ? libRecs.filter((r) => r.id !== playingId) : libRecs;     // never the one already playing
+  const rec = choices[Math.floor(Math.random() * choices.length)];
+  setSelected(rec.id);
+  startPlay(rec);
+  notify("Playing “" + rec.title + "”" + (filtersActive() ? " (picked from the filtered list)." : "."));
+});
+
+// ---- The header menu ---------------------------------------------------------------------------------------
+const menuBtn = $("#menu-btn"), menu = $("#menu");
+function setMenu(open) { menu.hidden = !open; menuBtn.setAttribute("aria-expanded", String(open)); }
+menuBtn.addEventListener("click", () => setMenu(menu.hidden));
+menu.addEventListener("click", () => setMenu(false));                                         // choosing anything closes it
+document.addEventListener("click", (e) => { if (!menu.hidden && !e.target.closest("#menu-wrap")) setMenu(false); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !menu.hidden) { setMenu(false); menuBtn.focus(); } });
+
 // ---- marks: ♥ interesting, ✓ used in a song, ✗ no longer interesting ---------------------------------
 const MARKS = [["heart", "♥", "Interesting"], ["check", "✓", "Used in a song"], ["x", "✗", "No longer interesting"]];
 
@@ -1430,10 +1604,21 @@ async function handleFiles(files) {
   await loadList();
 }
 
-const drop = $("#drop"), input = $("#file");
+const input = $("#file"), veil = $("#dropveil");
+$("#pick").addEventListener("click", () => input.click());
 input.addEventListener("change", () => { if (input.files.length) handleFiles(input.files); input.value = ""; });
-for (const ev of ["dragenter", "dragover"]) drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); });
-for (const ev of ["dragleave", "drop"]) drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); });
-drop.addEventListener("drop", (e) => { if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+// Files can be dropped anywhere on the page (a veil says so while they are over it).
+let dragDepth = 0;
+const hasFiles = (e) => Boolean(e.dataTransfer && [...e.dataTransfer.types].includes("Files"));
+const canUpload = () => !$("#app").hidden && !$("#main-view").hidden;
+window.addEventListener("dragenter", (e) => { if (!hasFiles(e) || !canUpload()) return; e.preventDefault(); dragDepth++; veil.hidden = false; });
+window.addEventListener("dragleave", (e) => { if (!hasFiles(e)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) veil.hidden = true; });
+window.addEventListener("dragover", (e) => { if (hasFiles(e)) e.preventDefault(); });
+window.addEventListener("drop", (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0; veil.hidden = true;
+  if (canUpload() && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
 
 boot();

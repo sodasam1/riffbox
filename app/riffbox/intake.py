@@ -159,3 +159,46 @@ def validate_patch(body, known_tags, default_title, uploaded_at=None):
         tags = chosen
 
     return cols, tags
+
+
+BULK_CHANGES = {"add_tags", "remove_tags", "rating", "status", "trash"}
+MAX_BULK = 500
+
+
+def validate_bulk(body, known_tags):
+    """Check a bulk-change request: {"ids": [...], "changes": {...}}. Returns (ids, changes); raises Invalid.
+
+    changes may hold: add_tags (names that exist), remove_tags, rating (heart/check/x/null), status (inbox/tagged),
+    or trash: true (which cannot be combined with the others)."""
+    ids = body.get("ids")
+    if (not isinstance(ids, list) or not ids or len(ids) > MAX_BULK
+            or any(isinstance(i, bool) or not isinstance(i, int) for i in ids)):
+        raise Invalid(f"ids must be a list of 1 to {MAX_BULK} recording numbers")
+    ids = list(dict.fromkeys(ids))
+    raw = body.get("changes")
+    if not isinstance(raw, dict) or not raw:
+        raise Invalid("say what to change")
+    unknown = set(raw) - BULK_CHANGES
+    if unknown:
+        raise Invalid("cannot change: " + ", ".join(sorted(unknown)))
+    if "trash" in raw and (raw["trash"] is not True or len(raw) > 1):
+        raise Invalid("trash must be true and cannot be combined with other changes")
+    changes = {}
+    for key in ("add_tags", "remove_tags"):
+        if key in raw:
+            names = raw[key]
+            if not isinstance(names, list) or not names:
+                raise Invalid(f"{key} must be a list of tag names")
+            changes[key] = list(dict.fromkeys(normalize_tag(n) for n in names))
+    for name in changes.get("add_tags", ()):
+        if name not in known_tags:
+            raise Invalid(f"unknown tag '{name}' (create it first)")
+    if "rating" in raw:
+        changes["rating"] = _one_of("rating", raw["rating"], RATINGS)
+    if "status" in raw:
+        if raw["status"] not in STATUSES:
+            raise Invalid("status must be inbox or tagged")
+        changes["status"] = raw["status"]
+    if raw.get("trash") is True:
+        changes["trash"] = True
+    return ids, changes

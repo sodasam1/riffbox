@@ -85,11 +85,19 @@ phone, a check by you) before the next one starts. That keeps any problem confin
 </div>
 <p><strong>Added since Phase 8:</strong> the <strong>Backup and export</strong> page with a status line (disk space,
 growth forecast, backup state); <strong>Resurface</strong> (hearted ideas you have not played for a while, and a
-<em>Surprise me</em> button); a <strong>Cozy / Compact</strong> row-size switch for the Library; a Trash tab set apart
-from Inbox and Library; and the iPhone <strong>Outbox</strong> upload Shortcuts, which you have confirmed working. In
-Voice Memos, Share then <em>Send to Riffbox</em> saves the memo into an Outbox folder and uploads it; a memo stays there
-until the server confirms it, and <em>Flush Riffbox Outbox</em> (also runnable from Control Center) retries. Steps are in
-<code>deploy/SHORTCUT.md</code>. The first three still wait for your check on real devices.</p>
+<em>Surprise me</em> button); a Trash tab set apart from Inbox and Library; and the iPhone <strong>Outbox</strong> upload
+Shortcuts, which you have confirmed working (Voice Memos, Share, <em>Send to Riffbox</em>; a memo stays in the Outbox until
+the server confirms it; steps in <code>deploy/SHORTCUT.md</code>).</p>
+<p><strong>The Library table</strong> (latest changes, waiting for your check): click a column heading to sort &mdash;
+once ascending, twice descending, a third time back to the default, newest upload first &mdash; with a small &#9650;/&#9660;
+beside the active heading. There are separate <em>Recorded</em> and <em>Uploaded</em> columns that show the date only;
+hover for the full timestamp. <em>Compact</em> shortens tempo and key to <code>108 &middot; A m</code> (M for major, m for
+minor; hover for the long form), shows dates as <code>2026-03-01</code>, and fits as many whole tags as the column allows,
+with <code>+N</code> (hover for the rest) instead of cutting a tag short. <em>Select</em> adds checkboxes (shift-click for a
+range) and a bar to add or remove a tag, set a mark, move to the Inbox or move to the Trash for many recordings at once,
+all or nothing. <em>Random</em> plays a different recording from the list on screen each time you press it. The upload
+control is one line, and files can be dropped anywhere on the page. The three header links live under <em>Menu</em>.
+The Inbox still lists newest first by date recorded.</p>
 
 <h2>Context</h2>
 <p><strong>The problem.</strong> Ideas were recorded as voice memos, then moved by hand into Obsidian and

@@ -97,7 +97,7 @@ async function waitUp() {
 
     // --- the Library browser
     await page.click("#tab-library");
-    await waitTitles(["Guitar lick", "Vocal hook", "Dreamy keys", "Funky bass riff", "Drum loop", "Full demo"], "default order: newest recorded first");
+    await waitTitles(["Guitar lick", "Full demo", "Vocal hook", "Drum loop", "Dreamy keys", "Funky bass riff"], "default order: newest upload first");
     assert.ok(await page.isVisible("#filters-panel"), "sidebar visible on desktop");
     assert.ok(await page.isHidden("#filters-toggle"), "no toggle button on desktop");
     assert.ok(await page.isVisible("#colhead"), "column headings on desktop");
@@ -188,7 +188,7 @@ async function waitUp() {
     await page.click("#tab-library");
     await waitTitles(["Dreamy keys", "Drum loop", "Funky bass riff", "Guitar lick", "Full demo", "Vocal hook"], "sort remembered after reload");
     await page.selectOption("#f-sort", "recorded");
-    await waitTitles(["Guitar lick", "Vocal hook", "Dreamy keys", "Funky bass riff", "Drum loop", "Full demo"], "back to newest first");
+    await waitTitles(["Guitar lick", "Vocal hook", "Dreamy keys", "Funky bass riff", "Drum loop", "Full demo"], "back to newest recorded first");
     console.log("ok  sort by title, BPM (missing last both ways), recorded; direction button; remembered across reload");
 
     // --- keyboard and auto-preview

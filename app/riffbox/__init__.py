@@ -38,7 +38,14 @@ from flask import (
 from . import backup as backups
 from . import exporter
 from .health import collect as collect_health
-from .intake import MAX_TAGS_TOTAL, Invalid, normalize_tag, validate_patch
+from .intake import (
+    MAX_TAGS_PER_RECORDING,
+    MAX_TAGS_TOTAL,
+    Invalid,
+    normalize_tag,
+    validate_bulk,
+    validate_patch,
+)
 from .library import build_query, parse_filters
 from .media import (
     INPUT_FORMAT,
@@ -535,6 +542,51 @@ def create_app(config=None):
         conn.commit()
         fresh = live_row(rec_id)
         return jsonify(recording=row_to_dict(fresh, tags_for([rec_id]).get(rec_id, ())))
+
+    @bp.post("/api/bulk")
+    @require_auth()
+    def bulk_update():
+        """Change many recordings at once (the Library's Select mode). All or nothing: if any recording is missing or a
+        tag limit would be broken, nothing changes."""
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict):
+            return bad_request("send a JSON object")
+        known = {r["name"] for r in db().execute("SELECT name FROM tags")}
+        try:
+            ids, changes = validate_bulk(body, known)
+        except Invalid as exc:
+            return bad_request(str(exc))
+        conn = db()
+        marks = ",".join("?" * len(ids))
+        found = conn.execute(f"SELECT COUNT(*) FROM recordings WHERE deleted_at IS NULL AND id IN ({marks})", ids).fetchone()[0]
+        if found != len(ids):
+            return bad_request("some of these recordings no longer exist; reload the page")
+        if changes.get("add_tags"):
+            held = {}
+            for r in conn.execute(f"SELECT recording_id, tag FROM recording_tags WHERE recording_id IN ({marks})", ids):
+                held.setdefault(r["recording_id"], set()).add(r["tag"])
+            if any(len(held.get(rid, set()) | set(changes["add_tags"])) > MAX_TAGS_PER_RECORDING for rid in ids):
+                return bad_request(f"at most {MAX_TAGS_PER_RECORDING} tags per recording")
+        try:
+            if changes.get("trash"):
+                conn.execute(f"UPDATE recordings SET deleted_at = ? WHERE id IN ({marks})", [utcnow_iso(), *ids])
+            if "rating" in changes:        # "used in" only belongs to a ✓, as with a single change
+                clear = "" if changes["rating"] == "check" else ", used_in = NULL"
+                conn.execute(f"UPDATE recordings SET rating = ?{clear} WHERE id IN ({marks})", [changes["rating"], *ids])
+            if "status" in changes:
+                conn.execute(f"UPDATE recordings SET status = ? WHERE id IN ({marks})", [changes["status"], *ids])
+            if changes.get("add_tags"):
+                conn.executemany("INSERT OR IGNORE INTO recording_tags (recording_id, tag) VALUES (?, ?)",
+                                 [(rid, t) for rid in ids for t in changes["add_tags"]])
+            if changes.get("remove_tags"):
+                tag_marks = ",".join("?" * len(changes["remove_tags"]))
+                conn.execute(f"DELETE FROM recording_tags WHERE recording_id IN ({marks}) AND tag IN ({tag_marks})",
+                             [*ids, *changes["remove_tags"]])
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        return jsonify(updated=len(ids))
 
     # ---- delete and restore: "delete" only moves a recording to the Trash; nothing is removed from disk ----
     @bp.delete("/api/recordings/<int:rec_id>")

@@ -71,7 +71,7 @@ async function waitUp() {
     const states = await page.$$eval("#queue li", (lis) => lis.map((l) => l.querySelector(".name").textContent + "=" + l.querySelector(".state").textContent));
     assert.deepStrictEqual(states.sort(), ["Bass riff.wav=Uploaded", "Hummed melody.wav=Uploaded", "copy of bass.wav=Already have it"].sort());
     await page.waitForFunction(() => document.querySelectorAll("#list li").length === 2);
-    assert.strictEqual(await page.textContent("#count"), "(2)");
+    assert.strictEqual((await page.textContent("#tab-inbox")).trim(), "Inbox (2)");
     console.log("ok  upload 2 files + duplicate detected; list shows 2");
 
     // titles come from the generated default
@@ -145,7 +145,7 @@ async function waitUp() {
     await page.reload(); await page.waitForSelector("#app:not([hidden])");
     await page.waitForFunction((n) => document.querySelectorAll("#list li").length === n, rows + 1);
     await page.screenshot({ path: path.join(tmp, "mobile.png") });
-    await page.click("#logout"); await page.waitForSelector("#login:not([hidden])");
+    await page.click("#menu-btn"); await page.click("#logout"); await page.waitForSelector("#login:not([hidden])");
     assert.strictEqual((await ctx.request.get(BASE + "api/recordings")).status(), 401);
     console.log("ok  reload keeps session; logout ends it");
 

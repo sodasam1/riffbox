@@ -19,8 +19,13 @@ h1 { font-size: 1.4rem; margin: 1.2rem 0 .8rem; }
 h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 2rem 0 .6rem; }
 header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .3rem 1rem; }
 a { color: var(--accent); }
-header nav { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px 16px; }
-header nav a, header nav button { white-space: nowrap; }
+#menu-wrap { position: relative; }
+#menu-btn { min-height: 38px; padding: .3rem .8rem; }
+#menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; display: grid; min-width: 13rem; padding: 6px;
+        background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgb(0 0 0 / .25); }
+#menu a, #menu button { display: block; width: 100%; padding: .65rem .8rem; border: 0; border-radius: 6px; background: none; color: var(--text);
+                        font: inherit; text-align: left; text-decoration: none; cursor: pointer; min-height: 44px; }
+#menu a:hover, #menu button:hover, #menu a:focus-visible, #menu button:focus-visible { background: var(--bg); }
 a.quiet { color: var(--muted); font-size: .9rem; }
 a.quiet:hover { color: var(--accent); }
 
@@ -49,15 +54,15 @@ button, .pick {
 }
 button[type=submit], button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 button.link, .pick { border: 0; background: none; color: var(--accent); text-decoration: underline; padding: 0; min-height: 0; display: inline; }
-button:focus-visible, input:focus-visible, #drop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 #login-form { display: grid; gap: .6rem; max-width: 22rem; margin-top: 2rem; }
 input[type=password] { font: inherit; padding: .55rem .7rem; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--text); }
 .error { color: var(--err); margin: .4rem 0; }
 
-#drop { border: 2px dashed var(--line); border-radius: 10px; padding: 1.4rem; text-align: center; color: var(--muted); }
-#drop.over { border-color: var(--accent); background: var(--panel); }
-#drop p { margin: 0; }
+#drop { display: flex; align-items: center; gap: 4px 14px; flex-wrap: wrap; margin: .4rem 0 .6rem; }
+#dropveil { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgb(0 0 0 / .55); }
+#dropveil p { margin: 0; padding: 2rem 3rem; border: 3px dashed #fff; border-radius: 16px; color: #fff; font-size: 1.4rem; font-weight: 600; }
 #file { position: absolute; left: -9999px; }
 
 ul { list-style: none; padding: 0; margin: 0; }
@@ -69,7 +74,7 @@ progress { grid-column: 1 / -1; width: 100%; height: 6px; accent-color: var(--ac
 
 /* Rows have inner padding (cancelled by the negative margin, so the text still lines up with the page)
    so that the highlight of a selected or playing row sits *around* the content, never on top of it. */
-#list li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 0 12px; align-items: center;
+#list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 0 12px; align-items: center;
            padding: .55rem 10px; margin: 0 -10px; border-bottom: 1px solid var(--line); }
 #list li.playing { background: var(--panel); }
 .play { width: 44px; height: 44px; border-radius: 50%; padding: 0; display: grid; place-items: center; }
@@ -158,8 +163,17 @@ form.edit .actions { display: flex; align-items: center; gap: 10px; flex-wrap: w
 form.edit .error { margin: 0; }
 
 /* ---- phase 5: Library browser ---- */
-:root { --cols: 44px minmax(7rem, 2fr) minmax(7rem, 2fr) 12.5rem 10.5rem 7.5rem; }   /* the Library table's columns */
-#app.wide { max-width: 72rem; }
+/* The Library table's columns: lead (play, and a checkbox in Select mode) | title | tags | tempo · key | length | recorded |
+   uploaded | actions. Compact trades the unit words and date wording for room, so the tags are not squeezed. */
+#results { --lead: 44px; --cols: var(--lead) minmax(8rem, 2fr) minmax(8rem, 2fr) 8.5rem 3.5rem 5.5rem 5.5rem 7.5rem; }
+#results.selecting { --lead: 72px; }
+#results.compact { --lead: 30px; --cols: var(--lead) minmax(6rem, 3fr) minmax(7rem, 4fr) 6.5rem 3.6rem 6.2rem 6.2rem 10.5rem; }
+#results.compact.selecting { --lead: 58px; }
+.lead { display: flex; align-items: center; gap: 8px; align-self: start; }
+.rowsel { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); flex: none; }
+#list .c-len, #list .c-rec, #list .c-up, #list .d-short, #list .d-iso, #list .dl-short { display: none; }       /* table-only pieces */
+#list li.picked { background: var(--panel); }
+#app.wide { max-width: 96rem; }
 #list:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 #list li.selected { background: var(--panel); box-shadow: inset 3px 0 0 var(--accent); }
 #list li.playing .title { color: var(--accent); }
@@ -209,23 +223,34 @@ form.edit .error { margin: 0; }
   #filters-toggle { display: none; }
   #filters-panel { display: grid; padding-top: 0; }
 }
-/* The Library as a table needs about 52rem next to the filters (the marks alone are 7.5rem); narrower screens keep the stacked rows. */
-@media (min-width: 1150px) {
-  #colhead { display: grid; grid-template-columns: var(--cols); gap: 0 12px; padding: 0 10px 6px; margin: 0 -10px;
+/* The Library as a table needs about 56rem next to the filters; narrower screens keep the stacked rows. */
+@media (min-width: 1240px) {
+  #colhead { display: grid; grid-template-columns: var(--cols); gap: 0 12px; padding: 0 10px 6px; margin: 0 -10px; align-items: end;
              color: var(--muted); font-size: .75rem; text-transform: uppercase; letter-spacing: .05em;
              border-bottom: 1px solid var(--line); }
   #colhead[hidden] { display: none; }
   #list.library li { grid-template-columns: var(--cols); gap: 2px 12px; align-items: center; }
   #list.library .info { display: contents; }
-  #list.library .play { grid-column: 1; grid-row: 1; margin-top: 0; }
+  #list.library .lead { grid-column: 1; grid-row: 1; align-self: center; }
+  #list.library .play { margin-top: 0; }
   #list.library .title { grid-column: 2; grid-row: 1; display: block; white-space: nowrap; text-overflow: ellipsis; }
   #list.library .tags { grid-column: 3; grid-row: 1; margin-top: 0; }
   #list.library .details { grid-column: 4; grid-row: 1; }
-  #list.library .when { grid-column: 5; grid-row: 1; }
-  #list.library .side { grid-column: 6; grid-row: 1; }
-  #list.library .notes { grid-column: 2 / 6; grid-row: 2; -webkit-line-clamp: 1; }
+  #list.library .c-len { grid-column: 5; grid-row: 1; display: block; }
+  #list.library .c-rec { grid-column: 6; grid-row: 1; display: block; }
+  #list.library .c-up { grid-column: 7; grid-row: 1; display: block; }
+  #list.library .side { grid-column: 8; grid-row: 1; }
+  #list.library .when { display: none; }
+  #list.library .notes { grid-column: 2 / 8; grid-row: 2; -webkit-line-clamp: 1; }
   #list.library form.edit { grid-row: 3; }
+  #list.library .c-len, #list.library .c-rec, #list.library .c-up { color: var(--muted); font-size: .85rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
 }
+/* Sortable column headings */
+#colhead .ch { font: inherit; text-transform: inherit; letter-spacing: inherit; color: inherit; background: none; border: 0; border-radius: 0;
+               padding: 2px 0; min-height: 0; text-align: left; cursor: pointer; white-space: nowrap; }
+#colhead button.ch:hover { color: var(--text); }
+#colhead button.ch[aria-sort="ascending"], #colhead button.ch[aria-sort="descending"] { color: var(--text); }
+#colhead .caret { font-style: normal; font-size: .8em; margin-left: .3em; }
 
 /* ---- phase 7: marks (heart / check / x) and the triage card ---- */
 :root { --ok: #1a7f37; --ok-text: #fff; }
@@ -266,8 +291,10 @@ a.btn.primary { background: var(--accent); color: var(--accent-text); border-col
 #views { flex-wrap: wrap; align-items: center; }
 #tab-trash { margin-left: auto; background: transparent; border-style: dashed; color: var(--muted); }
 #views #tab-trash[aria-pressed="true"] { background: var(--panel); color: var(--text); border-color: var(--muted); border-style: solid; }
-#density { display: inline-flex; margin-left: 8px; }
-#density button { min-height: 36px; padding: .3rem .7rem; font-size: .85rem; }
+#library-tools { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: 8px; }
+#library-tools button { min-height: 36px; padding: .3rem .7rem; font-size: .85rem; }
+#select-toggle[aria-pressed="true"] { background: var(--panel); border-color: var(--accent); font-weight: 700; }
+#density { display: inline-flex; }
 #density button:first-child { border-radius: 6px 0 0 6px; }
 #density button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
 #density button[aria-pressed="true"] { background: var(--panel); color: var(--text); border-color: var(--accent); position: relative; font-weight: 700; }
@@ -286,17 +313,31 @@ a.btn.primary { background: var(--accent); color: var(--accent-text); border-col
 #list.compact .ratebtn { min-width: 28px; min-height: 28px; font-size: .95rem; }
 #list.compact .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 #list.compact .when, #list.compact .details { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media (max-width: 1149px) {
+#list.compact .d-full { display: none; }
+#list.compact .d-short, #list.compact .d-iso, #list.compact .dl-short { display: inline; }
+#list.compact .dl-full { display: none; }
+@media (max-width: 1239px) {
   #list.compact .tags, #list.compact .details { display: none; }
   #list.compact li .info { display: grid; gap: 0; }
   #list.compact .dl { display: none; }          /* the player bar still has Download; Cozy rows show it here */
 }
-@media (min-width: 1150px) {
-  #results.compact { --cols: 30px minmax(7rem, 2fr) minmax(5rem, 2fr) 11rem 9rem 14rem; }   /* room for Edit, Download and the marks on one line */
+@media (min-width: 1240px) {
+  #results.compact #colhead, #list.library.compact li { column-gap: 8px; }
   #list.library.compact li { padding: .1rem 10px; }
   #list.library.compact .side { flex-wrap: nowrap; white-space: nowrap; }
-  #list.library.compact .tags { flex-wrap: nowrap; overflow: hidden; }
+  #list.library.compact .tags { flex-wrap: wrap; align-content: flex-start; max-height: 24px; overflow: hidden; }     /* one line; JS adds "+N" */
 }
+.chip.tag.more { background: none; border-style: dashed; cursor: help; }
+
+/* ---- bulk actions (Select mode) ---- */
+#bulkbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; margin: 0 0 .6rem; padding: .5rem .7rem;
+           background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+#bulkbar select { max-width: 8.5rem; font: inherit; font-size: .9rem; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: .3rem .4rem; min-height: 36px; }
+#bulkbar button:not(.link) { min-height: 36px; padding: .3rem .7rem; font-size: .9rem; }
+.bulk-all { display: inline-flex; align-items: center; gap: 6px; }
+#bulk-count { min-width: 5.5rem; }
+#bulkbar :disabled { opacity: .5; }
+#bulk-done { margin-left: auto; }
 
 /* ---- Backup and export: the status line ---- */
 :root { --warn: #946010; }
@@ -308,5 +349,5 @@ a.btn.primary { background: var(--accent); color: var(--accent-text); border-col
 #status-head { font-weight: 600; }
 
 /* Text links are about 22px tall; give them a finger-sized hit area without moving anything. */
-header nav a, header nav button.link, #how-back, #data-back, #data-db, .pb-top .dl { padding: 6px 4px; margin: -6px -4px; }
+#menu-btn, #how-back, #data-back, #data-db, .pb-top .dl { padding: 6px 4px; margin: -6px -4px; }
 #list .side .dl, #list .side .edit-btn, #list .side .restore-btn { padding: 4px; margin: -4px; }   /* stacked 6px apart: a little less so the areas barely touch */

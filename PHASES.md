@@ -149,3 +149,16 @@ with a fake-clock-friendly constructor); the status-line data gathering into `he
 - Text contrast in light mode: accent orange, the warning colour and the delete link were below 4.5:1; slightly darker values.
 - The keyboard hint showed in the Trash, where the arrow keys do nothing. Log out while offline now says so instead of
   showing the login page while still signed in.
+
+## Library table, menu, compact upload, bulk actions, Random (owner request)
+- **Sorting by heading** (Title, Tempo · key = BPM, Length, Recorded, Uploaded): first click ascending, second descending, third the
+  default. Default sort is now **newest upload first** (server default `uploaded`; the Inbox and triage still ask for newest
+  recorded first, as before). Ties (a batch uploaded within one second) now keep a steady order in both directions.
+- **Columns:** Length, Recorded and Uploaded are separate and show the date only; the tooltip has the local timestamp and the stored
+  UTC one. **Compact:** `108 · A m`, ISO dates, "Download" as ↓, and tags fit whole with a "+N" (never "b…"). The table starts at 1240 px;
+  the page is wider on big screens (96rem) so tags and titles get room.
+- **Select mode + bulk actions:** `POST /api/bulk` (add or remove tags, mark, status, trash; all or nothing; the same "used in only
+  for ✓" rule as a single change); checkboxes with shift-click ranges, select all, rows hidden by a filter are un-ticked, two-press trash.
+- **Random:** plays a different recording from the list on screen (so a tag filter narrows the draw).
+- **Header Menu** (Backup and export, How this works, Log out); **one-line upload bar** with drop-anywhere; the "Recordings (n)" heading is gone.
+- Tests: `test_bulk.py`, `tests/e2e/phase10.cjs` (and the older browser tests updated for the Menu and the new default order).

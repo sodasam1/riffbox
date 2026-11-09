@@ -52,10 +52,13 @@ async function waitUp() {
     // --- log in; link is present but unobtrusive
     await page.fill("#pass", "open sesame"); await page.click("#login-form button");
     await page.waitForSelector("#app:not([hidden])");
-    const link = page.locator("#how-link");
-    assert.strictEqual((await link.textContent()).trim(), "How this works");
+    const link = { click: async () => { await page.click("#menu-btn"); await page.click("#how-link"); } };      // the link lives in the Menu
+    await page.click("#menu-btn");
+    assert.strictEqual((await page.textContent("#how-link")).trim(), "How this works");
+    await page.keyboard.press("Escape");
+    assert.ok(await page.isHidden("#how-link"), "Escape closes the menu");
     assert.ok(await page.isVisible("#main-view") && await page.isHidden("#how-view"));
-    console.log("ok  link sits in the header; recordings are shown by default");
+    console.log("ok  link sits in the Menu; recordings are shown by default");
 
     // --- open it
     await link.click();
@@ -87,7 +90,7 @@ async function waitUp() {
     await page.goto(BASE + "#how"); await page.reload();
     await page.waitForSelector("#how-view:not([hidden])");
     await page.waitForFunction(() => document.querySelectorAll("#how-body h2").length >= 6);
-    await page.click("#logout"); await page.waitForSelector("#login:not([hidden])");
+    await page.click("#menu-btn"); await page.click("#logout"); await page.waitForSelector("#login:not([hidden])");
     assert.strictEqual(new URL(page.url()).hash, "", "logging out leaves #how behind");
     await page.fill("#pass", "open sesame"); await page.click("#login-form button");
     await page.waitForSelector("#main-view:not([hidden])");

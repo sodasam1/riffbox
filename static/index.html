@@ -20,11 +20,14 @@
 <div id="app" hidden>
   <header>
     <h1>Riffbox</h1>
-    <nav>
-      <a id="data-link" class="quiet" href="#data">Backup and export</a>
-      <a id="how-link" class="quiet" href="#how">How this works</a>
-      <button id="logout" class="link">Log out</button>
-    </nav>
+    <div id="menu-wrap">
+      <button id="menu-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">Menu <span aria-hidden="true">▾</span></button>
+      <nav id="menu" aria-label="Riffbox menu" hidden>
+        <a id="data-link" href="#data">Backup and export</a>
+        <a id="how-link" href="#how">How this works</a>
+        <button id="logout" type="button">Log out</button>
+      </nav>
+    </div>
   </header>
 
   <section id="how-view" aria-labelledby="how-h" hidden>
@@ -75,27 +78,30 @@
   </section>
 
   <div id="main-view">
-  <section aria-labelledby="up-h">
-    <h2 id="up-h">Upload</h2>
-    <div id="drop" tabindex="0">
-      <p>Drop audio files here, or <label for="file" class="pick">choose files</label></p>
+  <section aria-label="Upload">
+    <div id="drop">
+      <button id="pick" type="button">Upload audio…</button>
+      <span class="meta">or drop files anywhere on this page</span>
       <input id="file" type="file" multiple accept="audio/*,.m4a,.caf,.aac,.wav,.mp3,.aif,.aiff,.flac,.ogg">
     </div>
     <ul id="queue"></ul>
   </section>
 
-  <section aria-labelledby="lib-h">
-    <h2 id="lib-h"><span id="lib-title">Recordings</span> <span id="count"></span></h2>
+  <section aria-label="Recordings">
     <div id="views" role="group" aria-label="Which recordings to show">
       <button id="tab-inbox" type="button" aria-pressed="true">Inbox</button>
       <button id="tab-library" type="button" aria-pressed="false">Library</button>
       <button id="tab-resurface" type="button" aria-pressed="false">Resurface</button>
-      <span id="density" role="group" aria-label="Row size" hidden>
-        <button id="dens-cozy" type="button" aria-pressed="true">Cozy</button><button id="dens-compact" type="button" aria-pressed="false">Compact</button>
+      <span id="library-tools" hidden>
+        <span id="density" role="group" aria-label="Row size">
+          <button id="dens-cozy" type="button" aria-pressed="true">Cozy</button><button id="dens-compact" type="button" aria-pressed="false">Compact</button>
+        </span>
+        <button id="select-toggle" type="button" aria-pressed="false">Select</button>
+        <button id="random" type="button" title="Play a random recording from the list below">Random</button>
       </span>
       <button id="tab-trash" type="button" aria-pressed="false" hidden>Trash</button>
     </div>
-    <p id="trash-note" class="meta" hidden>Deleted recordings wait here and are still on the server. Press Restore to bring one back.</p>
+    <p id="trash-note" class="meta" hidden><strong>Trash.</strong> Deleted recordings wait here and are still on the server. Press Restore to bring one back.</p>
     <div id="resurface-bar" hidden>
       <p id="resurface-text" class="meta" aria-live="polite"></p>
       <p class="resurface-controls">
@@ -177,7 +183,29 @@
         </div>
       </aside>
       <div id="results">
-        <div id="colhead" aria-hidden="true"><span></span><span>Title</span><span>Tags</span><span>Tempo · key</span><span>Recorded</span><span></span></div>
+        <div id="bulkbar" role="toolbar" aria-label="Change the selected recordings" hidden>
+          <label class="bulk-all"><input type="checkbox" id="bulk-all"> Select all</label>
+          <span id="bulk-count" class="meta" aria-live="polite">0 selected</span>
+          <select id="bulk-add" aria-label="Add a tag to the selected"><option value="">Add tag…</option></select>
+          <select id="bulk-remove" aria-label="Remove a tag from the selected"><option value="">Remove tag…</option></select>
+          <select id="bulk-mark" aria-label="Mark the selected">
+            <option value="">Mark…</option><option value="heart">♥ Interesting</option><option value="check">✓ Used in a song</option>
+            <option value="x">✗ No longer interesting</option><option value="none">No mark</option>
+          </select>
+          <button id="bulk-inbox" type="button">Move to Inbox</button>
+          <button id="bulk-trash" type="button" class="link danger">Move to Trash</button>
+          <button id="bulk-done" type="button" class="link">Done</button>
+        </div>
+        <div id="colhead">
+          <span class="ch-lead"></span>
+          <button type="button" class="ch" data-sort="title">Title<i class="caret"></i></button>
+          <span class="ch">Tags</span>
+          <button type="button" class="ch" data-sort="bpm">Tempo · key<i class="caret"></i></button>
+          <button type="button" class="ch" data-sort="length">Length<i class="caret"></i></button>
+          <button type="button" class="ch" data-sort="recorded">Recorded<i class="caret"></i></button>
+          <button type="button" class="ch" data-sort="uploaded">Uploaded<i class="caret"></i></button>
+          <span></span>
+        </div>
         <p id="empty" hidden></p>
         <ul id="list" tabindex="0" aria-label="Recordings"></ul>
         <p id="kbd-hint" class="meta" hidden>Click a recording or Tab to the list, then ↑ ↓ to move and Space to play or pause.</p>
@@ -187,6 +215,8 @@
   </section>
   </div>
 </div>
+
+<div id="dropveil" hidden><p>Drop to upload</p></div>
 
 <div id="playerbar" hidden>
   <audio id="player" preload="none"></audio>

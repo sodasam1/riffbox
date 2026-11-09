@@ -84,11 +84,10 @@ async function waitUp(base) {
     assert.strictEqual(await page.evaluate(() => getComputedStyle(document.querySelector("#tab-trash")).borderStyle), "dashed");
     await page.click("#tab-trash");
     await page.waitForSelector("#list > li button.restore-btn");
-    assert.strictEqual((await page.textContent("#lib-title")).trim(), "Trash");
+    assert.strictEqual(await page.locator("#lib-h").count(), 0, "the Recordings heading is gone");
     assert.ok(await page.isVisible("#trash-note"));
     assert.ok(await page.evaluate(() => document.querySelector("#app").classList.contains("in-trash")));
     await page.click("#tab-library");
-    assert.strictEqual((await page.textContent("#lib-title")).trim(), "Recordings");
     assert.ok(await page.isHidden("#trash-note"));
     console.log("ok  the Trash tab is set apart (right-hand end, dashed) and its page has its own heading and note");
 
@@ -114,7 +113,7 @@ async function waitUp(base) {
       const m = await page.evaluate(() => ({ over: document.documentElement.scrollWidth - document.documentElement.clientWidth, vw: innerWidth,
         sides: [...document.querySelectorAll("#list > li .side")].map((s) => s.getBoundingClientRect().right) }));
       assert.ok(m.over <= 1 && m.sides.every((r) => r <= m.vw - 4), `compact at ${w}px: page ${m.over}px too wide or links off-screen`);
-      const hd = await page.evaluate(() => { const h = document.querySelector("header h1").getBoundingClientRect(), n = document.querySelector("header nav").getBoundingClientRect();
+      const hd = await page.evaluate(() => { const h = document.querySelector("header h1").getBoundingClientRect(), n = document.querySelector("#menu-btn").getBoundingClientRect();
         return { apart: n.left >= h.right + 4 || n.top >= h.bottom - 1, navRight: n.right, vw: innerWidth }; });
       assert.ok(hd.apart && hd.navRight <= hd.vw, `header at ${w}px: the links collide with the title or run off the screen`);
     }
@@ -174,7 +173,7 @@ async function waitUp(base) {
     console.log("ok  with nothing stale, Surprise me still plays any hearted idea and says so");
 
     // ---- the status line on the Backup and export page
-    await page.click("#data-link");
+    await page.click("#menu-btn"); await page.click("#data-link");
     await page.waitForSelector("#data-status:not([hidden])");
     const cls = await page.getAttribute("#data-status", "class");
     assert.match(cls, /status-line (ok|warn|bad)/);

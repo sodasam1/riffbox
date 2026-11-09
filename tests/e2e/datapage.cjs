@@ -59,10 +59,12 @@ async function waitUp(base) {
     await page.goto(BASE);
     await page.waitForSelector("#app:not([hidden])");
 
-    // the link sits at the top, right next to "How this works"
-    const order = await page.evaluate(() => [...document.querySelectorAll("header nav > *")].map((n) => n.textContent.trim()));
+    // the link sits in the Menu, with "How this works" and "Log out"
+    await page.click("#menu-btn");
+    const order = await page.evaluate(() => [...document.querySelectorAll("#menu > *")].map((n) => n.textContent.trim()));
     assert.deepStrictEqual(order, ["Backup and export", "How this works", "Log out"]);
     await page.click("#data-link");
+    assert.ok(await page.isHidden("#menu"), "choosing an item closes the menu");
     await page.waitForSelector("#data-view:not([hidden])");
     assert.ok(await page.isHidden("#main-view") && await page.isHidden("#how-view"));
     assert.strictEqual(new URL(page.url()).hash, "#data");
@@ -104,7 +106,7 @@ async function waitUp(base) {
       await page.setViewportSize({ width: w, height: 800 });
       await page.waitForTimeout(100);
       const o = await page.evaluate(() => ({ over: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        navRight: document.querySelector("header nav").getBoundingClientRect().right, vw: innerWidth }));
+        navRight: document.querySelector("#menu-btn").getBoundingClientRect().right, vw: innerWidth }));
       assert.ok(o.over <= 1 && o.navRight <= o.vw, `data page at ${w}px: ${o.over}px too wide, nav ends at ${Math.round(o.navRight)}`);
     }
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -118,7 +120,7 @@ async function waitUp(base) {
     assert.ok(await page.isHidden("#data-view"));
     await page.goto(BASE + "#data"); await page.reload();
     await page.waitForSelector("#data-view:not([hidden])");
-    await page.click("#logout");
+    await page.click("#menu-btn"); await page.click("#logout");
     await page.waitForSelector("#login:not([hidden])");
     assert.strictEqual(new URL(page.url()).hash, "");
     console.log("ok  Back link, reload and log out behave");

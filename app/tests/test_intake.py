@@ -278,9 +278,9 @@ def test_recorded_sort_follows_the_date_recorded(c, client):
     up(3, "2026-01-01T10:00:00Z")
     def order(**q):
         return [x["title"] for x in c.get("/api/recordings", query_string=q).get_json()["recordings"]]
-    assert order() == ["t1", "t2", "t3"]
+    assert order(sort="recorded") == ["t1", "t2", "t3"]
     c.patch(f"/api/recordings/{b}", json={"recorded_at": "2026-03-20T12:00:00Z"})     # the owner says b is the newest
-    assert order() == ["t2", "t1", "t3"]
+    assert order(sort="recorded") == ["t2", "t1", "t3"]
     assert order(sort="recorded", order="asc") == ["t3", "t1", "t2"]
     assert order(sort="uploaded").count("t1") == 1                                      # the upload date is a separate sort
 

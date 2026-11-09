@@ -23,6 +23,7 @@ SORTS = {
     "length": "r.duration_s",
     "played": "r.last_played_at",
 }
+DEFAULT_SORT = "uploaded"          # newest upload first, unless the page asks for something else
 DEFAULT_ORDER = {"recorded": "desc", "uploaded": "desc", "title": "asc", "bpm": "desc",
                  "length": "desc", "played": "desc"}
 MAX_QUERY_CHARS = 200
@@ -95,7 +96,7 @@ def parse_filters(args):
             raise Invalid(f"{field} must be one of {', '.join(allowed)}")
         f[field] = value
 
-    sort = args.get("sort", "recorded")
+    sort = args.get("sort", DEFAULT_SORT)
     if sort not in SORTS:
         raise Invalid(f"sort must be one of {', '.join(SORTS)}")
     order = args.get("order") or DEFAULT_ORDER[sort]
@@ -165,5 +166,5 @@ def build_query(f):
         order = f"{column} IS NULL, {order}"     # recordings with no BPM / unknown length always go last
     # "played" needs no special case: never-played (empty) sorts first oldest-first and last newest-first,
     # which is what "longest ago first" and "most recent first" mean.
-    sql = f"SELECT r.* FROM recordings r WHERE {' AND '.join(where)} ORDER BY {order}, r.id DESC"
+    sql = f"SELECT r.* FROM recordings r WHERE {' AND '.join(where)} ORDER BY {order}, r.id {direction}"
     return sql, params

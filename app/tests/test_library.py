@@ -58,8 +58,20 @@ def names(titles):
 
 # ---- basics -----------------------------------------------------------------------------------
 def test_no_filters_returns_everything_not_deleted_newest_recorded_first(lib):
-    assert lib() == ["Untagged scrap", "Guitar lick", "Vocal hook", "Dreamy keys", "Funky bass riff",
+    assert lib(sort="recorded") == ["Untagged scrap", "Guitar lick", "Vocal hook", "Dreamy keys", "Funky bass riff",
                      "Drum loop", "Café melody", "Full demo"]
+
+
+def test_the_default_sort_is_newest_upload_first(lib):
+    assert lib() == lib(sort="uploaded", order="desc") and len(lib()) == 8
+
+
+def test_equal_timestamps_keep_a_steady_order_in_both_directions(lib):
+    """Uploads in one batch can share a second; ascending must then be the exact reverse of descending."""
+    with sqlite3.connect(lib.client.application.config["DB_PATH"]) as conn:
+        conn.execute("UPDATE recordings SET uploaded_at = '2026-05-05T05:05:05Z'")
+    assert lib(sort="uploaded", order="asc") == list(reversed(lib(sort="uploaded", order="desc")))
+    assert lib(sort="uploaded", order="desc") == lib()
 
 
 def test_count_and_total(lib):
@@ -188,7 +200,7 @@ def test_no_rating_filter_means_everything(marked):
 def test_rating_filter_combines_with_other_filters(marked):
     assert marked(rating="heart", tags="bass") == ["Funky bass riff"]
     assert marked(rating="heart,check", bpm_min="120") == ["Guitar lick"]
-    assert marked(rating="none", q="melody", status="tagged") == ["Vocal hook", "Café melody"]   # newest recorded first
+    assert marked(rating="none", q="melody", status="tagged", sort="recorded") == ["Vocal hook", "Café melody"]   # newest recorded first
 
 
 def test_mark_counts_are_unaffected_by_filters(marked):
@@ -228,7 +240,7 @@ def test_search_treats_percent_and_underscore_literally(lib):
 
 
 def test_search_with_other_filters(lib):
-    assert lib(q="bass", tempo="fast", status="tagged") == ["Funky bass riff", "Full demo"]   # newest recorded first
+    assert lib(q="bass", tempo="fast", status="tagged", sort="recorded") == ["Funky bass riff", "Full demo"]   # newest recorded first
     assert lib(q="melody", tags="guitar") == ["Guitar lick"]
 
 
@@ -307,6 +319,6 @@ def test_requires_a_session_and_the_token_cannot_read(client):
 
 def test_parse_filters_defaults():
     f = parse_filters({})
-    assert (f["status"], f["terms"], f["tags"], f["match"], f["sort"], f["order"]) == (None, [], [], "all", "recorded", "desc")
+    assert (f["status"], f["terms"], f["tags"], f["match"], f["sort"], f["order"]) == (None, [], [], "all", "uploaded", "desc")
     with pytest.raises(Invalid):
         parse_filters({"tags": "bad<tag"})
