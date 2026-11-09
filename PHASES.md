@@ -159,6 +159,6 @@ with a fake-clock-friendly constructor); the status-line data gathering into `he
   the page is wider on big screens (96rem) so tags and titles get room.
 - **Select mode + bulk actions:** `POST /api/bulk` (add or remove tags, mark, status, trash; all or nothing; the same "used in only
   for ✓" rule as a single change); checkboxes with shift-click ranges, select all, rows hidden by a filter are un-ticked, two-press trash.
-- **Random:** plays a different recording from the list on screen (so a tag filter narrows the draw).
+- **Random:** plays a different recording from the list on screen, in the Library (a tag filter narrows the draw) and in the Inbox (not during triage).
 - **Header Menu** (Backup and export, How this works, Log out); **one-line upload bar** with drop-anywhere; the "Recordings (n)" heading is gone.
 - Tests: `test_bulk.py`, `tests/e2e/phase10.cjs` (and the older browser tests updated for the Menu and the new default order).

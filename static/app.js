@@ -365,6 +365,7 @@ function applyDensity() {
   $("#dens-cozy").setAttribute("aria-pressed", String(density === "cozy"));
   $("#dens-compact").setAttribute("aria-pressed", String(density === "compact"));
   $("#library-tools").hidden = view !== "library";
+  $("#random").hidden = !(view === "library" || view === "inbox") || triage !== null;     // draws from the list on screen
   scheduleFitTags();
 }
 for (const [id, value] of [["#dens-cozy", "cozy"], ["#dens-compact", "compact"]]) {
@@ -1297,12 +1298,13 @@ $("#bulk-trash").addEventListener("click", () => {
 
 // ---- Random: a different recording from the list on screen each time ------------------------------------
 $("#random").addEventListener("click", () => {
-  if (!libRecs.length) { notify("Nothing to pick from: the list is empty."); return; }
-  const choices = libRecs.length > 1 ? libRecs.filter((r) => r.id !== playingId) : libRecs;     // never the one already playing
+  const pool = view === "inbox" ? inboxRecs : libRecs;
+  if (!pool.length) { notify("Nothing to pick from: the list is empty."); return; }
+  const choices = pool.length > 1 ? pool.filter((r) => r.id !== playingId) : pool;     // never the one already playing
   const rec = choices[Math.floor(Math.random() * choices.length)];
   setSelected(rec.id);
   startPlay(rec);
-  notify("Playing “" + rec.title + "”" + (filtersActive() ? " (picked from the filtered list)." : "."));
+  notify("Playing “" + rec.title + "”" + (view === "library" && filtersActive() ? " (picked from the filtered list)." : "."));
 });
 
 // ---- The header menu ---------------------------------------------------------------------------------------
@@ -1340,6 +1342,7 @@ function startTriage() {
   openEditId = null;
   notify("");
   $("#browser").hidden = true;
+  $("#random").hidden = true;
   $("#triage").hidden = false;
   $("#triage-start").hidden = true;
   renderTriage();
@@ -1350,6 +1353,7 @@ function exitTriage() {
   triage = null;
   $("#triage").hidden = true;
   $("#browser").hidden = false;
+  $("#random").hidden = view !== "inbox" && view !== "library";
   player.pause();
   loadList();
 }

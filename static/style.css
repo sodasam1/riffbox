@@ -292,7 +292,7 @@ a.btn.primary { background: var(--accent); color: var(--accent-text); border-col
 #tab-trash { margin-left: auto; background: transparent; border-style: dashed; color: var(--muted); }
 #views #tab-trash[aria-pressed="true"] { background: var(--panel); color: var(--text); border-color: var(--muted); border-style: solid; }
 #library-tools { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: 8px; }
-#library-tools button { min-height: 36px; padding: .3rem .7rem; font-size: .85rem; }
+#library-tools button, #random { min-height: 36px; padding: .3rem .7rem; font-size: .85rem; }
 #select-toggle[aria-pressed="true"] { background: var(--panel); border-color: var(--accent); font-weight: 700; }
 #density { display: inline-flex; }
 #density button:first-child { border-radius: 6px 0 0 6px; }

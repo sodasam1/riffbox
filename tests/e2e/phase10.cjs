@@ -251,6 +251,24 @@ const SEED = [
     assert.match(await page.textContent("#notice"), /empty/);
     console.log("ok  Random plays a different recording each press, drawn from the filtered list");
 
+    // ---- Random also works in the Inbox (a big backlog), and only where there is a list to draw from
+    await page.fill("#f-q", "");
+    await page.click("#tab-inbox"); await page.waitForSelector("#list > li");
+    assert.ok(await page.isVisible("#random") && await page.isHidden("#library-tools"), "Random shows in the Inbox without the Library tools");
+    const inboxIds = (await api("?status=inbox")).map((r) => String(r.id));
+    assert.ok(inboxIds.length >= 2, "the Inbox needs two recordings for this check");
+    const inboxSeen = [];
+    for (let i = 0; i < 5; i++) { await page.click("#random"); await page.waitForTimeout(120); inboxSeen.push(await playing()); }
+    assert.ok(inboxSeen.every((x) => inboxIds.includes(x)), "Random played something that is not in the Inbox: " + inboxSeen);
+    assert.ok(inboxSeen.every((x, i) => i === 0 || x !== inboxSeen[i - 1]), "Random repeated itself in the Inbox: " + inboxSeen);
+    assert.match(await page.textContent("#notice"), /^Playing “/);
+    await page.click("#triage-start"); await page.waitForSelector("#triage-card h4");
+    assert.ok(await page.isHidden("#random"), "no Random button while triaging");
+    await page.keyboard.press("Escape"); await page.waitForSelector("#browser:not([hidden])");
+    assert.ok(await page.isVisible("#random"), "Random is back after triage");
+    await page.click("#tab-resurface"); assert.ok(await page.isHidden("#random"), "Resurface has its own Surprise me");
+    console.log("ok  Random works in the Inbox too (not during triage, and not on Resurface, which has Surprise me)");
+
     assert.deepStrictEqual(problems, [], "browser errors: " + problems.join(" | "));
     console.log("ok  no unexpected console or page errors");
   } catch (e) {
