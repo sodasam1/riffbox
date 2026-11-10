@@ -84,10 +84,13 @@
     <div id="drop">
       <button id="pick" type="button">Upload audio…</button>
       <span class="meta">or drop files anywhere on this page</span>
+      <label class="as-one meta"><input type="checkbox" id="as-one"> Upload several files as one idea</label>
       <input id="file" type="file" multiple accept="audio/*,.m4a,.caf,.aac,.wav,.mp3,.aif,.aiff,.flac,.ogg">
     </div>
     <ul id="queue"></ul>
   </section>
+
+  <dialog id="group-dialog" aria-labelledby="group-dialog-h"></dialog>
 
   <section aria-label="Recordings">
     <div id="views" role="group" aria-label="Which recordings to show">
@@ -203,6 +206,8 @@
             <option value="">Mark…</option><option value="heart">♥ Interesting</option><option value="check">✓ Used in a song</option>
             <option value="x">✗ No longer interesting</option><option value="none">No mark</option>
           </select>
+          <button id="bulk-group" type="button">Group…</button>
+          <select id="bulk-addto" aria-label="Add the selected to an existing group"><option value="">Add to group…</option></select>
           <button id="bulk-inbox" type="button">Move to Inbox</button>
           <button id="bulk-trash" type="button" class="link danger">Move to Trash</button>
           <button id="bulk-done" type="button" class="link">Done</button>

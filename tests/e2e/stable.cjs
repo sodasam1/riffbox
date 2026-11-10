@@ -89,11 +89,11 @@ async function waitUp() {
       vis[view] = await page.evaluate(() => Object.fromEntries(["#random", "#dens-cozy", "#select-toggle"].map((s) => [s, getComputedStyle(document.querySelector(s)).visibility])));
     }
     assert.deepStrictEqual(vis, {
-      inbox: { "#random": "visible", "#dens-cozy": "hidden", "#select-toggle": "hidden" },
+      inbox: { "#random": "visible", "#dens-cozy": "hidden", "#select-toggle": "visible" },
       library: { "#random": "visible", "#dens-cozy": "visible", "#select-toggle": "visible" },
       resurface: { "#random": "hidden", "#dens-cozy": "hidden", "#select-toggle": "hidden" } });
     for (const s of ["#random", "#dens-cozy"]) assert.ok(await page.isHidden(s), s + " should not be usable on Resurface");
-    console.log("ok  Random shows on Inbox and Library, the row-size and Select controls on Library only, always in the same slots");
+    console.log("ok  Random shows on Inbox and Library, Select on Inbox and Library, the row-size control on Library only, always in the same slots");
 
     // the left column holds each tab's own controls, in the same place
     const left = {};

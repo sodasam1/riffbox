@@ -271,7 +271,7 @@ form.edit .error { margin: 0; }
 .panel-hint { margin: 0 0 .6rem; }
 @media (max-width: 899px) { .panel-hint { display: none; } }          /* on a phone the Inbox looks as it always did */
 /* On a phone a control that does not apply simply is not there; on desktop it stays as an invisible placeholder so nothing moves. */
-@media (max-width: 899px) { #library-tools.slot-off, #random.slot-off { display: none; } }
+@media (max-width: 899px) { #library-tools.slot-off, #density.slot-off, #random.slot-off { display: none; } }
 @media (min-width: 900px) { .slot-off { visibility: hidden; } }
 #triage { background: var(--panel); border-radius: 12px; padding: 14px 16px; margin: 0 0 1rem; outline: none; }
 .triage-head { display: flex; align-items: baseline; gap: 12px; }
@@ -439,3 +439,18 @@ html[data-theme="minimal"] .status.done { background: none; color: var(--text); 
 html[data-theme="minimal"] .status.next { color: var(--text); border-color: var(--line); }
 html[data-theme="minimal"] #menu-btn, html[data-theme="minimal"] #pick { border: 0; background: none; }
 html[data-theme="minimal"] #pick { padding: 0; text-decoration: underline; min-height: 36px; }
+
+/* ---- groups: Select in the Inbox, the grouping dialog, parts in the edit form ---- */
+.as-one { display: inline-flex; align-items: center; gap: 5px; margin-left: .6rem; }
+#group-dialog { max-width: min(30rem, calc(100vw - 32px)); width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--text); padding: 16px 18px; }
+#group-dialog::backdrop { background: rgba(0, 0, 0, .45); }
+#group-dialog h3 { margin: 0 0 .6rem; }
+#group-dialog fieldset { border: 0; padding: 0; margin: 0 0 .7rem; }
+#group-dialog legend { font-weight: 600; padding: 0; margin-bottom: .2rem; }
+#group-dialog .choice { display: flex; align-items: center; gap: 6px; margin: .15rem 0; }
+#group-dialog .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: .8rem; }
+.chip.parts { background: none; }
+form.edit .parts-list { list-style: none; margin: 0 0 .7rem; padding: 0; display: grid; gap: 6px; }
+form.edit .parts-list li { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; border: 0; padding: 0; background: none; }
+form.edit .parts-list input { flex: 1 1 10rem; min-width: 0; }
+form.edit .parts-list button { min-height: 36px; }

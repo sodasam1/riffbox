@@ -254,7 +254,7 @@ const SEED = [
     // ---- Random also works in the Inbox (a big backlog), and only where there is a list to draw from
     await page.fill("#f-q", "");
     await page.click("#tab-inbox"); await page.waitForSelector("#list > li");
-    assert.ok(await page.isVisible("#random") && await page.isHidden("#library-tools"), "Random shows in the Inbox without the Library tools");
+    assert.ok(await page.isVisible("#random") && await page.isHidden("#density") && await page.isVisible("#select-toggle"), "Random and Select show in the Inbox, the row-size control does not");
     const inboxIds = (await api("?status=inbox")).map((r) => String(r.id));
     assert.ok(inboxIds.length >= 2, "the Inbox needs two recordings for this check");
     const inboxSeen = [];

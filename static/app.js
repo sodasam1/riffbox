@@ -289,7 +289,7 @@ let libRatings = { heart: 0, check: 0, x: 0, none: 0 };   // how many Library re
 let allTags = [];
 let openEditId = null;         // at most one edit form open at a time
 let selectedId = null;         // the highlighted row; arrow keys move it, Space plays it
-let selecting = false;         // Library "Select" mode: checkboxes and the bulk-action bar
+let selecting = false;         // "Select" mode (Inbox and Library): checkboxes and the bulk-action bar
 const picked = new Set();      // ids ticked in Select mode
 let lastPicked = null;         // for shift-click ranges
 let pollTimer = null;
@@ -365,7 +365,8 @@ function applyDensity() {
   $("#dens-cozy").setAttribute("aria-pressed", String(density === "cozy"));
   $("#dens-compact").setAttribute("aria-pressed", String(density === "compact"));
   // On desktop a control that does not apply to the tab stays as an invisible placeholder, so nothing else moves.
-  $("#library-tools").classList.toggle("slot-off", view !== "library");
+  $("#library-tools").classList.toggle("slot-off", view !== "library" && view !== "inbox");
+  $("#density").classList.toggle("slot-off", view !== "library");
   $("#random").classList.toggle("slot-off", !(view === "library" || view === "inbox") || triage !== null);     // draws from the list on screen
   scheduleFitTags();
 }
@@ -422,11 +423,13 @@ function render() {
   $("#triage-start").hidden = !(view === "inbox" && inboxRecs.length && !triage);
   $("#triage-start").textContent = "Triage the Inbox (" + inboxRecs.length + ")";
   if (inLibrary) { updateFilterUI(); updateSortHeaders(); }
-  for (const id of picked) if (!libRecs.some((r) => r.id === id)) picked.delete(id);   // a filter hid it: never act on what you cannot see
-  $("#results").classList.toggle("selecting", inLibrary && selecting);
+  for (const id of picked) if (!selectableRecs().some((r) => r.id === id)) picked.delete(id);   // a filter hid it: never act on what you cannot see
+  const canSelect = view === "library" || view === "inbox";
+  $("#results").classList.toggle("selecting", canSelect && selecting);
   $("#select-toggle").setAttribute("aria-pressed", String(selecting));
-  $("#bulkbar").hidden = !(inLibrary && selecting);
-  if (inLibrary && selecting) updateBulkBar();
+  $("#bulkbar").hidden = !(canSelect && selecting);
+  $("#bulk-inbox").hidden = view === "inbox";                    // already there
+  if (canSelect && selecting) updateBulkBar();
   playStatus = new Map([...inboxRecs, ...libRecs, ...resurfaceRecs].map((rec) => [rec.id, rec.play_status]));
   if (selectedId !== null && !shown.some((r) => r.id === selectedId)) selectedId = null;   // filtered out
   for (const rec of shown) ul.append(view === "trash" ? buildTrashRow(rec) : buildRow(rec));
@@ -438,7 +441,7 @@ function buildRow(rec) {
   const btn = el("button", { class: "play", type: "button" }, "▶");
   btn.addEventListener("click", () => togglePlay(rec));
   const lead = el("div", { class: "lead" });
-  if (view === "library" && selecting) {
+  if ((view === "library" || view === "inbox") && selecting) {
     const box = el("input", { type: "checkbox", class: "rowsel", "aria-label": "Select " + rec.title });
     box.checked = picked.has(rec.id);
     box.addEventListener("click", (e) => pickRow(rec.id, box.checked, e.shiftKey));
@@ -448,6 +451,7 @@ function buildRow(rec) {
   const meta = el("div", { class: "meta when" }, whenText(rec) +
     (rec.duration_s ? " · " + fmtTime(rec.duration_s) : "") + " · " + fmtSize(rec.size) +
     (view === "resurface" ? " · " + (rec.last_played_at ? "last played " + ago(rec.last_played_at) : "never played") : ""));
+  if (rec.parts.length > 1) meta.append(el("span", { class: "chip parts" }, rec.parts.length + " parts"));
   if (rec.play_status === "pending") meta.append(el("span", { class: "chip" }, "preparing playback…"));
   if (rec.play_status === "failed") meta.append(el("span", { class: "chip" }, "no play copy"));
   const info = el("div", { class: "info" }, el("div", { class: "title" }, rec.title), meta);
@@ -485,7 +489,7 @@ function buildRow(rec) {
     rate.append(b);
   }
   const side = el("div", { class: "side" }, edit,
-    el("a", { class: "dl", href: "api/audio/" + rec.id + "?download=1", title: "Download the original", "aria-label": "Download " + rec.title },
+    el("a", { class: "dl", href: "api/audio/" + rec.id + "?download=1", title: rec.parts.length > 1 ? "Download the first recording" : "Download the original", "aria-label": "Download " + rec.title },
       el("span", { class: "dl-full" }, "Download"), el("span", { class: "dl-short", "aria-hidden": "true" }, "↓")), rate);
   const li = el("li", { "data-id": String(rec.id), "data-title": rec.title }, lead, info, side);
   if (picked.has(rec.id)) li.classList.add("picked");
@@ -500,7 +504,7 @@ function buildTrashRow(rec) {
   restore.addEventListener("click", async () => {
     restore.disabled = true;
     try {
-      const r = await api("recordings/" + rec.id + "/restore", { method: "POST" });
+      const r = await api("groups/" + rec.gid + "/restore", { method: "POST" });
       if (loggedOut(r)) return;
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
@@ -512,7 +516,8 @@ function buildTrashRow(rec) {
       notify("Restored to the " + (rec.status === "inbox" ? "Inbox" : "Library") + ".");
     } catch (e) { notify(NETWORK_ERROR); restore.disabled = false; }
   });
-  const meta = el("div", { class: "meta when" }, "Deleted " + fmtDay(rec.deleted_at) + " · " + fmtSize(rec.size));
+  const meta = el("div", { class: "meta when" }, "Deleted " + fmtDay(rec.deleted_at) + " · " + fmtSize(rec.size) +
+    (rec.parts.length > 1 ? " · " + rec.parts.length + " parts" : ""));
   const info = el("div", { class: "info" }, el("div", { class: "title" }, rec.title), meta);
   if (rec.tags.length) {
     const tags = el("div", { class: "tags" });
@@ -618,6 +623,44 @@ function buildForm(rec) {
   form.append(field("Notes", notes, "f-notes-" + id));
 
   const err = el("p", { class: "error", role: "alert", hidden: "" });
+  // an idea made of several recordings: name and order the parts, take one out, or break the idea up
+  const partRows = [];
+  if (rec.parts.length > 1) {
+    const list = el("ul", { class: "parts-list" });
+    const armedBtns = new Map();
+    const arm = (btn, ask, run) => btn.addEventListener("click", async () => {
+      if (!armedBtns.has(btn)) {                                 // first press asks, a second within 4 s does it
+        const was = btn.textContent;
+        btn.textContent = ask;
+        armedBtns.set(btn, setTimeout(() => { armedBtns.delete(btn); btn.textContent = was; }, 4000));
+        return;
+      }
+      clearTimeout(armedBtns.get(btn)); armedBtns.delete(btn);
+      btn.disabled = true;
+      let r;
+      try { r = await run(); } catch (e) { err.textContent = NETWORK_ERROR; err.hidden = false; btn.disabled = false; return; }
+      if (loggedOut(r)) return;
+      if (!r.ok) { err.textContent = (await r.json().catch(() => ({}))).error || "Could not do that (error " + r.status + ")."; err.hidden = false; btn.disabled = false; return; }
+      openEditId = null;
+      await loadList();
+      notify(ask.includes("break") ? "Broke the idea up into separate recordings." : "Took the recording out into its own idea.");
+    });
+    for (const p of rec.parts) {
+      const input = el("input", { type: "text", maxlength: "200", value: p.title, "aria-label": "Name of this part" });
+      const up = el("button", { type: "button", "aria-label": "Move this part up", title: "Move up" }, "↑");
+      const down = el("button", { type: "button", "aria-label": "Move this part down", title: "Move down" }, "↓");
+      const out = el("button", { type: "button", class: "link", title: "Make this recording its own idea again" }, "Take out");
+      const li = el("li", { "data-part": String(p.id) }, input, up, down, out);
+      up.addEventListener("click", () => { if (li.previousElementSibling) li.parentNode.insertBefore(li, li.previousElementSibling); });
+      down.addEventListener("click", () => { if (li.nextElementSibling) li.parentNode.insertBefore(li.nextElementSibling, li); });
+      arm(out, "Press again to take out", () => api("groups/" + rec.gid + "/parts/" + p.id, { method: "DELETE" }));
+      partRows.push([p.id, input, li]);
+      list.append(li);
+    }
+    const ungroup = el("button", { type: "button", class: "link danger" }, "Break up this idea");
+    arm(ungroup, "Press again to break up", () => api("groups/" + rec.gid + "/ungroup", { method: "POST" }));
+    form.append(el("fieldset", {}, el("legend", {}, "Parts (" + rec.parts.length + ")"), list, ungroup));
+  }
   // "Save" keeps the recording where it is (so a half-filled form can be saved in the Inbox); in the Inbox a second
   // button saves and moves it to the Library. Enter in a field is a plain Save.
   const save = el("button", { type: "submit", class: "primary" }, "Save");
@@ -642,7 +685,7 @@ function buildForm(rec) {
     }
     clearTimeout(armed); armed = null;
     try {
-      const r = await api("recordings/" + id, { method: "DELETE" });
+      const r = await api("groups/" + rec.gid, { method: "DELETE" });
       if (loggedOut(r)) return;
       if (!r.ok) { err.textContent = "Could not delete (error " + r.status + ")."; err.hidden = false; del.textContent = "Delete"; return; }
     } catch (e) { err.textContent = NETWORK_ERROR; err.hidden = false; del.textContent = "Delete"; return; }
@@ -672,7 +715,14 @@ function buildForm(rec) {
       used_in: mark === "check" ? (usedIn.value.trim() || null) : null,
     };
     if (dateChanged) payload.recorded_at = dateInput.value ? localNoon(dateInput.value) : null;   // null = use the upload date
-    const r = await sendJson("recordings/" + id, "PATCH", payload);
+    if (partRows.length) {                                      // part names, in the order shown
+      const byId = new Map(partRows.map(([pid, input]) => [pid, input]));
+      payload.parts = [...form.querySelectorAll(".parts-list > li")].map((li) => {
+        const pid = Number(li.dataset.part);
+        return { id: pid, title: byId.get(pid).value.trim() || "Part" };
+      });
+    }
+    const r = await sendJson("groups/" + rec.gid, "PATCH", payload);
     if (loggedOut(r)) return;
     if (!r.ok) {
       const body = await r.json().catch(() => ({}));
@@ -1241,9 +1291,10 @@ function fitAllTags() { for (const box of document.querySelectorAll("#list .tags
 new ResizeObserver(scheduleFitTags).observe($("#results"));
 
 // ---- Select mode and bulk actions (Library) ---------------------------------------------------------------
+const selectableRecs = () => (view === "inbox" ? inboxRecs : libRecs);
 function pickRow(id, on, range) {
   if (range && lastPicked !== null) {                                       // shift-click: everything between the two ticks
-    const ids = libRecs.map((r) => r.id), a = ids.indexOf(lastPicked), b = ids.indexOf(id);
+    const ids = selectableRecs().map((r) => r.id), a = ids.indexOf(lastPicked), b = ids.indexOf(id);
     if (a >= 0 && b >= 0) for (const i of ids.slice(Math.min(a, b), Math.max(a, b) + 1)) { if (on) picked.add(i); else picked.delete(i); }
   } else if (on) picked.add(id); else picked.delete(id);
   lastPicked = id;
@@ -1258,12 +1309,23 @@ function pickRow(id, on, range) {
 function updateBulkBar() {
   const n = picked.size, all = $("#bulk-all");
   $("#bulk-count").textContent = n + " selected";
-  all.checked = n > 0 && n === libRecs.length;
-  all.indeterminate = n > 0 && n < libRecs.length;
-  const held = new Set(libRecs.filter((r) => picked.has(r.id)).flatMap((r) => r.tags));
+  const pool = selectableRecs();
+  all.checked = n > 0 && n === pool.length;
+  all.indeterminate = n > 0 && n < pool.length;
+  const held = new Set(pool.filter((r) => picked.has(r.id)).flatMap((r) => r.tags));
   fillSelect($("#bulk-add"), "Add tag…", allTags);
   fillSelect($("#bulk-remove"), "Remove tag…", allTags.filter((t) => held.has(t)));       // only tags the selection has
   for (const id of ["#bulk-add", "#bulk-remove", "#bulk-mark", "#bulk-inbox", "#bulk-trash"]) $(id).disabled = n === 0;
+  $("#bulk-group").disabled = n < 2;
+  // groups of two or more recordings the selection could be added to (not ones that are themselves selected)
+  const targets = [...inboxRecs, ...libRecs].filter((r) => r.parts.length > 1 && !picked.has(r.id));
+  const want = ["", ...targets.map((r) => r.gid + "\t" + r.title)].join("\n");
+  const addTo = $("#bulk-addto");
+  if (addTo.dataset.opts !== want) {
+    addTo.dataset.opts = want;
+    addTo.replaceChildren(el("option", { value: "" }, "Add to group…"), ...targets.map((r) => el("option", { value: String(r.gid) }, r.title)));
+  }
+  addTo.disabled = n === 0 || !targets.length;
   if (!n) disarmTrash();
 }
 function fillSelect(select, placeholder, names) {
@@ -1275,7 +1337,7 @@ $("#select-toggle").addEventListener("click", () => { selecting = !selecting; if
 $("#bulk-done").addEventListener("click", () => { selecting = false; picked.clear(); lastPicked = null; render(); });
 $("#bulk-all").addEventListener("change", (e) => {
   picked.clear();
-  if (e.target.checked) for (const r of libRecs) picked.add(r.id);
+  if (e.target.checked) for (const r of selectableRecs()) picked.add(r.id);
   render();
 });
 async function bulk(changes, done) {
@@ -1288,6 +1350,92 @@ async function bulk(changes, done) {
   picked.clear(); lastPicked = null; openEditId = null;
   await loadList();
   notify(done(ids.length));
+}
+const gidsPicked = () => [...picked].map((id) => gidOf.get(id) ?? id);
+$("#bulk-addto").addEventListener("change", async (e) => {
+  const target = e.target.value;
+  e.target.value = "";
+  if (!target || picked.size < 1) return;
+  const ids = gidsPicked();
+  let r;
+  try { r = await sendJson("groups/" + target + "/parts", "POST", { ids }); } catch (err) { notify(NETWORK_ERROR); return; }
+  if (loggedOut(r)) return;
+  if (!r.ok) { notify((await r.json().catch(() => ({}))).error || "Could not add them (error " + r.status + ")."); return; }
+  const body = await r.json();
+  picked.clear(); lastPicked = null; openEditId = null;
+  await loadList();
+  notify("Added " + nRecordings(ids.length) + " to “" + body.group.title + "”.");
+});
+$("#bulk-group").addEventListener("click", () => openGroupDialog(gidsPicked()));
+
+// The grouping dialog: starts from what the recordings already say; where they disagree (tempo, key) you choose.
+async function openGroupDialog(ids, afterMade) {
+  let r;
+  try { r = await sendJson("groups/suggest", "POST", { ids }); } catch (e) { notify(NETWORK_ERROR); return; }
+  if (loggedOut(r)) return;
+  if (!r.ok) { notify((await r.json().catch(() => ({}))).error || "Could not start grouping (error " + r.status + ")."); return; }
+  const sug = await r.json();
+  const dlg = $("#group-dialog");
+  const form = el("form", { method: "dialog", novalidate: "" });
+  const title = el("input", { id: "g-title", type: "text", maxlength: "200", value: sug.title });
+  const err = el("p", { class: "error", role: "alert", hidden: "" });
+  form.append(el("h3", { id: "group-dialog-h" }, "Group " + ids.length + " recordings as one idea"), field("Title", title, "g-title"));
+  // choices for a detail the recordings disagree on; `values` is [{label, value}], plus "none"
+  const choice = (legendText, name, values, hint) => {
+    const fs = el("fieldset", {}, el("legend", {}, legendText));
+    fs.append(el("p", { class: "meta" }, hint));
+    values.forEach((v, i) => {
+      const rid = "g-" + name + "-" + i;
+      const rb = el("input", { type: "radio", name, id: rid, value: String(i) });
+      if (i === 0) rb.checked = true;
+      fs.append(el("div", { class: "choice" }, rb, el("label", { for: rid }, v.label)));
+    });
+    form.append(fs);
+    return () => values[Number(form.querySelector('input[name="' + name + '"]:checked').value)].value;
+  };
+  let getBpm, getKey;
+  if (sug.conflicts.bpm.length) {
+    getBpm = choice("Tempo", "bpm", [...sug.conflicts.bpm.map((c) => ({ label: c.value + " BPM (" + c.from.join(", ") + ")", value: c.value })),
+      { label: "No tempo", value: null }], "These recordings have different tempos. Pick the one for the whole idea.");
+  } else {
+    const bpm = el("input", { id: "g-bpm", type: "number", min: "20", max: "400", inputmode: "numeric", value: sug.bpm == null ? "" : String(sug.bpm) });
+    form.append(field("BPM (optional)", bpm, "g-bpm"));
+    getBpm = () => (bpm.value.trim() === "" ? null : Number(bpm.value));
+  }
+  if (sug.conflicts.key.length) {
+    getKey = choice("Key", "key", [...sug.conflicts.key.map((c) => ({ label: [c.key_root, c.key_mode].filter(Boolean).join(" ") + " (" + c.from.join(", ") + ")", value: c })),
+      { label: "No key", value: { key_root: null, key_mode: null } }], "These recordings have different keys. Pick the one for the whole idea.");
+  } else {
+    const root = el("select", { id: "g-root" }, el("option", { value: "" }, "—"), ...KEY_ROOTS.map((k) => el("option", { value: k }, k)));
+    const mode = el("select", { id: "g-mode" }, el("option", { value: "" }, "—"), el("option", { value: "major" }, "major"), el("option", { value: "minor" }, "minor"));
+    root.value = sug.key_root || ""; mode.value = sug.key_mode || "";
+    form.append(el("div", { class: "keyrow" }, field("Key", root, "g-root"), field("Major / minor", mode, "g-mode")));
+    getKey = () => ({ key_root: root.value || null, key_mode: mode.value || null });
+  }
+  const where = choice("Put it in", "status", [{ label: "Inbox", value: "inbox" }, { label: "Library", value: "tagged" }],
+    "Tags, notes and marks are combined from the recordings (" + (sug.tags.length ? sug.tags.join(", ") : "no tags yet") + "). You can edit them afterwards.");
+  if (sug.status === "tagged") form.querySelector('input[name="status"][value="1"]').checked = true;
+  const ok = el("button", { type: "submit", class: "primary" }, "Make group");
+  const cancel = el("button", { type: "button" }, "Cancel");
+  cancel.addEventListener("click", () => dlg.close());
+  form.append(err, el("div", { class: "actions" }, ok, cancel));
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    ok.disabled = true;
+    const body = { ids, title: title.value.trim() || sug.title, bpm: getBpm(), ...getKey(), status: where() };
+    let res;
+    try { res = await sendJson("groups", "POST", body); } catch (x) { err.textContent = NETWORK_ERROR; err.hidden = false; ok.disabled = false; return; }
+    if (loggedOut(res)) return;
+    if (!res.ok) { err.textContent = (await res.json().catch(() => ({}))).error || "Could not group them (error " + res.status + ")."; err.hidden = false; ok.disabled = false; return; }
+    const made = (await res.json()).group;
+    dlg.close();
+    picked.clear(); lastPicked = null; openEditId = null;
+    await loadList();
+    notify("Grouped " + nRecordings(ids.length) + " as “" + made.title + "”.");
+  });
+  dlg.replaceChildren(form);
+  dlg.showModal();
+  title.focus();
 }
 const nRecordings = (n) => n + (n === 1 ? " recording" : " recordings");
 for (const [id, key, verb] of [["#bulk-add", "add_tags", "Added tag"], ["#bulk-remove", "remove_tags", "Removed tag"]]) {
@@ -1349,10 +1497,10 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !menu.hi
 const MARKS = [["heart", "♥", "Interesting"], ["check", "✓", "Used in a song"], ["x", "✗", "No longer interesting"]];
 
 async function setMark(rec, value) {
-  const r = await sendJson("recordings/" + rec.id, "PATCH", { rating: value });
+  const r = await sendJson("groups/" + rec.gid, "PATCH", { rating: value });
   if (loggedOut(r)) return;
   if (!r.ok) { notify("Could not save that mark (error " + r.status + ")."); return; }
-  const saved = (await r.json()).recording;
+  const saved = (await r.json()).group;
   rec.rating = saved.rating; rec.used_in = saved.used_in;
   for (const li of document.querySelectorAll('#list > li[data-id="' + rec.id + '"] .side .ratebtn')) {
     li.setAttribute("aria-pressed", String(li.dataset.rating === rec.rating));     // update in place: keeps any open form
@@ -1474,7 +1622,7 @@ async function saveCard(data) {
   const session = triage;
   let r;
   try {
-    r = await sendJson("recordings/" + id, "PATCH", { tags: data.tags, rating: data.rating, notes: data.notes, status: "tagged",
+    r = await sendJson("groups/" + (recById(id) || { gid: id }).gid, "PATCH", { tags: data.tags, rating: data.rating, notes: data.notes, status: "tagged",
                                                       used_in: data.rating === "check" ? (data.used_in || null) : null });
   } catch (e) {
     err.textContent = NETWORK_ERROR;
@@ -1489,9 +1637,9 @@ async function saveCard(data) {
     err.hidden = false;
     return;
   }
-  const saved = (await r.json()).recording;
+  const saved = (await r.json()).group;
   if (session !== triage) return;
-  triage.recs.set(id, saved);
+  triage.recs.set(id, asRec(saved));
   triage.drafts.delete(id);
   triage.savedIds.add(id);
   triage.index++;
@@ -1607,12 +1755,12 @@ function uploadOne(file, row) {
     xhr.upload.addEventListener("progress", (e) => {
       if (e.lengthComputable) { bar.max = e.total; bar.value = e.loaded; }
     });
-    const done = (text, cls) => { state.textContent = text; state.className = "state " + cls; bar.hidden = true; resolve(); };
+    const done = (text, cls, gid) => { state.textContent = text; state.className = "state " + cls; bar.hidden = true; resolve(gid || null); };
     xhr.addEventListener("load", () => {
       let body = {};
       try { body = JSON.parse(xhr.responseText); } catch (e) { /* non-JSON error page */ }
-      if (xhr.status === 201) done("Uploaded", "ok");
-      else if (xhr.status === 200 && body.duplicate) done("Already have it", "ok");
+      if (xhr.status === 201) done("Uploaded", "ok", body.group_id);
+      else if (xhr.status === 200 && body.duplicate) done("Already have it", "ok", body.group_id);
       else if (xhr.status === 401) done("Logged out. Log in again.", "bad");
       else done(body.error || "Failed (" + xhr.status + ")", "bad");
     });
@@ -1631,9 +1779,20 @@ async function handleFiles(files) {
     queue.prepend(row);
     return [file, row];
   });
+  const oneIdea = $("#as-one").checked && rows.length > 1;
+  const made = [];
   for (const [file, row] of rows) {   // one at a time keeps memory and the 1 GB server calm
     row.querySelector(".state").textContent = "Uploading";
-    await uploadOne(file, row);
+    const gid = await uploadOne(file, row);
+    if (gid && !made.includes(gid)) made.push(gid);
+  }
+  $("#as-one").checked = false;
+  if (oneIdea && made.length > 1) {                // "as one idea": the details start from what the uploads say (nothing yet)
+    try {
+      const r = await sendJson("groups", "POST", { ids: made, status: "inbox" });
+      if (loggedOut(r)) return;
+      notify(r.ok ? "Uploaded " + made.length + " recordings as one idea. It is in the Inbox." : "Uploaded, but could not group them. Select them in the Inbox and press Group….");
+    } catch (e) { notify("Uploaded, but could not group them. Select them in the Inbox and press Group…."); }
   }
   await loadList();
 }

@@ -52,7 +52,7 @@ async function waitUp() {
     await page.goto(BASE);
     await page.waitForSelector("#triage-start:not([hidden])");
     let patches = 0;
-    await page.route("**/api/recordings/*", async (route) => {      // a slow server: the save is still in flight when the keys repeat
+    await page.route("**/api/groups/*", async (route) => {      // a slow server: the save is still in flight when the keys repeat
       if (route.request().method() === "PATCH") { patches++; await new Promise((r) => setTimeout(r, 600)); }
       await route.continue();
     });
