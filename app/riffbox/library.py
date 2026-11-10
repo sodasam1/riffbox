@@ -96,6 +96,8 @@ def parse_filters(args):
             raise Invalid(f"{field} must be one of {', '.join(allowed)}")
         f[field] = value
 
+    f["unresolved"] = (args.get("unresolved") or "") in ("1", "true")     # ideas whose recordings disagreed on tempo or key
+
     sort = args.get("sort", DEFAULT_SORT)
     if sort not in SORTS:
         raise Invalid(f"sort must be one of {', '.join(SORTS)}")
@@ -119,6 +121,8 @@ def build_query(f):
     if f["status"]:
         where.append("g.status = ?")
         params.append(f["status"])
+    if f.get("unresolved"):
+        where.append("g.unresolved IS NOT NULL")
 
     for term in f["terms"]:          # every word must appear in the title, the notes, a tag name or a part's title
         where.append("(ulower(g.title) LIKE ? ESCAPE '\\' OR ulower(g.notes) LIKE ? ESCAPE '\\'"

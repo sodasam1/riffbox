@@ -296,6 +296,7 @@ let density = "cozy";          // Library row size: "cozy" | "compact"
 let trashRecs = [];            // recordings moved to the Trash (only fetched while that tab is open)
 let trashCount = 0;
 let inboxRecs = [];            // everything not yet saved to the Library
+let libNeeds = 0;               // Library ideas still waiting for a tempo or key choice
 let libRecs = [];              // Library recordings matching the current filters (the server does the filtering)
 let libTotal = 0;              // Library size before any filter
 let libRatings = { heart: 0, check: 0, x: 0, none: 0 };   // how many Library recordings carry each mark
@@ -310,7 +311,7 @@ let loadSeq = 0;               // numbers each load so a slow, older response ca
 
 // What the Library sidebar is asking for. Sort and the preview switch are remembered between visits
 // (a per-device convenience only: everything still works if the browser refuses to store them).
-const filters = { q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "", rating: "all",
+const filters = { unresolved: false, q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "", rating: "all",
                   sort: "uploaded", order: "desc" };      // newest upload first unless the owner picks otherwise
 const DEFAULT_SORT = { sort: "uploaded", order: "desc" };
 const BPM_LO = 40, BPM_HI = 240;   // the slider's ends; a thumb sitting at an end means "no limit" on that side
@@ -400,7 +401,7 @@ function updateTabs() {
 }
 
 const bpmActive = () => filters.bpm_min !== null || filters.bpm_max !== null;
-const filtersActive = () => Boolean(filters.q.trim() || filters.tags.length || bpmActive() ||
+const filtersActive = () => Boolean(filters.unresolved || filters.q.trim() || filters.tags.length || bpmActive() ||
                                     filters.key_root || filters.key_mode || filters.rating !== "all");
 
 function render() {
@@ -835,6 +836,7 @@ function libraryQuery() {
   if (filters.bpm_max !== null) p.set("bpm_max", filters.bpm_max);
   if (filters.key_root) p.set("key_root", filters.key_root);
   if (filters.key_mode) p.set("key_mode", filters.key_mode);
+  if (filters.unresolved) p.set("unresolved", "1");
   // "All" leaves out the ones marked ✗ (no longer interesting); pick ✗ to see them
   p.set("rating", filters.rating === "all" ? "heart,check,none" : filters.rating);
   return p.toString();
@@ -870,6 +872,7 @@ async function loadList() {
   inboxRecs = asRecs(inboxBody);
   libRecs = asRecs(libBody);
   libTotal = libBody.total;
+  libNeeds = libBody.needs || 0;
   libRatings = libBody.ratings;
   trashCount = inboxBody.trashed;
   if (trash && trash.ok) trashRecs = asRecs(await trash.json());
@@ -1224,7 +1227,9 @@ function updateFilterUI() {
   $("#f-sort").value = filters.sort;
   $("#f-preview").checked = autoPreview;
   $("#f-clear").disabled = !filtersActive();
-  const n = [filters.q.trim(), filters.tags.length, bpmActive(), filters.key_root, filters.key_mode,
+  $("#f-unresolved").checked = filters.unresolved;
+  $("#f-unresolved-label").textContent = "Needs a tempo or key choice · " + libNeeds;
+  const n = [filters.unresolved, filters.q.trim(), filters.tags.length, bpmActive(), filters.key_root, filters.key_mode,
              filters.rating !== "all"].filter(Boolean).length;
   syncBpmUI();
   const counts = { all: libTotal - libRatings.x, heart: libRatings.heart, check: libRatings.check, x: libRatings.x, none: libRatings.none };
@@ -1235,7 +1240,7 @@ function updateFilterUI() {
   }
   $("#filters-toggle").textContent = n ? "Filters (" + n + " active)" : "Filters";
   const hiddenX = filters.rating === "all" ? libRatings.x : 0;     // ✗ ones that "All" leaves out
-  const otherFilters = Boolean(filters.q.trim() || filters.tags.length || bpmActive() || filters.key_root || filters.key_mode);
+  const otherFilters = Boolean(filters.unresolved || filters.q.trim() || filters.tags.length || bpmActive() || filters.key_root || filters.key_mode);
   $("#f-count").textContent = libTotal === 0 ? ""
     : otherFilters || filters.rating !== "all" ? libRecs.length + " of " + libTotal + " recordings"
     : libRecs.length + (libRecs.length === 1 ? " recording" : " recordings") + (hiddenX ? " (" + hiddenX + " marked ✗ hidden)" : "");
@@ -1286,6 +1291,7 @@ function bpmInput(which) {
 bpmMin.addEventListener("input", () => bpmInput("min"));
 bpmMax.addEventListener("input", () => bpmInput("max"));
 $("#f-root").addEventListener("change", (e) => { filters.key_root = e.target.value; filtersChanged(0); });
+$("#f-unresolved").addEventListener("change", (e) => { filters.unresolved = e.target.checked; filtersChanged(0); });
 $("#f-mode").addEventListener("change", (e) => { filters.key_mode = e.target.value; filtersChanged(0); });
 $("#f-sort").addEventListener("change", (e) => {
   filters.sort = e.target.value;
@@ -1300,7 +1306,7 @@ $("#f-order").addEventListener("click", () => {
 });
 $("#f-preview").addEventListener("change", (e) => { autoPreview = e.target.checked; stored.set("preview", autoPreview ? "1" : "0"); });
 $("#f-clear").addEventListener("click", () => {
-  Object.assign(filters, { q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "", rating: "all" });
+  Object.assign(filters, { unresolved: false, q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "", rating: "all" });
   $("#f-q").value = ""; $("#f-root").value = ""; $("#f-mode").value = "";
   $("#f-match-all").checked = true;
   filtersChanged(0);

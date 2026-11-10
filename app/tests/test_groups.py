@@ -306,3 +306,17 @@ def test_taking_parts_out_until_one_is_left_drops_the_flag(trio):
     rec = g["parts"][0]["id"]
     after = c.delete(f"/api/groups/{g['id']}/parts/{rec}").get_json()["group"]
     assert after["unresolved"] is None
+
+
+def test_the_library_can_be_filtered_to_ideas_that_need_a_tempo_or_key_choice(trio):
+    c, made = trio
+    ids = [g for _r, g in made.values()]
+    flagged = c.post("/api/groups", json={"ids": ids[:2]}).get_json()["group"]
+    assert flagged["unresolved"]
+    body = c.get("/api/groups?status=tagged").get_json()
+    assert body["needs"] == 1 and len(body["groups"]) == 2                      # the flagged idea and the third, single one
+    only = c.get("/api/groups?status=tagged&unresolved=1").get_json()
+    assert [g["id"] for g in only["groups"]] == [flagged["id"]] and only["needs"] == 1
+    c.patch(f"/api/groups/{flagged['id']}", json={"bpm": 90})
+    assert c.get("/api/groups?status=tagged&unresolved=1").get_json()["groups"] == []
+    assert c.get("/api/groups?status=tagged").get_json()["needs"] == 0

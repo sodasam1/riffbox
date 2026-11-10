@@ -106,6 +106,23 @@ async function waitUp() {
     await row.locator(".caret").click();
     assert.strictEqual(await parts.count(), 3);
 
+    // the Library filter for ideas that still need a tempo or key choice
+    const pq = [await up("P", 400), await up("Q", 430)];
+    await ctx.request.patch(BASE + `api/groups/${pq[0].group_id}`, { data: { status: "tagged", bpm: 80 } });
+    await ctx.request.patch(BASE + `api/groups/${pq[1].group_id}`, { data: { status: "tagged", bpm: 140 } });
+    await ctx.request.post(BASE + "api/groups", { data: { ids: [pq[0].group_id, pq[1].group_id] } });
+    await page.reload(); await page.waitForSelector("#tab-library"); await page.click("#tab-library");
+    await page.waitForSelector("#f-unresolved");
+    assert.match(await page.textContent("#f-unresolved-label"), /· 1$/);
+    await page.check("#f-unresolved");
+    await page.waitForFunction(() => document.querySelectorAll("#list > li:not(.part)").length === 1);
+    assert.ok(await page.locator("#list > li .chip.pending").count() === 1);
+    assert.match(await page.textContent("#filters-toggle"), /1 active/);
+    await page.click("#f-clear");
+    await page.waitForFunction(() => document.querySelectorAll("#list > li:not(.part)").length === 3);
+    assert.strictEqual(await page.isChecked("#f-unresolved"), false);
+    console.log("ok  the Library can show only ideas that still need a tempo or key choice");
+
     // row size is one setting for the Inbox and the Library
     await page.click("#tab-inbox");
     assert.ok(await page.isVisible("#dens-compact"), "row size control shows in the Inbox");

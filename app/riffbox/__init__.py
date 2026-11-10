@@ -515,8 +515,10 @@ def create_app(config=None):
         for r in db().execute(count_sql + " GROUP BY rating", count_params):
             counts[r["rating"] or "none"] = r["n"]
         total = sum(counts.values())
+        needs = db().execute("SELECT COUNT(*) FROM idea_groups WHERE deleted_at IS NULL AND unresolved IS NOT NULL"
+                             + (" AND status = ?" if filters["status"] else ""), [filters["status"]] if filters["status"] else []).fetchone()[0]
         trashed = db().execute("SELECT COUNT(*) FROM idea_groups WHERE deleted_at IS NOT NULL").fetchone()[0]
-        return jsonify(groups=groups.load(db(), rows), count=len(rows), total=total, ratings=counts, trashed=trashed)
+        return jsonify(groups=groups.load(db(), rows), count=len(rows), total=total, ratings=counts, needs=needs, trashed=trashed)
 
     def patch_group(gid, body, part_title_for=None):
         """Validate and apply a change request to a group. `part_title_for` is the recording id a legacy request named: for a
