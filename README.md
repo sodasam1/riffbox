@@ -32,7 +32,7 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
 - **Find and listen:** a Library with search, tag, BPM, key and mark filters; a table with click-to-sort headings, Cozy or
   Compact rows, Select mode with bulk actions, **Random**, and **Resurface** (hearted ideas you have not played lately).
   A player with a waveform, scrubbing, speed, A-B loop and Download. Style (standard or minimal) and colours (auto, light or dark) are separate choices in the Menu.
-- **Protect:** a Trash instead of deletion, nightly backups, a **Backup and export** page, and an export to plain files
+- **Protect:** a Trash instead of deletion, a backup script and **Back up now** button (a nightly schedule is optional and not set up by default), a **Backup and export** page, and an export to plain files
   that needs none of this code. Originals are never changed or removed by the app.
 - **Apple Lossless (ALAC) memos:** Safari plays them, Chrome, Edge and Firefox do not. With `ffmpeg` installed the server
   also keeps a lossless FLAC play copy (Download still returns the original). `ffmpeg` also measures each recording's
@@ -107,6 +107,8 @@ docs/          the plan, the later-work plan, and docs/archive/ (the original pl
 
 ## Planned features (not built yet)
 
+- **Backups you do not have to remember:** the backup folder and nightly schedule (`deploy/PHASE8.md`), a practice restore with
+  `deploy/restore.py`, and a routine for copying an export or the backup folder off the server. The code exists; the schedule does not.
 - **Speed, interface feel and upkeep** (decided: eventually, not now). Measured and written up in
   `docs/PLAN-performance-ux-sustainability.md`:
   - compress responses and cache the page files for a long time (about 264 KB per load becomes about 42 KB);

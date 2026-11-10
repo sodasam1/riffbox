@@ -94,6 +94,11 @@ in ways you might not expect:</p>
 <h2>Planned features</h2>
 <p>Not built yet, roughly in order of how soon they are likely. The detailed plans are in the repository's <code>docs/</code>.</p>
 <ul>
+  <li><strong>Backups you do not have to remember</strong> (moved here from Phase 8; not set up yet). The code is built and deployed
+    (<em>Back up now</em>, the export, <code>deploy/restore.py</code>); what is missing is the backup folder and
+    <code>RIFFBOX_BACKUP_DIR</code>, the nightly schedule (the cron line in <code>deploy/PHASE8.md</code> is untried on your OpenBSD), one
+    practice restore, and the habit of copying an export or the backup folder off the server. A backup on the same server does not survive
+    losing the server.</li>
   <li><strong>Groups, later:</strong> suggesting groups from recordings made close together in time, a zip of all parts, playing parts
     together. First deploy of groups: rehearse on a copy of your data (<code>deploy/GROUPS.md</code>).</li>
   <li><strong>Speed and upkeep</strong> (decided: eventually): compressed responses and long-lived caching of the page files;
@@ -139,14 +144,14 @@ before the next starts, so a problem stays confined to the newest layer.</p>
       <td><span class="status done">Done; in daily use</span></td></tr>
     <tr><td>8</td><td>Hardening and backup: Trash and Restore, checked backups (<code>deploy/backup.py</code>), the plain-file export
       (<code>deploy/export.py</code>), the practice restore (<code>deploy/PHASE8.md</code>), login throttling.</td>
-      <td><span class="status next">Built; your deploy check pending</span></td></tr>
+      <td><span class="status done">Deployed. The nightly schedule and practice restore are not set up (see Planned features)</span></td></tr>
     <tr><td>After 8</td><td>Backup and export page with a status line; Resurface and Surprise me; the Trash tab; the iPhone Outbox
       Shortcuts (confirmed working); editing in the Inbox; Library table (click-to-sort headings, Recorded and Uploaded
       columns, Compact rows, Select and bulk actions); Random; a Style choice (standard, minimal) and a separate Colors choice (auto, light, dark); tabs that no longer shift the layout; a
       restore tool (<code>deploy/restore.py</code>).</td><td><span class="status next">Built; awaiting your look on real devices</span></td></tr>
     <tr><td>Groups 1&ndash;5</td><td>Ideas made of several recordings: the data layer and an additive migration (stage 1), making and
       changing groups (stage 2), expandable rows, part playback and the player title (stage 3), arrow-key walking through parts, Random, Select and triage for groups (stage 4), Resurface, search and export for groups (stage 5). See the Quickstart.</td>
-      <td><span class="status next">Built and tested; migration rehearsal and deploy pending</span></td></tr>
+      <td><span class="status done">Deployed; quick check on iPhone Safari and Chrome, restore of an export not yet tried on your data</span></td></tr>
   </tbody>
 </table>
 </div>

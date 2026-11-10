@@ -218,3 +218,8 @@ file per part (`<date> <title> - part 2 <label> [recording id].<ext>`); `index.c
 `idea_id`, `idea_parts`, `part`, `part_title`; `index.html` groups the parts; a single idea exports exactly as before, and a
 database from before groups still exports. The restore tool round-trips an export with groups (`test_export_groups.py`). First
 deploy runbook with the migration rehearsal and rollback drill: `deploy/GROUPS.md`. Tests: `groups5.cjs`, `test_export_groups.py`.
+
+## Status update (after the groups deploy)
+Groups are deployed and work (a quick check on iPhone Safari and Chrome; the restore of an export was not tried). The Phase 8 deploy
+gate items that were never done (nightly backup schedule, practice restore, off-server copy routine) are no longer treated as open
+work: they are listed under Planned features in `README.md`, `docs/PLAN.md` and the How this works page.

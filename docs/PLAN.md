@@ -104,32 +104,36 @@ instead of the browser.
 | 5 | Library browser | Done (owner checked) |
 | 6 | Player polish (waveform, speed, loop) | Done; in daily use, working per owner |
 | 7 | Marks and triage | Done; in daily use, working per owner |
-| 8 | Trash, backup, restore drill, export | Built and merged to `main`; **deploy gate pending** (section 6) |
+| 8 | Trash, backup, restore drill, export | Deployed (in daily use). The nightly backup schedule, the practice restore and the off-server copy routine were **not** set up and moved to Planned features (sections 6 and 7) |
 | After 8 | Backup and export page; Resurface; Cozy/Compact; backup status line; Trash tab styling; header Menu; compact upload; sortable headings; Select + bulk actions; Random | Built and merged; **awaiting owner check on real devices** |
 | After 8 | iPhone Outbox Shortcuts | Done; confirmed working by the owner |
 | Review 2 | Clean-up without behaviour change; layout, contrast and tap-target fixes (see `PHASES.md`) | Done; tested |
 | After 8 | Minimal theme with a switch in the Menu | Done; tested; awaiting the owner's look |
 | After 8 | Stable tabs; edit in the Inbox; restore tool | Built and merged to `main` |
-| Groups 1 | Data layer, migration, page reads groups; no visible change | Built and tested on branch `groups`; **owner rehearsal and deploy pending** |
-| Groups 2 | Making and changing groups: Select mode in the Inbox, one-click Group… (clashing tempo/key kept and flagged to resolve later in Edit), Add to group…, upload as one idea, Parts list in the edit form, group trash and restore | Built and tested on branch `groups`; a grouped row plays and downloads its first part until stage 3 |
-| Groups 3 | Looks: expandable rows with caret and parts badge, Compact and minimal theme, player "part n of m", auto-advance | Built and tested on branch `groups` |
-| Groups 4 | Keyboard: auto-open and collapse (manual-open stays open), arrows across parts, Random, triage with parts, select-all | Built and tested on branch `groups` |
-| Groups 5 | Resurface with whole groups, search over part titles (server done), group-aware export and restore tests, docs, migration runbook | Built and tested on branch `groups-stage5` |
+| Groups 1 | Data layer, migration, page reads groups; no visible change | Deployed |
+| Groups 2 | Making and changing groups: Select mode in the Inbox, one-click Group… (clashing tempo/key kept and flagged to resolve later in Edit), Add to group…, upload as one idea, Parts list in the edit form, group trash and restore | Deployed |
+| Groups 3 | Looks: expandable rows with caret and parts badge, Compact and minimal theme, player "part n of m", auto-advance | Deployed |
+| Groups 4 | Keyboard: auto-open and collapse (manual-open stays open), arrows across parts, Random, triage with parts, select-all | Deployed |
+| Groups 5 | Resurface with whole groups, search over part titles (server done), group-aware export and restore tests, docs, migration runbook | Deployed |
 | Groups 6 | Optional: grouping suggestions from times, download all parts, play together | Not decided |
 | Later | Speed, interface feel and upkeep: `docs/PLAN-performance-ux-sustainability.md` | Planned, not started (owner: eventually, not now) |
 
 Quality gates today: 308 automated server tests on `main` (326 on `groups`) and 15 Playwright browser scripts (`tests/e2e/`), all passing. Each groups stage ends with a short manual checklist (`docs/CHECKLIST-groups.md`).
 
 ## 6. Open items that need the owner
-1. Deploy the latest `main` (routine deploy: no new package, no database step) and run `deploy/PHASE8.md`: make the backup
-   folder, set `RIFFBOX_BACKUP_DIR`, schedule the nightly job (the cron line is untried on the real OpenBSD), do the
-   restore drill once on a computer, download one export and open its `index.html`.
-2. Try on the phone: Resurface, Compact rows, the backup status line, the header on a narrow screen.
-3. Pull the backup folder (or a zip export) to the owner's own computer now and then: a backup on the same VPS does not
-   survive losing the VPS.
+Groups are deployed and working (checked with a quick scroll on an iPhone in Safari and Chrome; not yet rigorous). Still open:
+1. **Try the restore path** (`deploy/restore.py` on a real export) once, so the first time is not an emergency.
+2. **A longer check on the phone:** Resurface, Compact rows, grouping from the Inbox, the Menu's Style and Colors.
+3. The backup items that used to be the Phase 8 gate are now **planned features** (section 7), not open work: the nightly backup
+   schedule, the practice restore, and the habit of copying an export or the backup folder off the server (a backup on the same
+   VPS does not survive losing the VPS).
 
 ## 7. Candidate next features (not decided; the owner chooses)
 - **Groups: one idea made of several recordings (designed 10 Nov; stage 1 built; full spec and staged plan in
+- **Backups you do not have to remember (moved here from the Phase 8 deploy gate; not set up):** make the backup folder and set
+  `RIFFBOX_BACKUP_DIR`, schedule the nightly job (the cron line in `deploy/PHASE8.md` is untried on the real OpenBSD), do the
+  practice restore once, and copy an export or the backup folder off the server regularly. The code (`backup.py`, the *Back up now*
+  button, the export, `restore.py`) is built and deployed; what is missing is the schedule and the habit.
   `docs/PLAN-groups.md`).** The owner's model: a group is for recordings that make no sense alone but are one
   idea (keys, drums and vocal memos). For a multi-recording idea the tags, tempo, key, notes and marks belong to the **group**;
   the parts keep their own data as a snapshot "just in case". Every recording belongs to a group internally (singles are groups
