@@ -66,7 +66,7 @@ const server = spawn(PY, ["-m", "waitress", `--listen=127.0.0.1:${PORT}`, "--thr
       new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__long.push(Math.round(e.duration)); }).observe({ type: "longtask", buffered: true });
     });
     const reqs = [];
-    page.on("response", async (r) => { try { reqs.push([r.url().replace(BASE, ""), r.status(), (await r.body()).length, r.headers()["cache-control"] || "none", r.headers()["content-encoding"] || "none"]); } catch (e) {} });
+    page.on("response", async (r) => { try { reqs.push([r.url().replace(BASE, ""), r.status(), Number(r.headers()["content-length"] || (await r.body()).length), r.headers()["cache-control"] || "none", r.headers()["content-encoding"] || "none"]); } catch (e) {} });
     await page.goto(BASE, { waitUntil: "load" });
     await page.waitForSelector("#app:not([hidden])"); await page.waitForSelector("#list > li");
     await page.waitForTimeout(800);
@@ -74,7 +74,15 @@ const server = spawn(PY, ["-m", "waitress", `--listen=127.0.0.1:${PORT}`, "--thr
       return { ttfbMs: Math.round(n.responseStart), loadMs: Math.round(n.loadEventEnd), fcpMs: fcp ? Math.round(fcp.startTime) : null, lcpMs: Math.round(window.__lcp),
                cls: +window.__cls.toFixed(4), longTasksMs: window.__long, domNodes: document.querySelectorAll("*").length }; });
     console.log("PAGE LOAD (4x CPU, ~1.6 Mbps, 150 ms RTT):", JSON.stringify(nav));
-    console.log("REQUESTS:\n" + reqs.map((r) => `  ${r[1]} ${String(r[2]).padStart(7)} B  ${r[0]}  [cache-control: ${r[3]}] [encoding: ${r[4]}]`).join("\n"));
+    console.log("REQUESTS (bytes on the wire):\n" + reqs.map((r) => `  ${r[1]} ${String(r[2]).padStart(7)} B  ${r[0]}  [cache-control: ${r[3]}] [encoding: ${r[4]}]`).join("\n"));
+    console.log("TOTAL ON THE WIRE:", reqs.reduce((a, r) => a + r[2], 0), "bytes in", reqs.length, "requests");
+    // a repeat visit in the same browser
+    reqs.length = 0;
+    await page.goto(BASE + "?repeat", { waitUntil: "load" });
+    await page.waitForSelector("#app:not([hidden])"); await page.waitForSelector("#list > li"); await page.waitForTimeout(500);
+    const nav2 = await page.evaluate(() => { const n = performance.getEntriesByType("navigation")[0], fcp = performance.getEntriesByName("first-contentful-paint")[0];
+      return { loadMs: Math.round(n.loadEventEnd), fcpMs: fcp ? Math.round(fcp.startTime) : null, lcpMs: Math.round(window.__lcp) }; });
+    console.log("REPEAT VISIT (page files and their fingerprints from the browser cache):", JSON.stringify(nav2));
     await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
     const inp = async (label, sel) => {
       const ms = await page.evaluate(async (s) => { const t = performance.now(); document.querySelector(s).click();

@@ -100,6 +100,15 @@ async function waitUp() {
     assert.match(await parts.first().locator("a.dl").getAttribute("href"), /api\/audio\/\d+\?download=1/);
     console.log("ok  open ideas stay open after a change; each part has its own Download");
 
+    // the idea's own Download gives a zip of all its parts; a part's Download is that one original file
+    const [zipDl] = await Promise.all([page.waitForEvent("download"), row.locator("a.dl").click()]);
+    assert.match(zipDl.suggestedFilename(), /^Song idea\.zip$/);
+    const [partDl] = await Promise.all([page.waitForEvent("download"), parts.nth(1).locator("a.dl").click()]);
+    assert.match(partDl.suggestedFilename(), /\.wav$/);
+    const single = page.locator('#list > li[data-title="Solo"] a.dl');
+    assert.match(await single.getAttribute("href"), /api\/audio\/\d+\?download=1/, "a single idea's Download is unchanged");
+    console.log("ok  the idea's Download is a zip of all parts; each part's Download is its own file; a single idea is unchanged");
+
     // the idea's own play button plays the part you were on, else the first; closing removes the part rows
     await row.locator(".caret").click();
     assert.strictEqual(await parts.count(), 0);

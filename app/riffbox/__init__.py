@@ -11,11 +11,13 @@ import json
 import mimetypes
 import os
 import queue
+import re
 import shutil
 import sqlite3
 import tempfile
 import threading
 import time
+import urllib.parse
 import uuid
 from functools import wraps
 from pathlib import Path
@@ -36,7 +38,7 @@ from flask import (
 )
 
 from . import backup as backups
-from . import exporter, groups
+from . import exporter, groups, webcache
 from .health import collect as collect_health
 from .intake import (
     MAX_BULK,
@@ -871,6 +873,26 @@ def create_app(config=None):
         started = backup_runner.start()
         return jsonify(started=started), (202 if started else 409)
 
+    @bp.get("/api/groups/<int:gid>/download")
+    @require_auth()
+    def download_group(gid):
+        """All the original recordings of one idea as a zip (each part by its own name), streamed as it is made."""
+        g = group_or_404(gid)
+        parts = db().execute("SELECT * FROM recordings WHERE group_id = ? ORDER BY position, id", (gid,)).fetchall()
+        files = []
+        for n, r in enumerate(parts, 1):
+            path = audio_dir / r["filename"]
+            if not path.is_file():
+                abort(404)
+            files.append((f"{n:02d} {exporter.safe_name(r['title'], 60)}{path.suffix}", path))      # the number keeps equal names apart
+        title = exporter.safe_name(g["title"], 80)
+        resp = Response(exporter.stream_files_zip(files, title), mimetype="application/zip")
+        ascii_name = re.sub(r"[^A-Za-z0-9._ -]", "_", title) or "idea"
+        resp.headers["Content-Disposition"] = f"attachment; filename=\"{ascii_name}.zip\"; filename*=UTF-8''{urllib.parse.quote(title)}.zip"
+        resp.headers["Cache-Control"] = "no-store"
+        resp.headers["X-Accel-Buffering"] = "no"
+        return resp
+
     @bp.get("/api/export.zip")
     @require_auth()
     def export_zip():
@@ -905,13 +927,42 @@ def create_app(config=None):
         resp.headers["Cache-Control"] = "private, no-cache"
         return resp
 
+    pages = webcache.PageFiles(Path(app.config["STATIC_DIR"]))
+    MIME = {".html": "text/html", ".css": "text/css", ".js": "text/javascript"}
+
+    def text_response(body, gzipped, etag, cache):
+        """A text answer, gzip-compressed if the browser accepts it, with a weak ETag so a repeat visit can get "not modified"."""
+        zip_ok = webcache.accepts_gzip(request.headers.get("Accept-Encoding"))
+        resp = Response(gzipped if zip_ok else body)
+        if zip_ok:
+            resp.headers["Content-Encoding"] = "gzip"
+        resp.headers["Vary"] = "Accept-Encoding"
+        resp.headers["Cache-Control"] = cache
+        resp.set_etag(etag, weak=True)
+        return resp.make_conditional(request)
+
     @bp.get("/")
     def index():
-        return send_from_directory(app.config["STATIC_DIR"], "index.html", max_age=0)
+        page = pages.index()
+        if page is None:
+            abort(404)
+        body, fingerprint = page
+        resp = text_response(body, webcache.squeeze(body), fingerprint, "no-cache")         # always re-checked: tiny when unchanged
+        resp.mimetype = "text/html"
+        return resp
 
     @bp.get("/static/<path:name>")
     def static_files(name):
-        return send_from_directory(app.config["STATIC_DIR"], name, max_age=0)
+        ext = Path(name).suffix
+        found = pages.read(name) if ext in MIME else None
+        if found is None:                                          # anything else (or a missing file): as before
+            return send_from_directory(app.config["STATIC_DIR"], name, max_age=0)
+        body, gzipped, fingerprint = found
+        # an address with ?v=<fingerprint> (as written into the page) can be kept for a year; a bare one is re-checked every time
+        cache = f"public, max-age={webcache.ONE_YEAR}, immutable" if request.args.get("v") else "no-cache"
+        resp = text_response(body, gzipped, fingerprint, cache)
+        resp.mimetype = MIME[ext]
+        return resp
 
     app.register_blueprint(bp, url_prefix=base)
     if base:
@@ -921,6 +972,19 @@ def create_app(config=None):
     @app.after_request
     def harden(resp):
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        return resp
+
+    @app.after_request
+    def shrink(resp):
+        """Compress text answers (the idea lists, this page's explanation) for browsers that accept it. Never audio or the export."""
+        if resp.direct_passthrough or resp.is_streamed or resp.mimetype not in webcache.COMPRESSIBLE:
+            return resp
+        resp.vary.add("Accept-Encoding")
+        data = resp.get_data()
+        if (webcache.accepts_gzip(request.headers.get("Accept-Encoding"))
+                and webcache.should_compress(resp.mimetype, resp.status_code, len(data), "Content-Encoding" in resp.headers)):
+            resp.set_data(webcache.squeeze(data))
+            resp.headers["Content-Encoding"] = "gzip"
         return resp
 
     @app.errorhandler(413)
