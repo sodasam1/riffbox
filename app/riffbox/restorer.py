@@ -69,6 +69,9 @@ def restore(source, data_dir, drop_missing_trash=False):
                 if r["deleted_at"] and drop_missing_trash:
                     drop.append(r["id"])
                 continue
+            if not r["filename"] or Path(r["filename"]).name != r["filename"]:          # a file name, never a path
+                report["damaged"].append(f"recording {r['id']} ({r['title']}): its file name in the database is not a plain name, skipped")
+                continue
             dest = data_dir / "audio" / r["filename"]
             shutil.copy2(src, dest)
             if _sha256(dest) != r["sha256"]:

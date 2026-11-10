@@ -300,6 +300,7 @@ def _split_out(conn, rec_id, status, deleted_at=None):
     conn.execute("UPDATE recordings SET group_id = ?, position = 0 WHERE id = ?", (new, rec_id))
     conn.execute("INSERT OR IGNORE INTO group_tags (group_id, tag) SELECT ?, tag FROM recording_tags WHERE recording_id = ?", (new, rec_id))
     refresh(conn, new)
+    sync_single(conn, new)                  # the idea keeps its old place (Inbox or Library), so the recording's copy follows it
     return new
 
 
@@ -323,6 +324,8 @@ def remove_part(conn, gid, rec_id):
     _renumber(conn, gid)
     if g["part_count"] == 2:                               # one part left: nothing left to disagree
         conn.execute("UPDATE idea_groups SET unresolved = NULL WHERE id = ?", (gid,))
+    refresh(conn, gid)
+    sync_single(conn, gid)                                 # a group of one keeps its recording's own copy current again
     return new
 
 
