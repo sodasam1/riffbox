@@ -1,10 +1,11 @@
-# Riffbox: current plan (updated 9 Nov 2026, after the minimal theme)
+# Riffbox: current plan (updated 10 Nov 2026, groups designed)
 
 The original plan is archived, unchanged, at `docs/archive/plan-original-2026-11-08.md` in the repository. This version
 reflects what was actually built, the principles that emerged, and what comes next. Day-to-day status lives in
 `PHASES.md`; the owner-facing explanation is the app's private **How this works** page. This file is committed as
 `docs/PLAN.md`. The detailed, measured proposal for speed, interface feel and long-term upkeep (not built yet, to be done
-eventually) is `docs/PLAN-performance-ux-sustainability.md`.
+eventually) is `docs/PLAN-performance-ux-sustainability.md`. The design and staged plan for **groups** (one idea made of several
+recordings; designed, not started) is `docs/PLAN-groups.md`.
 
 ## 1. What Riffbox is
 A private, single-user web app for organizing musical voice-memo ideas, at `https://sanjaysubramanian.com/ideas/`, run
@@ -93,6 +94,7 @@ instead of the browser.
 | After 8 | iPhone Outbox Shortcuts | Done; confirmed working by the owner |
 | Review 2 | Clean-up without behaviour change; layout, contrast and tap-target fixes (see `PHASES.md`) | Done; tested |
 | After 8 | Minimal theme with a switch in the Menu | Done; tested; awaiting the owner's look |
+| Next | Groups (multi-recording ideas): `docs/PLAN-groups.md` | Designed; waiting for the owner's answers to its open questions, then six stages |
 | Later | Speed, interface feel and upkeep: `docs/PLAN-performance-ux-sustainability.md` | Planned, not started (owner: eventually, not now) |
 
 Quality gates today: 308 automated server tests and 15 Playwright browser scripts (`tests/e2e/`), all passing.
@@ -106,6 +108,19 @@ Quality gates today: 308 automated server tests and 15 Playwright browser script
    survive losing the VPS.
 
 ## 7. Candidate next features (not decided; the owner chooses)
+- **Groups: one idea made of several recordings (designed 10 Nov, next big feature; full spec and staged plan in
+  `docs/PLAN-groups.md`, nothing built yet).** The owner's model: a group is for recordings that make no sense alone but are one
+  idea (keys, drums and vocal memos). For a multi-recording idea the tags, tempo, key, notes and marks belong to the **group**;
+  the parts keep their own data as a snapshot "just in case". Every recording belongs to a group internally (singles are groups
+  of one and look exactly as today); the table is `idea_groups`. A group shows the earliest recorded and latest upload dates.
+  Collapsed it looks nearly identical to a single idea (a small caret and a parts badge); expanded it shows its parts. Made from
+  **Select mode (also in the Inbox)** with *Group…*, or by uploading several files as one idea; the grouping dialog resolves
+  tempo and key so a group can never conflict. Keyboard: arrowing onto a group auto-expands it and plays its first (or, going
+  up, last) part, moves through the parts as separate lines and collapses again when you leave, unless you opened it by hand
+  (taken as "stays open"). Selecting a group selects all parts. Resurface always shows the whole group. Open points: the any/all
+  filter toggle is moot once details are group-level (recommend dropping it); group length = longest part; part labels. Six
+  stages on a `groups` branch: data layer and migration with no visible change, making groups, looks, keyboard, Resurface and
+  export, then optional extras.
 - **Speed, interface and upkeep plan (decided to do eventually, not now):** compression and long-lived caching, fixing the three
   slow interactions (Library tab, Select mode, Select all: 660-880 ms against a 200 ms target), loading changes, theme variables,
   a smaller `app.js`, shared test helpers, WebKit/Firefox test runs, numbered migrations, a monthly self-test and a yearly-care
@@ -115,7 +130,6 @@ Quality gates today: 308 automated server tests and 15 Playwright browser script
 - **Pin and vendor the dependencies** (S to M): keep the exact Flask, waitress and helper packages in the repo with an
   install-from-that-copy path. The biggest 20-year risk per hour of effort.
 - **Timestamped markers on the waveform** (M): short notes at positions in a recording, included in the export.
-- **Songs view** (S to M): group ✓ ideas by their "used in" text.
 - **Interface decluttering, remaining proposals:** an idle player that stays slim, one menu for the row actions, a collapsible
   filter sidebar, a two-step edit form, orange only for primary actions. (Done: compact Upload, tabs without the heading, header Menu, minimal theme.)
 - **Pass the memo's creation date from the Shortcut** as the date recorded (S).
