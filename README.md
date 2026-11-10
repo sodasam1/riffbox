@@ -109,9 +109,9 @@ docs/          the plan, the later-work plan, and docs/archive/ (the original pl
 
 - **Backups you do not have to remember:** the backup folder and nightly schedule (`deploy/PHASE8.md`), a practice restore with
   `deploy/restore.py`, and a routine for copying an export or the backup folder off the server. The code exists; the schedule does not.
-- **Speed, interface feel and upkeep** (decided: eventually, not now). Measured and written up in
-  `docs/PLAN-performance-ux-sustainability.md`:
-  - compress responses and cache the page files for a long time (about 264 KB per load becomes about 42 KB);
+- **Speed, interface feel and upkeep.** Measured and written up in `docs/PLAN-performance-ux-sustainability.md`.
+  Done and deployed: compression and long-lived caching of the page files (about 330 KB per load became about 55 KB; LCP about 2.8 s
+  to about 1.1 s in the lab). Still planned:
   - fix the three slow interactions (opening the Library, Select mode, Select all take 660 to 880 ms against a 200 ms
     target) by no longer rebuilding every row on each change;
   - load the Library list only when its tab opens, and start the list request together with the session check;

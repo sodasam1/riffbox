@@ -223,3 +223,11 @@ deploy runbook with the migration rehearsal and rollback drill: `deploy/GROUPS.m
 Groups are deployed and work (a quick check on iPhone Safari and Chrome; the restore of an export was not tried). The Phase 8 deploy
 gate items that were never done (nightly backup schedule, practice restore, off-server copy routine) are no longer treated as open
 work: they are listed under Planned features in `README.md`, `docs/PLAN.md` and the How this works page.
+
+## Compression, caching and group zip (merged to `main`; deployed and checked on the live site)
+Text answers are gzip-compressed and the page files carry a content fingerprint in their addresses and are cached for a year (the
+page itself is re-checked with a weak ETag); see `app/riffbox/webcache.py` and the progress note in
+`docs/PLAN-performance-ux-sustainability.md`. Lab numbers (300 recordings, throttled phone): about 330 KB to 55 KB per page load, the
+Library list 186 KB to 8.6 KB, LCP about 2.8 s to about 1.1 s. Live check by the owner: `content-encoding: gzip` and the
+`immutable` cache header are present; the group Download zip works. A grouped idea's Download gives every part as one zip (a folder
+named after the idea, files numbered in order); each part's own Download still gives that original.

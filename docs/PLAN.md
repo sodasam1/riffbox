@@ -116,7 +116,8 @@ instead of the browser.
 | Groups 4 | Keyboard: auto-open and collapse (manual-open stays open), arrows across parts, Random, triage with parts, select-all | Deployed |
 | Groups 5 | Resurface with whole groups, search over part titles (server done), group-aware export and restore tests, docs, migration runbook | Deployed |
 | Groups 6 | Optional: grouping suggestions from times, download all parts, play together | Not decided |
-| Later | Speed, interface feel and upkeep: `docs/PLAN-performance-ux-sustainability.md` | Planned, not started (owner: eventually, not now) |
+| After groups | Compression and long-lived caching; a grouped idea's Download gives a zip of all parts | Deployed and checked on the live site (headers and group zip) |
+| Next | Speed, interface feel and upkeep: `docs/PLAN-performance-ux-sustainability.md` (interaction speed, smaller list payload, then migrations, vendoring, WebKit/Firefox tests) | In progress on branch `speed-and-upkeep` |
 
 Quality gates today: 308 automated server tests on `main` (326 on `groups`) and 15 Playwright browser scripts (`tests/e2e/`), all passing. Each groups stage ends with a short manual checklist (`docs/CHECKLIST-groups.md`).
 
@@ -146,7 +147,7 @@ Groups are deployed and working (checked with a quick scroll on an iPhone in Saf
   filter toggle is moot once details are group-level (recommend dropping it); group length = longest part; part labels. Six
   stages on a `groups` branch: data layer and migration with no visible change, making groups, looks, keyboard, Resurface and
   export, then optional extras.
-- **Speed, interface and upkeep plan (decided to do eventually, not now):** compression and long-lived caching, fixing the three
+- **Speed, interface and upkeep plan (compression and caching done and deployed; the rest in progress):** fixing the three
   slow interactions (Library tab, Select mode, Select all: 660-880 ms against a 200 ms target), loading changes, theme variables,
   a smaller `app.js`, shared test helpers, WebKit/Firefox test runs, numbered migrations, a monthly self-test and a yearly-care
   checklist. Full detail, measurements and the recommended order are in `docs/PLAN-performance-ux-sustainability.md`.
