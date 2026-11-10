@@ -150,7 +150,7 @@ async function waitUp() {
     assert.strictEqual(await rows().count(), 2);
     const funky = page.locator("#list > li", { hasText: "Funky bass riff" });
     const show = async () => {
-      const text = await funky.innerText();
+      const text = await funky.evaluate((e) => e.textContent);      // textContent: a row just drawn may not have been laid out yet (off-screen rows are skipped until needed)
       assert.match(text, /118 BPM · D minor/);
       assert.doesNotMatch(text, /Fast|Slow|Medium/, "no tempo words are shown");
       assert.match(text, /hummed over Dm/);

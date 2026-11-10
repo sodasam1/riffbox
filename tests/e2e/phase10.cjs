@@ -174,7 +174,7 @@ const SEED = [
     await page.click("#dens-cozy");
 
     // ---- Select mode and bulk actions
-    assert.ok(await page.isHidden("#bulkbar") && (await page.locator(".rowsel").count()) === 0, "nothing to tick until Select is pressed");
+    assert.ok(await page.isHidden("#bulkbar") && (await page.locator(".rowsel:visible").count()) === 0, "nothing to tick until Select is pressed");
     await page.click("#select-toggle");
     await page.waitForSelector(".rowsel");
     assert.ok(await page.isVisible("#bulkbar"));
@@ -224,10 +224,10 @@ const SEED = [
     assert.strictEqual((await page.textContent("#bulk-count")).trim(), "1 selected", "rows hidden by a filter are no longer selected");
     await page.fill("#f-q", "");
     await page.click("#bulk-done");
-    assert.ok(await page.isHidden("#bulkbar") && (await page.locator(".rowsel").count()) === 0);
-    await page.click("#select-toggle"); await page.waitForSelector(".rowsel");
+    assert.ok(await page.isHidden("#bulkbar") && (await page.locator(".rowsel:visible").count()) === 0);
+    await page.click("#select-toggle"); await page.waitForSelector(".rowsel", { state: "visible" });
     await page.click("#tab-inbox"); await page.click("#tab-library");
-    assert.strictEqual(await page.locator(".rowsel").count(), 0, "leaving the Library ends Select mode");
+    assert.strictEqual(await page.locator(".rowsel:visible").count(), 0, "leaving the Library ends Select mode");
     console.log("ok  Select mode: ranges, add/remove tag, mark, move to Inbox, two-press trash, select all, filters un-tick hidden rows");
 
     // ---- Random

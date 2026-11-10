@@ -171,7 +171,12 @@ const dayKey = (iso) => {                         // the local calendar day, "20
   const d = new Date(iso);
   return isNaN(d) ? "" : d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 };
-const fmtDay = (iso) => { const d = new Date(iso); return isNaN(d) ? iso : d.toLocaleDateString([], { dateStyle: "medium" }); };
+// Formatters are made once, and each answer is remembered: building one per call was the slowest part of drawing a long list.
+const dayFormat = new Intl.DateTimeFormat([], { dateStyle: "medium" });
+const stampFormat = new Intl.DateTimeFormat([], { dateStyle: "medium", timeStyle: "medium" });
+const memo = (format) => { const seen = new Map(); return (iso) => { let r = seen.get(iso); if (r === undefined) { const d = new Date(iso); r = isNaN(d) ? null : format(d); seen.set(iso, r); } return r; }; };
+const dayText = memo((d) => dayFormat.format(d)), stampText = memo((d) => stampFormat.format(d));
+const fmtDay = (iso) => { const r = dayText(iso); return r === null ? iso : r; };
 const dateIsSet = (rec) => rec.recorded_at !== rec.uploaded_at;      // a date recorded was entered by hand
 const localNoon = (ymd) => { const [y, m, d] = ymd.split("-").map(Number); return new Date(y, m - 1, d, 12).toISOString(); };
 function whenText(rec) {
@@ -351,8 +356,8 @@ function shortDetails(rec) {
 }
 // A date for the table: just the day on screen, the full timestamp (local, then UTC as stored) in the tooltip.
 function dateCell(cls, iso) {
-  const when = new Date(iso);
-  const tip = isNaN(when) ? iso : when.toLocaleString([], { dateStyle: "medium", timeStyle: "medium" }) + "  (" + iso + ")";
+  const stamp = stampText(iso);
+  const tip = stamp === null ? iso : stamp + "  (" + iso + ")";
   return el("span", { class: cls, title: tip }, el("span", { class: "d-full" }, fmtDay(iso)), el("span", { class: "d-iso" }, dayKey(iso) || iso));
 }
 
@@ -473,7 +478,7 @@ function buildPartRows(rec) {
     const btn = el("button", { class: "play", type: "button" }, "▶");
     btn.addEventListener("click", () => togglePlay(rec, p));
     const lead = el("div", { class: "lead" });
-    if ((view === "library" || view === "inbox") && selecting) {       // ticking a part ticks the whole idea
+    if (view === "library" || view === "inbox") {                       // ticking a part ticks the whole idea
       const box = el("input", { type: "checkbox", class: "rowsel", "aria-label": "Select " + rec.title });
       box.checked = picked.has(rec.id);
       box.addEventListener("click", (e) => pickRow(rec.id, box.checked, e.shiftKey));
@@ -525,7 +530,7 @@ function buildRow(rec) {
   const btn = el("button", { class: "play", type: "button" }, "▶");
   btn.addEventListener("click", () => togglePlay(rec));
   const lead = el("div", { class: "lead" });
-  if ((view === "library" || view === "inbox") && selecting) {
+  if (view === "library" || view === "inbox") {                     // always there, shown only in Select mode (so switching it needs no redraw)
     const box = el("input", { type: "checkbox", class: "rowsel", "aria-label": "Select " + rec.title });
     box.checked = picked.has(rec.id);
     box.addEventListener("click", (e) => pickRow(rec.id, box.checked, e.shiftKey));
@@ -1438,13 +1443,17 @@ function pickRow(id, on, range) {
     if (a >= 0 && b >= 0) for (const i of ids.slice(Math.min(a, b), Math.max(a, b) + 1)) { if (on) picked.add(i); else picked.delete(i); }
   } else if (on) picked.add(id); else picked.delete(id);
   lastPicked = id;
+  syncPicked();
+}
+// Bring the highlight and tick boxes of every drawn row in line with `picked` (no rows are rebuilt).
+function syncPicked() {
   for (const li of document.querySelectorAll("#list > li")) {
     const yes = picked.has(Number(li.classList.contains("part") ? li.dataset.owner : li.dataset.id));
-    li.classList.toggle("picked", yes);
+    if (li.classList.contains("picked") !== yes) li.classList.toggle("picked", yes);
     const box = li.querySelector(".rowsel");
-    if (box) box.checked = yes;
+    if (box && box.checked !== yes) box.checked = yes;
   }
-  updateBulkBar();
+  if (!$("#bulkbar").hidden) updateBulkBar();
 }
 function updateBulkBar() {
   const n = picked.size, all = $("#bulk-all");
@@ -1473,12 +1482,21 @@ function fillSelect(select, placeholder, names) {
   if (keep === names.join("\n")) return;
   select.replaceChildren(el("option", { value: "" }, placeholder), ...names.map((t) => el("option", { value: t }, t)));
 }
-$("#select-toggle").addEventListener("click", () => { selecting = !selecting; if (!selecting) picked.clear(); lastPicked = null; render(); });
-$("#bulk-done").addEventListener("click", () => { selecting = false; picked.clear(); lastPicked = null; render(); });
+// Turning Select mode on or off, and Select all, only change classes and tick marks on the rows already drawn.
+function setSelecting(on) {
+  selecting = on; picked.clear(); lastPicked = null;
+  const canSelect = view === "library" || view === "inbox";
+  $("#results").classList.toggle("selecting", canSelect && selecting);
+  $("#select-toggle").setAttribute("aria-pressed", String(selecting));
+  $("#bulkbar").hidden = !(canSelect && selecting);
+  syncPicked();
+}
+$("#select-toggle").addEventListener("click", () => setSelecting(!selecting));
+$("#bulk-done").addEventListener("click", () => setSelecting(false));
 $("#bulk-all").addEventListener("change", (e) => {
   picked.clear();
   if (e.target.checked) for (const r of selectableRecs()) picked.add(r.id);
-  render();
+  syncPicked();
 });
 async function bulk(changes, done) {
   const ids = [...picked].map((id) => gidOf.get(id) ?? id);

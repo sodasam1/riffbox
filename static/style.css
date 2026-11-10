@@ -493,3 +493,11 @@ html[data-theme="minimal"][data-colors="dark"] { color-scheme: dark; --bg: #1010
 #menu .theme-group button { width: auto; flex: 1; text-align: center; padding: .4rem .3rem; min-height: 44px; border: 1px solid var(--line); background: none; }
 #menu .theme-group button[aria-pressed="true"] { border-color: var(--accent); font-weight: 700; background: var(--bg); }
 #list .caret-gap { display: inline-block; width: 4px; }
+
+/* ---- long lists stay quick: rows that are off screen are not laid out or painted until they scroll into view ---- */
+#list > li { content-visibility: auto; contain-intrinsic-size: auto 112px; }
+#list.compact > li { contain-intrinsic-size: auto 46px; }
+#list > li.part { contain-intrinsic-size: auto 50px; }
+#list > li:has(form.edit), #list > li.selected, #list > li.playing { content-visibility: visible; }       /* never hide a row being edited or followed */
+#list .rowsel { display: none; }
+#results.selecting #list .rowsel { display: inline-block; }
