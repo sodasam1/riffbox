@@ -320,3 +320,32 @@ def test_the_library_can_be_filtered_to_ideas_that_need_a_tempo_or_key_choice(tr
     c.patch(f"/api/groups/{flagged['id']}", json={"bpm": 90})
     assert c.get("/api/groups?status=tagged&unresolved=1").get_json()["groups"] == []
     assert c.get("/api/groups?status=tagged").get_json()["needs"] == 0
+
+
+def test_a_groups_download_is_a_zip_of_every_part_in_order(trio):
+    import io
+    import zipfile
+    c, made = trio
+    ids = [g for _r, g in made.values()]
+    g = c.post("/api/groups", json={"ids": ids, "title": "Verse / idea"}).get_json()["group"]
+    c.patch(f"/api/groups/{g['id']}", json={"parts": [{"id": g["parts"][2]["id"], "title": "Voice"}, {"id": g["parts"][0]["id"], "title": "Piano"},
+                                                   {"id": g["parts"][1]["id"], "title": "Piano"}]})
+    r = c.get(f"/api/groups/{g['id']}/download")
+    assert r.status_code == 200 and r.mimetype == "application/zip" and r.headers["Cache-Control"] == "no-store"
+    assert 'filename="Verse _ idea.zip"' in r.headers["Content-Disposition"]
+    z = zipfile.ZipFile(io.BytesIO(r.data))
+    names = z.namelist()
+    assert len(names) == 3 and all(n.startswith("Verse _ idea/") for n in names)
+    assert names[0].endswith("01 Voice.wav") and names[1].endswith("02 Piano.wav") and names[2].endswith("03 Piano.wav")      # the same name twice stays distinct
+    for part, name in zip(g["parts"][2:] + g["parts"][:2], names):
+        assert z.read(name) == c.get(f"/api/audio/{part['id']}").data                                       # byte for byte the originals
+    assert z.testzip() is None
+
+
+def test_a_groups_download_needs_a_login_a_live_idea_and_its_files(trio, client):
+    c, made = trio
+    gid = [g for _r, g in made.values()][0]
+    assert client.application.test_client().get(f"/api/groups/{gid}/download").status_code == 401
+    assert c.get("/api/groups/9999/download").status_code == 404
+    c.delete(f"/api/groups/{gid}")
+    assert c.get(f"/api/groups/{gid}/download").status_code == 404

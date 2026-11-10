@@ -372,3 +372,23 @@ def stream_zip(data_dir, include_trash=False, scratch=None, folder="riffbox-expo
         yield pipe.drain()
     finally:
         gen.close()
+
+
+def stream_files_zip(files, folder):
+    """Yield the bytes of a zip holding `files` ([(name inside the zip, Path)]) under one top folder, produced as it goes.
+    Used for "download all parts" of an idea. Audio is stored, not compressed: it is already compressed."""
+    pipe = _Pipe()
+    zf = zipfile.ZipFile(pipe, "w", zipfile.ZIP_STORED, allowZip64=True)
+    for name, path in files:
+        st = path.stat()
+        info = zipfile.ZipInfo(f"{folder}/{name}", time.localtime(max(st.st_mtime, 315532800))[:6])
+        info.compress_type = zipfile.ZIP_STORED
+        info.external_attr = 0o644 << 16
+        with open(path, "rb") as src, zf.open(info, "w", force_zip64=True) as entry:
+            for chunk in iter(functools.partial(src.read, CHUNK), b""):
+                entry.write(chunk)
+                data = pipe.drain()
+                if data:
+                    yield data
+    zf.close()
+    yield pipe.drain()
