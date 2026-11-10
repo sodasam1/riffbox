@@ -575,7 +575,9 @@ function buildRow(rec) {
     rate.append(b);
   }
   const side = el("div", { class: "side" }, edit,
-    el("a", { class: "dl", href: "api/audio/" + rec.id + "?download=1", title: rec.parts.length > 1 ? "Download the first recording" : "Download the original", "aria-label": "Download " + rec.title },
+    el("a", { class: "dl", href: rec.parts.length > 1 ? "api/groups/" + rec.gid + "/download" : "api/audio/" + rec.id + "?download=1",
+      title: rec.parts.length > 1 ? "Download all " + rec.parts.length + " parts as a zip (each part has its own Download below)" : "Download the original",
+      "aria-label": "Download " + (rec.parts.length > 1 ? "all parts of " : "") + rec.title },
       el("span", { class: "dl-full" }, "Download"), el("span", { class: "dl-short", "aria-hidden": "true" }, "↓")), rate);
   const li = el("li", { "data-id": String(rec.id), "data-gid": String(rec.gid), "data-title": rec.title,
                         "data-pids": rec.parts.map((p) => p.id).join(",") }, lead, info, side);

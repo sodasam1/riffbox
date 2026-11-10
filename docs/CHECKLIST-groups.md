@@ -18,7 +18,7 @@ Run on a restored copy of your real data first, then on the live site. Each stag
 - [ ] Select mode still behaves as before in the Library (tags, marks, Move to Inbox, Trash, Select all, shift-click).
 - [ ] Edit a grouped idea: rename and reorder parts, Save; Take out one part; Break up this idea. Every recording is still there afterwards.
 - [ ] Upload two files with "Upload several files as one idea" ticked: one idea with two parts in the Inbox; a normal multi-upload without the tick still makes separate ideas.
-- [ ] Trash a grouped idea and restore it: all parts, tags and notes come back. (Until stage 3 a grouped row plays and downloads its first part only.)
+- [ ] Trash a grouped idea and restore it: all parts, tags and notes come back.
 
 ## Stage 3: how groups look and play
 - [ ] A grouped idea is one row (caret, "N parts" badge; in Compact just the number). Singles look exactly as before.
@@ -42,3 +42,6 @@ Run on a restored copy of your real data first, then on the live site. Each stag
 - [ ] Library search for a word that is only in a part's name finds the idea and the row says "Matches part: …".
 - [ ] Export a library with a group: one `[idea N].md` note plus one audio file per part; `index.html` plays every part; a single idea's files are named as before.
 - [ ] `deploy/restore.py` on that export rebuilds the library with the group intact (see `deploy/GROUPS.md`, the rehearsal).
+
+## Group download as a zip
+- [ ] The Download button on a grouped idea's row gives a zip of every part (a folder named after the idea, files numbered `01`, `02`, …); the Download on a part's own line still gives that one original; a single idea's Download is unchanged.

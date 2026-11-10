@@ -11,11 +11,13 @@ import json
 import mimetypes
 import os
 import queue
+import re
 import shutil
 import sqlite3
 import tempfile
 import threading
 import time
+import urllib.parse
 import uuid
 from functools import wraps
 from pathlib import Path
@@ -870,6 +872,26 @@ def create_app(config=None):
             return jsonify(error="backups are not set up on the server (see the page for how)"), 404
         started = backup_runner.start()
         return jsonify(started=started), (202 if started else 409)
+
+    @bp.get("/api/groups/<int:gid>/download")
+    @require_auth()
+    def download_group(gid):
+        """All the original recordings of one idea as a zip (each part by its own name), streamed as it is made."""
+        g = group_or_404(gid)
+        parts = db().execute("SELECT * FROM recordings WHERE group_id = ? ORDER BY position, id", (gid,)).fetchall()
+        files = []
+        for n, r in enumerate(parts, 1):
+            path = audio_dir / r["filename"]
+            if not path.is_file():
+                abort(404)
+            files.append((f"{n:02d} {exporter.safe_name(r['title'], 60)}{path.suffix}", path))      # the number keeps equal names apart
+        title = exporter.safe_name(g["title"], 80)
+        resp = Response(exporter.stream_files_zip(files, title), mimetype="application/zip")
+        ascii_name = re.sub(r"[^A-Za-z0-9._ -]", "_", title) or "idea"
+        resp.headers["Content-Disposition"] = f"attachment; filename=\"{ascii_name}.zip\"; filename*=UTF-8''{urllib.parse.quote(title)}.zip"
+        resp.headers["Cache-Control"] = "no-store"
+        resp.headers["X-Accel-Buffering"] = "no"
+        return resp
 
     @bp.get("/api/export.zip")
     @require_auth()
