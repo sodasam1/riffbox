@@ -209,3 +209,12 @@ idea carries its parts, and the throttled page load's LCP moved from about 2.1 s
 list time is 9 ms. The planned compression and caching work (`docs/PLAN-performance-ux-sustainability.md`, items B1.1 and B1.2)
 removes most of that; it is not done yet. **Known gaps:** the export and the readable indexes do not carry a group's own
 details yet (stage 5); Resurface does not treat groups specially yet (stage 5).
+
+## Groups, stage 5 (branch `groups-stage5`, not merged)
+Resurface shows a hearted group once, whole, with every part and no caret; Surprise me starts it at the first part; arrow keys
+walk its parts. A Library search that matches only a part's name says so on the row. **Export**: an idea of several recordings is
+one note (`<date> <title> [idea N].md` with the idea's details, its parts and any tempo or key still to be chosen) plus one audio
+file per part (`<date> <title> - part 2 <label> [recording id].<ext>`); `index.csv` keeps one row per recording and gains
+`idea_id`, `idea_parts`, `part`, `part_title`; `index.html` groups the parts; a single idea exports exactly as before, and a
+database from before groups still exports. The restore tool round-trips an export with groups (`test_export_groups.py`). First
+deploy runbook with the migration rehearsal and rollback drill: `deploy/GROUPS.md`. Tests: `groups5.cjs`, `test_export_groups.py`.

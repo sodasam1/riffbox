@@ -3,7 +3,7 @@
      Quickstart, Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model, Keeping your data portable.
      UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
 
-<p class="meta">Last updated: 10 Nov 2026, after groups stage 4 (ideas made of several recordings). Written from what was
+<p class="meta">Last updated: 10 Nov 2026, after groups stage 5 (ideas made of several recordings). Written from what was
 checked on your server and in the tests; anything unverified is marked as such.</p>
 
 <h2>Quickstart</h2>
@@ -81,16 +81,21 @@ in ways you might not expect:</p>
     <em>Add to group&hellip;</em> in the Select bar adds the ticked ideas to an existing group.</li>
   <li><strong>Trash and Restore</strong> work on the whole idea. A restore can be refused if you uploaded the same audio again in
     the meantime.</li>
-  <li><strong>Not done yet:</strong> Resurface does not treat groups specially yet, and the export does not carry a group's own
-    details (see Planned features).</li>
+  <li><strong>Resurface</strong> brings back the whole idea: a hearted group appears once, with all its parts shown (there is no caret
+    to fold it), and <em>Surprise me</em> starts it at the first part. It counts as played if any part was played.</li>
+  <li><strong>Search</strong> finds an idea by the name of any of its parts, and the row says <em>Matches part: &hellip;</em> when that
+    is why it was found.</li>
+  <li><strong>The export</strong> writes an idea of several recordings as one note (<code>&hellip; [idea 7].md</code>: the idea's details,
+    its parts, and any tempo or key still to be chosen) plus one audio file per part (<code>&hellip; - part 2 Kit [13].m4a</code>). The
+    list in <code>index.csv</code> keeps one row per recording and ends with the columns <code>idea_id</code>, <code>idea_parts</code>,
+    <code>part</code> and <code>part_title</code>; <code>index.html</code> shows a group's parts together. A single idea exports exactly as before.</li>
 </ul>
 
 <h2>Planned features</h2>
 <p>Not built yet, roughly in order of how soon they are likely. The detailed plans are in the repository's <code>docs/</code>.</p>
 <ul>
-  <li><strong>Groups, stage 5.</strong> Resurface that always shows a whole group, an export that carries the group's details, and a
-    rehearsal of the migration on a copy of your data before the first deploy.
-    Possible afterwards: suggesting groups from recordings made close together in time, a zip of all parts, playing parts together.</li>
+  <li><strong>Groups, later:</strong> suggesting groups from recordings made close together in time, a zip of all parts, playing parts
+    together. First deploy of groups: rehearse on a copy of your data (<code>deploy/GROUPS.md</code>).</li>
   <li><strong>Speed and upkeep</strong> (decided: eventually): compressed responses and long-lived caching of the page files;
     fixing the slow Select / Library-tab interactions on large libraries; a smaller <code>app.js</code>; theme variables;
     numbered database migrations; a monthly self-test; pinned and vendored Flask and waitress.</li>
@@ -139,11 +144,9 @@ before the next starts, so a problem stays confined to the newest layer.</p>
       Shortcuts (confirmed working); editing in the Inbox; Library table (click-to-sort headings, Recorded and Uploaded
       columns, Compact rows, Select and bulk actions); Random; a Style choice (standard, minimal) and a separate Colors choice (auto, light, dark); tabs that no longer shift the layout; a
       restore tool (<code>deploy/restore.py</code>).</td><td><span class="status next">Built; awaiting your look on real devices</span></td></tr>
-    <tr><td>Groups 1&ndash;4</td><td>Ideas made of several recordings: the data layer and an additive migration (stage 1), making and
-      changing groups (stage 2), expandable rows, part playback and the player title (stage 3), arrow-key walking through parts, Random, Select and triage for groups (stage 4). See the Quickstart.</td>
+    <tr><td>Groups 1&ndash;5</td><td>Ideas made of several recordings: the data layer and an additive migration (stage 1), making and
+      changing groups (stage 2), expandable rows, part playback and the player title (stage 3), arrow-key walking through parts, Random, Select and triage for groups (stage 4), Resurface, search and export for groups (stage 5). See the Quickstart.</td>
       <td><span class="status next">Built and tested; migration rehearsal and deploy pending</span></td></tr>
-    <tr><td>Groups 5</td><td>Resurface and export for groups, final docs.</td>
-      <td><span class="status next">Planned</span></td></tr>
   </tbody>
 </table>
 </div>
@@ -422,9 +425,7 @@ your SFTP tool:</p>
     them). The export also compares each audio file with the checksum recorded when you uploaded it, and warns if one
     is damaged or missing.</li>
 </ul>
-<p><strong>Groups and the export (known gap, planned):</strong> the export still lists each recording on its own, using the
-details that recording kept when it joined its idea. The idea's own tags, notes and marks are in the database copy
-(<code>riffbox.db</code>, tables <code>idea_groups</code> and <code>group_tags</code>) but not yet in the readable notes and indexes.
+<p><strong>Groups and the export:</strong> an idea of several recordings is one note plus one audio file per part (see the Quickstart).
 Recordings in the Trash are left out unless you tick the box on the page (or add <code>--include-trash</code>). FLAC play copies are left out
 (they can be rebuilt from the originals). Other formats considered and not built: writing the details into the
 audio files' own tags (works for m4a, mp3 and flac, badly for wav) and a BagIt archive package (a library-world

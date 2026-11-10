@@ -13,6 +13,7 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
 | Speed, interface and upkeep work planned for later | `docs/PLAN-performance-ux-sustainability.md` |
 | Putting it on the server, routine deploys | `deploy/PHASE2.md` (and `deploy/PHASE3_5.md` for `ffmpeg`) |
 | Backups, the restore drill, exports | `deploy/PHASE8.md` |
+| First deploy of groups (migration rehearsal, rollback) | `deploy/GROUPS.md` |
 | Uploading from the iPhone | `deploy/SHORTCUT.md` |
 | Removing everything Riffbox added to the server | `deploy/UNINSTALL.md` |
 | A plain-language tour, inside the app | the **How this works** page (Menu), served only to a logged-in session |
@@ -23,6 +24,11 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
   Shortcuts. Duplicates are recognised by checksum. New recordings land in the **Inbox**.
 - **Organize:** an optional intake form (title, tags, marks, BPM with tap tempo, key, date recorded, notes), a keyboard
   **triage** mode for the Inbox, and ♥ / ✓ / ✗ marks (✓ can name the song it became).
+- **Groups:** recordings that only make sense together (keys, drums and a vocal memo of one idea) can be made into one idea:
+  Select, tick, **Group…** (one click; a tempo or key the parts disagree on is kept and flagged to pick later), or upload
+  several files as one idea. The idea shows as one row that opens to its parts; its tags, tempo, key, notes and marks belong to
+  the group, and arrow keys, playback, Random, Resurface, search and the export all understand it. Details and quirks: the
+  Quickstart on the **How this works** page; first deploy: `deploy/GROUPS.md`.
 - **Find and listen:** a Library with search, tag, BPM, key and mark filters; a table with click-to-sort headings, Cozy or
   Compact rows, Select mode with bulk actions, **Random**, and **Resurface** (hearted ideas you have not played lately).
   A player with a waveform, scrubbing, speed, A-B loop and Download. Style (standard or minimal) and colours (auto, light or dark) are separate choices in the Menu.
@@ -110,12 +116,6 @@ docs/          the plan, the later-work plan, and docs/archive/ (the original pl
   - one set of theme variables instead of a long override list; a smaller `app.js`; shared helpers for the browser tests;
   - run browser tests in WebKit and Firefox as well; numbered database migrations; a monthly self-test; a yearly-care
     checklist; pin and vendor Flask and waitress.
-- **Groups** (stages 1 to 3 of 5 built on the `groups` branch, not merged or deployed): one idea made of several recordings
-  (keys, drums and vocal memos). Built: the data layer and migration, making and changing groups (Select mode also in the Inbox,
-  *Group…*, *Add to group…*, upload several files as one idea, a Parts list in the edit form), expandable rows and part playback.
-  Still to do: keyboard play-through that opens and closes groups as you arrow through them, Resurface bringing up the whole
-  group, an export that carries the group's details, and a rehearsal of the migration on a copy of your data. Spec, status and
-  stages: `docs/PLAN-groups.md`; short manual checks per stage: `docs/CHECKLIST-groups.md`.
 - **Interface clean-up:** an idle player that stays slim, one row-actions menu, collapsible filter groups, a two-step edit
   form, orange only for primary actions.
 - **Candidate features:** an off-server copy reminder and a Verify-library button; timestamped markers on the waveform; the memo's creation date passed from the Shortcut as the date recorded; a
