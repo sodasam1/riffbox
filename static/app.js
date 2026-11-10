@@ -466,7 +466,7 @@ function buildRow(rec) {
   info.append(el("span", { class: "c-len", title: fmtSize(rec.size) }, rec.duration_s ? fmtTime(rec.duration_s) : ""),
     dateCell("c-rec", rec.recorded_at), dateCell("c-up", rec.uploaded_at));
   const edit = el("button", { class: "link edit-btn", type: "button", "aria-expanded": String(openEditId === rec.id) },
-    rec.status === "inbox" ? "Tag" : "Edit");
+    "Edit");
   edit.addEventListener("click", () => {
     openEditId = openEditId === rec.id ? null : rec.id;
     notify("");
@@ -618,10 +618,18 @@ function buildForm(rec) {
   form.append(field("Notes", notes, "f-notes-" + id));
 
   const err = el("p", { class: "error", role: "alert", hidden: "" });
-  const save = el("button", { type: "submit", class: "primary" }, rec.status === "inbox" ? "Save and move to Library" : "Save");
+  // "Save" keeps the recording where it is (so a half-filled form can be saved in the Inbox); in the Inbox a second
+  // button saves and moves it to the Library. Enter in a field is a plain Save.
+  const save = el("button", { type: "submit", class: "primary" }, "Save");
   const cancel = el("button", { type: "button" }, "Cancel");
   cancel.addEventListener("click", () => { openEditId = null; notify(""); render(); });
-  const actions = el("div", { class: "actions" }, save, cancel);
+  const actions = el("div", { class: "actions" }, save);
+  if (rec.status === "inbox") {
+    const move = el("button", { type: "button", class: "save-move" }, "Save and move to Library");
+    move.addEventListener("click", () => submit("tagged"));
+    actions.append(move);
+  }
+  actions.append(cancel);
   let back = null;
   if (rec.status !== "inbox") { back = el("button", { type: "button", class: "link" }, "Move back to Inbox"); actions.append(back); }
   const del = el("button", { type: "button", class: "link danger" }, "Delete");
@@ -674,9 +682,10 @@ function buildForm(rec) {
     }
     openEditId = null;
     await loadList();
-    notify(status === "inbox" ? "Moved back to Inbox." : rec.status === "inbox" ? "Saved. Moved to Library." : "Saved.");
+    notify(status === rec.status ? (status === "inbox" ? "Saved. Still in the Inbox." : "Saved.")
+      : status === "inbox" ? "Moved back to Inbox." : "Saved. Moved to Library.");
   };
-  form.addEventListener("submit", (e) => { e.preventDefault(); submit("tagged"); });
+  form.addEventListener("submit", (e) => { e.preventDefault(); submit(rec.status); });
   if (back) back.addEventListener("click", () => submit("inbox"));
   return form;
 }

@@ -130,7 +130,7 @@ async function waitUp() {
     await form.locator("select[id^=f-mode-]").selectOption("minor");
     await form.locator("textarea").fill("hummed over Dm,\nsecond line");
     await page.screenshot({ path: path.join(tmp, "form.png"), fullPage: true });
-    await form.locator("button[type=submit]").click();
+    await form.locator("button", { hasText: "Save and move to Library" }).click();
     await waitTab("#tab-inbox", "Inbox (1)");
     await waitTab("#tab-library", "Library (1)");
     assert.strictEqual(await notice(), "Saved. Moved to Library.");
@@ -139,7 +139,7 @@ async function waitUp() {
 
     // --- an untouched form saves too (all fields optional)
     await rows().first().locator("button.edit-btn").click();
-    await page.locator("#list form.edit button[type=submit]").click();
+    await page.locator("#list form.edit").locator("button", { hasText: "Save and move to Library" }).click();
     await waitTab("#tab-library", "Library (2)");
     await waitTab("#tab-inbox", "Inbox");
     await page.waitForFunction(() => /Nothing waiting to be tagged/.test(document.querySelector("#empty").textContent));
@@ -195,7 +195,7 @@ async function waitUp() {
     assert.strictEqual(await page.locator("#list form.edit textarea").inputValue(), "keep me");
     console.log("ok  an upload completing while a form is open leaves the form (and its text) alone");
     await f3.locator("input[type=number]").fill("120");
-    await f3.locator("button[type=submit]").click();
+    await f3.locator("button", { hasText: "Save and move to Library" }).click();
     await waitTab("#tab-inbox", "Inbox (1)");
     await page.waitForFunction(() => document.querySelector("#list > li") !== null);
     assert.strictEqual(await rows().count(), 1, "the new upload shows up once the form is closed");
