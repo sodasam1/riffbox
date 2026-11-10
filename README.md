@@ -110,9 +110,12 @@ docs/          the plan, the later-work plan, and docs/archive/ (the original pl
   - one set of theme variables instead of a long override list; a smaller `app.js`; shared helpers for the browser tests;
   - run browser tests in WebKit and Firefox as well; numbered database migrations; a monthly self-test; a yearly-care
     checklist; pin and vendor Flask and waitress.
-- **Groups** (next big feature, designed, not started): one idea made of several recordings (keys, drums and vocal memos), with
-  the details on the group, expandable rows, grouping from Select mode in the Inbox and Library, keyboard play-through, and
-  Resurface bringing up the whole group. Spec, open questions and a six-stage plan: `docs/PLAN-groups.md`.
+- **Groups** (stages 1 to 3 of 5 built on the `groups` branch, not merged or deployed): one idea made of several recordings
+  (keys, drums and vocal memos). Built: the data layer and migration, making and changing groups (Select mode also in the Inbox,
+  *Group…*, *Add to group…*, upload several files as one idea, a Parts list in the edit form), expandable rows and part playback.
+  Still to do: keyboard play-through that opens and closes groups as you arrow through them, Resurface bringing up the whole
+  group, an export that carries the group's details, and a rehearsal of the migration on a copy of your data. Spec, status and
+  stages: `docs/PLAN-groups.md`; short manual checks per stage: `docs/CHECKLIST-groups.md`.
 - **Interface clean-up:** an idle player that stays slim, one row-actions menu, collapsible filter groups, a two-step edit
   form, orange only for primary actions.
 - **Candidate features:** an off-server copy reminder and a Verify-library button; timestamped markers on the waveform; the memo's creation date passed from the Shortcut as the date recorded; a

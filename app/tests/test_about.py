@@ -22,10 +22,11 @@ def test_served_as_html_to_a_logged_in_session(client):
     assert b"Planned features" in r.data
 
 
-def test_section_order_is_planned_features_then_roadmap_then_the_rest():
+def test_section_order_is_quickstart_then_planned_features_then_roadmap_then_the_rest():
     headings = re.findall(r"<h2>(.*?)</h2>", ABOUT.read_text(), re.S)
     plain = [re.sub(r"<[^>]+>", "", h).strip() for h in headings]
     assert plain == [
+        "Quickstart",
         "Planned features",
         "Roadmap and progress",
         "Context",
