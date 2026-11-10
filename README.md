@@ -12,7 +12,6 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
 | The current plan, principles and open items | `docs/PLAN.md` (the original plan is kept in `docs/archive/`) |
 | Speed, interface and upkeep work planned for later | `docs/PLAN-performance-ux-sustainability.md` |
 | Putting it on the server, routine deploys | `deploy/PHASE2.md` (and `deploy/PHASE3_5.md` for `ffmpeg`) |
-| Starting without the installed Flask and waitress; updating the vendored copies | `vendor/README.md` |
 | Backups, the restore drill, exports | `deploy/PHASE8.md` |
 | First deploy of groups (migration rehearsal, rollback) | `deploy/GROUPS.md` |
 | Uploading from the iPhone | `deploy/SHORTCUT.md` |
@@ -61,13 +60,6 @@ RIFFBOX_BROWSER=webkit  RIFFBOX_PY=app/.venv/bin/python node tests/e2e/phase3.cj
 `RIFFBOX_BROWSER=webkit` or `firefox` (after `npx playwright install webkit firefox`) runs the same script in that engine; the
 scripts that use Chromium's DevTools protocol say so and stop. (Not yet run against those engines: see the status in `PHASES.md`.)
 
-Starting the app from the vendored copies of Flask and waitress, with nothing but Python (see `vendor/README.md`):
-
-```sh
-RIFFBOX_DATA_DIR=/tmp/riffbox-data RIFFBOX_SECRET=dev RIFFBOX_PASSPHRASE=pw RIFFBOX_INSECURE_COOKIES=1 sh deploy/run-vendored.sh
-python3 deploy/verify_vendor.py     # the vendored files are exactly what was recorded
-```
-
 Measurements of load time, payload size and interaction speed (see `docs/PLAN-performance-ux-sustainability.md`):
 
 ```sh
@@ -100,7 +92,6 @@ app/riffbox/   the server: __init__.py (routes), groups.py (ideas made of record
                (list queries), media.py (ffmpeg, codec), migrations.py (numbered database changes), webcache.py (compression
                and cached page files), exporter.py, restorer.py and backup.py (shared with deploy/), health.py, throttle.py,
                config.py, schema.sql, about.html (the private How this works page)
-vendor/        Flask, waitress and their helpers, kept with the code (vendor/README.md)
 app/tests/     server tests (pytest);  app/wsgi.py  the production entry point
 static/        the page: index.html, app.js, style.css, theme.js
 tests/e2e/     browser tests (Playwright);  tests/perf/  measurements
@@ -124,7 +115,7 @@ docs/          the plan, the later-work plan, and docs/archive/ (the original pl
   `deploy/restore.py`, and a routine for copying an export or the backup folder off the server. The code exists; the schedule does not.
 - **Speed, interface feel and upkeep.** Measured and written up in `docs/PLAN-performance-ux-sustainability.md`.
   Done: compression and long-lived caching (deployed); on branch `speed-and-upkeep`: much faster Library, Select mode and
-  Select all, revalidated lists, numbered database migrations, vendored Flask and waitress, and test scripts that can run in WebKit
+  Select all, revalidated lists, numbered database migrations, all eight dependencies pinned to exact versions, and test scripts that can run in WebKit
   and Firefox. Still planned:
   - load the Library list only when its tab opens, and start the list request together with the session check;
   - one set of theme variables instead of a long override list; a smaller `app.js`; shared helpers for the browser tests;

@@ -162,7 +162,7 @@ tests (15 scripts, each copying its own setup).
 11. **Numbered database migrations** with `PRAGMA user_version`, replacing the ad hoc `ALTER TABLE` in `migrate()`.
 12. **A self-test script** (tests, an export, a restore drill) that cron can run monthly and mail only on failure.
 13. **A "yearly care" checklist** in the README: OS and Python upgrades, restore drill, export check, certificate renewal.
-14. **Pin and vendor Flask and waitress** (pure Python; keep exact copies in the repo and an install-from-that-copy path).
+14. **Pin and vendor Flask and waitress** (pure Python; keep exact copies in the repo and an install-from-that-copy path). **(vendoring dropped; the pins are done)**
     Then reconsider a standard-library-only server (see `docs/PLAN.md`): the hard part is reading file uploads, which Python
     removed from its standard library in 3.13; sending the file as a plain request body would avoid needing it.
 
@@ -174,7 +174,7 @@ tests (15 scripts, each copying its own setup).
 4. Variable-based themes (B2.6), then the `app.js` clean-up (B2.7) once the interaction work has reshaped it.
 5. The test helper and the WebKit/Firefox runs (B2.9, B3.10), the migrations and self-test (B3.11, B3.12), and the
    yearly-care checklist (B3.13).
-6. Vendoring (B3.14) at any point; it is independent of the rest.
+6. ~~Vendoring (B3.14)~~: tried and removed (see section 7). Pinning is done.
 
 Before starting: re-run `tests/perf/measure.cjs` for a fresh baseline, and keep the 308 server tests and 15 browser scripts
 green at every step. Most of these changes touch behaviour the browser tests pin down, so update those tests deliberately,
@@ -205,8 +205,8 @@ Library list only when its tab opens; the list is 8.6 KB compressed, so the gain
 every saved copy unusable (the cookie never matched the one the copy was stored under); the revalidated lists no longer say it. Trimming unused
 fields from the list was measured as not worth it (the compressed list is 8.6 KB).
 **B3 upkeep (done).** Numbered migrations (`app/riffbox/migrations.py`, `PRAGMA user_version`; existing databases are adopted as version 2, a
-copy is kept in `before-migration/`); vendored Flask, waitress and helpers in `vendor/` with licences, a checksum manifest
-(`deploy/verify_vendor.py`), `deploy/run-vendored.sh` and tests that start the app from only Python and `vendor/`; the browser tests can run in
+copy is kept in `before-migration/`); all eight dependencies pinned to exact versions in `app/requirements.txt`. **Vendoring (B3.14) was built, then
+removed at the owner's request: it tripled the size of the application for little benefit.** The browser tests can run in
 WebKit and Firefox (`RIFFBOX_BROWSER`, `tests/e2e/_browser.cjs`). **Not verified:** the scripts have **not been run** in WebKit or Firefox, because those
 engines could not be downloaded in the build environment (the network blocks the download host). Run them on a computer with the engines installed.
 **Still planned:** theme variables (B2.6), a smaller `app.js` (B2.7), shared test helpers (B2.9), the monthly self-test (B3.12), the yearly-care checklist (B3.13).

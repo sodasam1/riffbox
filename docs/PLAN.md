@@ -117,7 +117,7 @@ instead of the browser.
 | Groups 5 | Resurface with whole groups, search over part titles (server done), group-aware export and restore tests, docs, migration runbook | Deployed |
 | Groups 6 | Optional: grouping suggestions from times, download all parts, play together | Not decided |
 | After groups | Compression and long-lived caching; a grouped idea's Download gives a zip of all parts | Deployed and checked on the live site (headers and group zip) |
-| Next | Speed, interface feel and upkeep: `docs/PLAN-performance-ux-sustainability.md` (interaction speed, smaller list payload, then migrations, vendoring, WebKit/Firefox tests) | Built and tested on branch `speed-and-upkeep` (interaction speed, revalidated lists, numbered migrations, vendored libraries, engine-selectable browser tests); awaiting deploy and check |
+| Next | Speed, interface feel and upkeep: `docs/PLAN-performance-ux-sustainability.md` (interaction speed, smaller list payload, then migrations, pinned dependencies, WebKit/Firefox tests) | Built and tested on branch `speed-and-upkeep` (interaction speed, revalidated lists, numbered migrations, every dependency pinned, engine-selectable browser tests); awaiting deploy and check |
 
 Quality gates today: 308 automated server tests on `main` (326 on `groups`) and 15 Playwright browser scripts (`tests/e2e/`), all passing. Each groups stage ends with a short manual checklist (`docs/CHECKLIST-groups.md`).
 
@@ -153,8 +153,9 @@ Groups are deployed and working (checked with a quick scroll on an iPhone in Saf
   checklist. Full detail, measurements and the recommended order are in `docs/PLAN-performance-ux-sustainability.md`.
 - **Off-server copy reminder and a Verify-library button** (S): warn when no export or backup has been taken off the server
   for N days; re-check every audio file against its upload checksum.
-- **Pin and vendor the dependencies** (S to M): keep the exact Flask, waitress and helper packages in the repo with an
-  install-from-that-copy path. The biggest 20-year risk per hour of effort.
+- **Vendoring the dependencies: decided against** (10 Nov): all eight packages are pinned to exact versions in `app/requirements.txt`, but
+  copies are not kept in the repository (it tripled the size of the application for little benefit). The real long-term answer to the
+  dependency risk is the standard-library-only server (below).
 - **Timestamped markers on the waveform** (M): short notes at positions in a recording, included in the export.
 - **Interface decluttering, remaining proposals:** an idle player that stays slim, one menu for the row actions, a collapsible
   filter sidebar, a two-step edit form, orange only for primary actions. (Done: compact Upload, tabs without the heading, header Menu, minimal theme, dark theme, spaced button groups in the tab row.)
@@ -172,7 +173,7 @@ Groups are deployed and working (checked with a quick scroll on an iPhone in Saf
 
 ## 8. Risks and limits
 - **Dependencies:** Flask and its six helper packages are the weakest point over decades (major-version changes, OpenBSD
-  packages eventually dropped). SQLite and plain audio files are very low risk. Mitigation: pinned versions, vendoring,
+  packages eventually dropped). SQLite and plain audio files are very low risk. Mitigation: pinned versions,
   yearly restore drill, and the export bundle that needs none of this code.
 - **Storage:** a 25 GB disk; a same-disk backup stores each recording twice. The status line forecasts this.
 - **iPhone:** the Outbox design keeps every memo safe until the server confirms it; very long memos and a locked phone mid-upload are still untried.

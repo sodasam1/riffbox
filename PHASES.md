@@ -235,8 +235,8 @@ named after the idea, files numbered in order); each part's own Download still g
 ## Speed and upkeep (branch `speed-and-upkeep`; built and tested, not merged or deployed)
 Interaction speed (date formatters made once, off-screen rows skipped, Select mode and Select all change the rows already drawn); lists
 that revalidate with an ETag (and no `Vary: Cookie`, which had made the browser's copies unusable); numbered database migrations with a copy kept
-before the first one (`app/riffbox/migrations.py`); Flask, waitress and their helpers vendored (`vendor/`, `deploy/verify_vendor.py`,
-`deploy/run-vendored.sh`); browser tests selectable by engine (`RIFFBOX_BROWSER`). Numbers and what was not done:
+before the first one (`app/riffbox/migrations.py`); all eight dependencies pinned to exact versions in `app/requirements.txt` (vendoring them in the repository was
+tried and removed at the owner's request: it tripled the size of the application for little benefit); browser tests selectable by engine (`RIFFBOX_BROWSER`). Numbers and what was not done:
 `docs/PLAN-performance-ux-sustainability.md` section 7. Not verified: the browser tests in WebKit and Firefox (the engines could not be downloaded
 in the build environment). Review: a migration rehearsal on a database made by the pre-groups code (identical lists, a copy kept, numbered 2).
 Short manual checks: `docs/CHECKLIST-speed-and-upkeep.md`.
