@@ -1,11 +1,11 @@
-# Riffbox: current plan (updated 10 Nov 2026, groups stage 1 built)
+# Riffbox: current plan (updated 10 Nov 2026, groups stages 1 to 5 built)
 
 The original plan is archived, unchanged, at `docs/archive/plan-original-2026-11-08.md` in the repository. This version
 reflects what was actually built, the principles that emerged, and what comes next. Day-to-day status lives in
 `PHASES.md`; the owner-facing explanation is the app's private **How this works** page. This file is committed as
 `docs/PLAN.md`. The detailed, measured proposal for speed, interface feel and long-term upkeep (not built yet, to be done
 eventually) is `docs/PLAN-performance-ux-sustainability.md`. The design and staged plan for **groups** (one idea made of several
-recordings; stage 1 of 5 built on the `groups` branch) is `docs/PLAN-groups.md`; its short manual test lists are in
+recordings; stages 1 to 4 merged to `main`, stage 5 on `groups-stage5`) is `docs/PLAN-groups.md`; its short manual test lists are in
 `docs/CHECKLIST-groups.md`.
 
 ## 1. What Riffbox is
@@ -114,7 +114,7 @@ instead of the browser.
 | Groups 2 | Making and changing groups: Select mode in the Inbox, one-click Group… (clashing tempo/key kept and flagged to resolve later in Edit), Add to group…, upload as one idea, Parts list in the edit form, group trash and restore | Built and tested on branch `groups`; a grouped row plays and downloads its first part until stage 3 |
 | Groups 3 | Looks: expandable rows with caret and parts badge, Compact and minimal theme, player "part n of m", auto-advance | Built and tested on branch `groups` |
 | Groups 4 | Keyboard: auto-open and collapse (manual-open stays open), arrows across parts, Random, triage with parts, select-all | Built and tested on branch `groups` |
-| Groups 5 | Resurface with whole groups, search over part titles (server done), group-aware export and restore tests, docs, migration runbook | Planned |
+| Groups 5 | Resurface with whole groups, search over part titles (server done), group-aware export and restore tests, docs, migration runbook | Built and tested on branch `groups-stage5` |
 | Groups 6 | Optional: grouping suggestions from times, download all parts, play together | Not decided |
 | Later | Speed, interface feel and upkeep: `docs/PLAN-performance-ux-sustainability.md` | Planned, not started (owner: eventually, not now) |
 

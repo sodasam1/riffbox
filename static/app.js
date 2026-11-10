@@ -463,7 +463,8 @@ function render() {
 
 const openParts = new Set();     // ideas whose parts are shown because you opened them (with the caret): they stay open
 const autoOpened = new Set();    // ideas opened by arrowing onto them: they close again when you move off them
-const isOpen = (rec) => openParts.has(rec.gid) || autoOpened.has(rec.gid);
+// Resurface always shows an idea whole, with every part; elsewhere an idea is open if you (or the arrow keys) opened it.
+const isOpen = (rec) => (view === "resurface" && rec.parts.length > 1) || openParts.has(rec.gid) || autoOpened.has(rec.gid);
 const rowFor = (rec) => document.querySelector('#list > li[data-id="' + rec.id + '"]');
 
 // The rows for the recordings inside an idea, shown under it when it is open.
@@ -513,6 +514,13 @@ function showParts(rec, li, on) {
   markPlaying();
 }
 
+// For a search: the names of the parts (of an idea of several) that contain one of the searched words.
+function partsMatching(rec) {
+  if (rec.parts.length < 2 || !filters.q.trim()) return "";
+  const words = filters.q.toLowerCase().split(/\s+/).filter(Boolean);
+  return rec.parts.filter((p) => words.some((w) => p.title.toLowerCase().includes(w))).map((p) => p.title).join(", ");
+}
+
 function buildRow(rec) {
   const btn = el("button", { class: "play", type: "button" }, "▶");
   btn.addEventListener("click", () => togglePlay(rec));
@@ -540,7 +548,10 @@ function buildRow(rec) {
     for (const t of rec.tags) tags.append(el("span", { class: "chip tag" }, t));
     info.append(tags);
   }
-  if (rec.notes) info.append(el("div", { class: "meta notes" }, rec.notes));
+  let noteText = rec.notes || "";
+  const hit = view === "library" ? partsMatching(rec) : "";                     // searched words found in a part's name
+  if (hit) noteText = "Matches part: " + hit + (noteText ? " · " + noteText : "");
+  if (noteText) info.append(el("div", { class: "meta notes" }, noteText));
   // Table-only cells (hidden in the stacked layout, which shows the same facts in the line under the title)
   info.append(el("span", { class: "c-len", title: fmtSize(rec.size) }, rec.duration_s ? fmtTime(rec.duration_s) : ""),
     dateCell("c-rec", rec.recorded_at), dateCell("c-up", rec.uploaded_at));
@@ -570,9 +581,9 @@ function buildRow(rec) {
                         "data-pids": rec.parts.map((p) => p.id).join(",") }, lead, info, side);
   if (rec.parts.length > 1) {
     const open = isOpen(rec);
-    const caret = el("button", { class: "caret", type: "button", "aria-expanded": String(open),
+    const caret = view === "resurface" ? el("span", { class: "caret-gap", "aria-hidden": "true" }) : el("button", { class: "caret", type: "button", "aria-expanded": String(open),
       "aria-label": (open ? "Hide the " : "Show the ") + rec.parts.length + " parts of " + rec.title }, open ? "▾" : "▸");
-    caret.addEventListener("click", () => toggleParts(rec, li));
+    if (view !== "resurface") caret.addEventListener("click", () => toggleParts(rec, li));
     const t = info.querySelector(".title");
     t.classList.add("has-parts");                       // the badge stays visible when a long title is cut short
     t.replaceChildren(caret, el("span", { class: "tt" }, rec.title), el("span", { class: "chip parts", title: rec.parts.length + " recordings in this idea" }, String(rec.parts.length), el("span", { class: "p-w" }, " parts")));

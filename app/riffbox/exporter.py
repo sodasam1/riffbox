@@ -5,7 +5,10 @@ browser (the "Backup and export" page). Both are driven by the same `pump()` so 
 
 What comes out (see README.txt inside every export):
   recordings/   each original audio file under a readable name ("2026-03-01 Title [12].m4a") with a matching
-                note ("... [12].md": details at the top, your notes below; an Obsidian vault opens it as it is)
+                note ("... [12].md": details at the top, your notes below; an Obsidian vault opens it as it is).
+                An idea made of several recordings has ONE note ("2026-03-01 Title [idea 7].md": the idea's details,
+                its parts and the tempo or key choices still open) and one audio file per part, named
+                "2026-03-01 Title - part 2 Drums [13].m4a", so the association survives without the database.
   index.html    every recording with a play control (works from a double-click, no server)
   index.csv     the same list for a spreadsheet
   riffbox.db    a consistent copy of the database
@@ -36,6 +39,7 @@ README = (
     "RIFFBOX EXPORT\n==============\n"
     "recordings/  your original audio files with readable names; each has a .md note beside it\n"
     "             (details between the --- lines, your notes below). Plain text: any editor opens it.\n"
+    "             An idea made of several recordings has one note ([idea N]) and its parts are named 'part 1', 'part 2', ...\n"
     "index.html   open in a web browser to see and play everything (no server needed)\n"
     "index.csv    the same list for a spreadsheet\n"
     "riffbox.db   the complete database, in SQLite format (any SQLite tool opens it)\n"
@@ -76,36 +80,77 @@ def _note_text(r, tags, audio_name):
     return "\n".join(lines)
 
 
-def _csv_bytes(listing):
+def _idea_note_text(idea, files):
+    """One note for an idea of several recordings: the idea's details, then each part."""
+    r, parts = idea["g"], idea["parts"]
+    lines = ["---", f"title: {_q(r['title'])}", f"recorded: {_q(r['recorded_at'])}", f"uploaded: {_q(r['uploaded_at'])}",
+             f"status: {'inbox' if r['status'] == 'inbox' else 'library'}"]
+    if r["bpm"]:
+        lines.append(f"bpm: {r['bpm']}")
+    if _key_text(r):
+        lines.append(f"key: {_q(_key_text(r))}")
+    for kind, options in (idea.get("unresolved") or {}).items():          # tempo or key the parts disagreed on, still to be chosen
+        texts = [(f"{o['value']} BPM" if kind == "bpm" else " ".join(x for x in (o.get("key_root"), o.get("key_mode")) if x))
+                 + " (" + ", ".join(o.get("from", [])) + ")" for o in options]
+        lines.append(f"{kind}_still_to_choose: [" + ", ".join(_q(t) for t in texts) + "]")
+    if r["rating"]:
+        lines.append(f"mark: {r['rating']}")
+    if r["used_in"]:
+        lines.append(f"used_in: {_q(r['used_in'])}")
+    lines.append("tags: [" + ", ".join(_q(t) for t in idea["tags"]) + "]")
+    lines.append("parts:")
+    for part, name in files:
+        lines += [f"  - label: {_q(part['title'])}", f"    audio: {_q(name)}", f"    sha256: {_q(part['sha256'])}"]
+    lines += ["---", ""]
+    lines += [f"![[{name}]]" for _p, name in files]
+    lines.append("")
+    if r["notes"]:
+        lines += [r["notes"], ""]
+    return "\n".join(lines)
+
+
+def _csv_bytes(ideas):
+    """One row per recording. The details are the idea's; the last columns say which idea and part a recording is."""
     buf = io.StringIO(newline="")
     w = csv.writer(buf)
     w.writerow(["id", "title", "audio_file", "recorded", "uploaded", "status", "bpm", "key", "mark", "used_in",
-                "tags", "notes", "sha256"])
-    for r, tg, name in listing:
-        w.writerow([r["id"], r["title"], "recordings/" + name, r["recorded_at"], r["uploaded_at"], r["status"],
-                    r["bpm"] or "", _key_text(r), r["rating"] or "", r["used_in"] or "", "; ".join(tg), r["notes"],
-                    r["sha256"]])
-    return ("﻿" + buf.getvalue()).encode("utf-8")        # BOM so Excel reads accents
+                "tags", "notes", "sha256", "idea_id", "idea_parts", "part", "part_title"])
+    for idea in ideas:
+        g, many = idea["g"], len(idea["parts"]) > 1
+        for n, (r, name) in enumerate(idea["files"], 1):
+            w.writerow([r["id"], g["title"], "recordings/" + name, g["recorded_at"], g["uploaded_at"], g["status"],
+                        g["bpm"] or "", _key_text(g), g["rating"] or "", g["used_in"] or "", "; ".join(idea["tags"]), g["notes"],
+                        r["sha256"], idea["id"], len(idea["parts"]), n if many else "", r["title"] if many else ""])
+    return ("\ufeff" + buf.getvalue()).encode("utf-8")        # BOM so Excel reads accents
 
 
-def _html_bytes(listing):
+def _href(name):
+    return "recordings/" + name.replace("%", "%25").replace("#", "%23").replace("?", "%3F").replace(" ", "%20")
+
+
+def _html_bytes(ideas):
     body = []
-    for r, tg, name in listing:
-        href = "recordings/" + name.replace("%", "%25").replace("#", "%23").replace("?", "%3F").replace(" ", "%20")
-        extra = " · ".join(x for x in (f"{r['bpm']} BPM" if r["bpm"] else "", _key_text(r), MARKS.get(r["rating"], ""),
-                                       f"used in {r['used_in']}" if r["used_in"] else "") if x)
+    for idea in ideas:
+        g = idea["g"]
+        extra = " · ".join(x for x in (f"{g['bpm']} BPM" if g["bpm"] else "", _key_text(g), MARKS.get(g["rating"], ""),
+                                       f"used in {g['used_in']}" if g["used_in"] else "") if x)
+        players = []
+        for r, name in idea["files"]:
+            label = f"{html.escape(r['title'])}<br>" if len(idea["parts"]) > 1 else ""
+            players.append(f"{label}<audio controls preload=\"none\" src=\"{_href(name)}\"></audio> <a href=\"{_href(name)}\">file</a>")
         body.append(
-            f"<tr><td>{html.escape(r['recorded_at'][:10])}</td><td><strong>{html.escape(r['title'])}</strong><br>"
-            f"<audio controls preload=\"none\" src=\"{href}\"></audio> <a href=\"{href}\">file</a></td>"
-            f"<td>{html.escape(extra)}</td><td>{html.escape(', '.join(tg))}</td>"
-            f"<td style=\"white-space:pre-wrap\">{html.escape(r['notes'])}</td></tr>")
+            f"<tr><td>{html.escape(g['recorded_at'][:10])}</td><td><strong>{html.escape(g['title'])}</strong><br>"
+            + "<br>".join(players) + "</td>"
+            f"<td>{html.escape(extra)}</td><td>{html.escape(', '.join(idea['tags']))}</td>"
+            f"<td style=\"white-space:pre-wrap\">{html.escape(g['notes'])}</td></tr>")
+    count = sum(len(i["files"]) for i in ideas)
     return (
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" "
         "content=\"width=device-width,initial-scale=1\"><title>Riffbox export</title><style>"
         "body{font:16px/1.4 system-ui,sans-serif;margin:1rem auto;max-width:70rem;padding:0 1rem}"
         "td,th{padding:.4rem .6rem;border-bottom:1px solid #8884;text-align:left;vertical-align:top}"
         "audio{max-width:100%}</style></head><body><h1>Riffbox export</h1>"
-        f"<p>{len(listing)} recordings. Open a recording's file or press play; nothing here needs a server.</p>"
+        f"<p>{len(ideas)} ideas, {count} recordings. Open a recording's file or press play; nothing here needs a server.</p>"
         "<table><thead><tr><th>Recorded</th><th>Recording</th><th>Details</th><th>Tags</th><th>Notes</th></tr></thead><tbody>"
         + "\n".join(body) + "</tbody></table></body></html>\n").encode("utf-8")
 
@@ -128,6 +173,33 @@ def sha256_of(path):
     return h.hexdigest()
 
 
+def _load_ideas(snap, include_trash):
+    """The ideas to export, each {"id", "g": the idea's details, "tags", "parts": [recording rows], "unresolved"}. A database from
+    before groups existed has no ideas: every recording is then an idea of its own, exactly as it always was."""
+    has_groups = snap.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'idea_groups'").fetchone()
+    ideas = []
+    if not has_groups:
+        where = "" if include_trash else "WHERE deleted_at IS NULL"
+        tags = {}
+        for t in snap.execute("SELECT rt.recording_id, rt.tag FROM recording_tags rt JOIN tags t ON t.name = rt.tag ORDER BY t.rowid"):
+            tags.setdefault(t["recording_id"], []).append(t["tag"])
+        for r in snap.execute(f"SELECT * FROM recordings {where} ORDER BY recorded_at, id"):
+            ideas.append({"id": r["id"], "g": r, "tags": tags.get(r["id"], []), "parts": [r], "unresolved": None})
+        return ideas
+    where = "" if include_trash else "WHERE g.deleted_at IS NULL"
+    tags = {}
+    for t in snap.execute("SELECT gt.group_id, gt.tag FROM group_tags gt JOIN tags t ON t.name = gt.tag ORDER BY t.rowid"):
+        tags.setdefault(t["group_id"], []).append(t["tag"])
+    parts = {}
+    for r in snap.execute("SELECT * FROM recordings WHERE group_id IS NOT NULL ORDER BY group_id, position, id"):
+        parts.setdefault(r["group_id"], []).append(r)
+    for g in snap.execute(f"SELECT g.* FROM idea_groups g {where} ORDER BY g.recorded_at, g.id"):
+        if g["id"] in parts:
+            ideas.append({"id": g["id"], "g": g, "tags": tags.get(g["id"], []), "parts": parts[g["id"]],
+                          "unresolved": json.loads(g["unresolved"]) if g["unresolved"] else None})
+    return ideas
+
+
 def iter_items(data_dir, include_trash, scratch, problems):
     """Yield (archive_name, payload, expected_sha256): payload is bytes, or a Path to copy. `problems` is a list
     that this generator and pump() add warnings to. The database snapshot lives in `scratch` until finished."""
@@ -138,30 +210,35 @@ def iter_items(data_dir, include_trash, scratch, problems):
         snapshot_database(data_dir, snap_path)
         snap = sqlite3.connect(snap_path)
         snap.row_factory = sqlite3.Row
-        where = "" if include_trash else "WHERE deleted_at IS NULL"
-        rows = snap.execute(f"SELECT * FROM recordings {where} ORDER BY recorded_at, id").fetchall()
-        tags = {}
-        for t in snap.execute("SELECT rt.recording_id, rt.tag FROM recording_tags rt JOIN tags t ON t.name = rt.tag"
-                              " ORDER BY t.rowid"):
-            tags.setdefault(t["recording_id"], []).append(t["tag"])
+        ideas = _load_ideas(snap, include_trash)
         snap.close()
 
-        listing = []
-        for r in rows:
-            original = data_dir / "audio" / r["filename"]
-            audio_name = f"{r['recorded_at'][:10]} {safe_name(r['title'])} [{r['id']}]{Path(r['filename']).suffix}"
-            if not original.is_file():
-                problems.append(f"missing audio file for recording {r['id']} ({r['title']}): {r['filename']}")
-                continue
-            listing.append((r, tags.get(r["id"], []), audio_name))
+        for idea in ideas:                                    # name the files, leave out any whose audio is missing
+            g, many = idea["g"], len(idea["parts"]) > 1
+            idea["files"] = []
+            for n, r in enumerate(idea["parts"], 1):
+                if not (data_dir / "audio" / r["filename"]).is_file():
+                    problems.append(f"missing audio file for recording {r['id']} ({r['title']}): {r['filename']}")
+                    continue
+                day, ext = g["recorded_at"][:10], Path(r["filename"]).suffix
+                name = (f"{day} {safe_name(g['title'], 60)} - part {n} {safe_name(r['title'], 40)} [{r['id']}]{ext}" if many
+                        else f"{day} {safe_name(g['title'])} [{r['id']}]{ext}")
+                idea["files"].append((r, name))
+        ideas = [i for i in ideas if i["files"]]
 
         yield "README.txt", README.encode("utf-8"), None
-        yield "index.html", _html_bytes(listing), None
-        yield "index.csv", _csv_bytes(listing), None
-        for r, tg, audio_name in listing:
-            yield "recordings/" + audio_name, data_dir / "audio" / r["filename"], r["sha256"]
-            yield "recordings/" + audio_name[:audio_name.rindex(".")] + ".md", \
-                _note_text(r, tg, audio_name).encode("utf-8"), None
+        yield "index.html", _html_bytes(ideas), None
+        yield "index.csv", _csv_bytes(ideas), None
+        for idea in ideas:
+            for r, name in idea["files"]:
+                yield "recordings/" + name, data_dir / "audio" / r["filename"], r["sha256"]
+            if len(idea["parts"]) > 1:
+                note = f"{idea['g']['recorded_at'][:10]} {safe_name(idea['g']['title'])} [idea {idea['id']}].md"
+                yield "recordings/" + note, _idea_note_text(idea, idea["files"]).encode("utf-8"), None
+            else:
+                r, name = idea["files"][0]
+                details = {**dict(idea["g"]), "sha256": r["sha256"]}     # the idea's details (an idea of one is the same as its recording)
+                yield "recordings/" + name[:name.rindex(".")] + ".md", _note_text(details, idea["tags"], name).encode("utf-8"), None
         yield "riffbox.db", snap_path, None
     finally:
         shutil.rmtree(snap_path.parent, ignore_errors=True)

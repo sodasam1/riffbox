@@ -36,3 +36,9 @@ Run on a restored copy of your real data first, then on the live site. Each stag
 ## Tab row and themes (small changes)
 - [ ] Tab row reads as groups: Inbox / Library / Resurface, then Cozy / Compact, then Random, then Select (Random before Select), with clear space between.
 - [ ] Menu → Style (Standard, Minimal) and Colors (Auto, Light, Dark) work independently and in any combination, and are remembered; Dark stays dark when the phone is set to light.
+
+## Stage 5: Resurface, search, export
+- [ ] Resurface: a hearted group shows once with all its parts open; Surprise me plays it from part 1; arrows walk the parts.
+- [ ] Library search for a word that is only in a part's name finds the idea and the row says "Matches part: …".
+- [ ] Export a library with a group: one `[idea N].md` note plus one audio file per part; `index.html` plays every part; a single idea's files are named as before.
+- [ ] `deploy/restore.py` on that export rebuilds the library with the group intact (see `deploy/GROUPS.md`, the rehearsal).
