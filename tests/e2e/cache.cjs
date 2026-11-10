@@ -1,6 +1,7 @@
 // Groups, stage 4: arrow keys through ideas and their parts (auto-open, auto-close, hand-opened stays open), Random, select, triage. Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/cache.cjs
-const { chromium } = require("playwright");
+const { launch, chromiumOnly } = require("./_browser.cjs");
+chromiumOnly("cache.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -38,7 +39,7 @@ async function waitUp() {
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1, locale: "en-US" });
     const gids = [];
     for (const [i, t] of Array.from({ length: 40 }, (_, k) => "Idea number " + k).entries()) gids.push((await (await ctx.request.post(BASE + "api/upload", { headers: { Authorization: "Bearer tok" },

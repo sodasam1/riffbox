@@ -1,6 +1,6 @@
 // Trash tab styling, Cozy/Compact rows, Resurface and the backup status line. Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/phase9.cjs
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -42,7 +42,7 @@ async function waitUp(base) {
   let browser, failed = false;
   try {
     await waitUp(BASE); await waitUp(BASE2);
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: "en-US" });
     const TITLES = ["Never played", "Played 100 days ago", "Played 200 days ago", "Played yesterday", "Check idea", "X idea",
                     "Plain idea", "Another plain", "Long title " + "word ".repeat(20), "Tenth"];

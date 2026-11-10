@@ -1,6 +1,6 @@
 // Review regression: a held-down or doubled Save key in triage must save one card, not skip the next. Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/review.cjs
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -38,7 +38,7 @@ async function waitUp() {
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: "en-US" });
     for (let i = 0; i < 4; i++) {
       const r = await ctx.request.post(BASE + "api/upload", { headers: { Authorization: "Bearer tok" },

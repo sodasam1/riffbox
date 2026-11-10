@@ -1,7 +1,7 @@
 // Layout and polish regressions found in the second review (player bar vs long titles, the Library table at
 // 900-1120px, the date field, tap targets, scrolling past the player, text contrast). Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/polish.cjs
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -45,7 +45,7 @@ const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 390, height: 800 }, deviceScaleFactor: 1, locale: "en-US" });
     const titles = [LONG, "Second idea", "Third idea", "Fourth idea", "Fifth idea", "Sixth idea", "Seventh idea", "Eighth idea", "Ninth idea", "Tenth idea"];
     for (const [i, title] of titles.entries()) {

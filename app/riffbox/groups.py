@@ -37,7 +37,6 @@ def migrate(conn):
         conn.execute("ALTER TABLE idea_groups ADD COLUMN unresolved TEXT")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_recordings_group ON recordings(group_id)")
     backfill(conn)
-    conn.commit()
 
 
 def backfill(conn):

@@ -190,3 +190,23 @@ Measured with `tests/perf/measure.cjs` (300 recordings, 4x CPU, 1.6 Mbps, 150 ms
 to 55 KB**; the Library list **186 KB to 8.6 KB**; LCP **about 2.8 s (after groups) to about 1.1 s**, FCP about 0.8 s; a repeat visit loads
 the page files from the browser's cache. Server list time about 9 to 12 ms, as before. **Not done:** B1.3 (trim the list payload, ETag on
 the list), the interaction fixes (A1: opening the Library, Select mode and Select all are still 700 to 880 ms), the loading-order changes (A2).
+
+## 7. Progress, branch `speed-and-upkeep` (10 Nov 2026; built, not yet deployed)
+**A1 interactions (done).** Profiling at 4x CPU found that the biggest cost was not the number of elements but formatting dates:
+`toLocaleDateString` and `toLocaleString` were called with options for every date of every row (about 35 percent of the time of drawing the
+Library). Formatters are now made once and each answer remembered. Rows that are off screen are skipped by the browser
+(`content-visibility: auto`). Select mode, Select all and leaving Select mode now change classes and tick marks on the rows already drawn.
+Lab numbers (300 recordings, 4x CPU), before to after: opening the Library about 990 to 160-330 ms; Select mode on about 830 to 70-110 ms; Select
+all about 1,095 to 50 ms; leaving Select mode about 790 to 40-50 ms; Cozy/Compact about 240-400 to 60-130 ms (phone 390 px and desktop 1280 px). Test:
+`tests/e2e/speed.cjs` (the rows are not redrawn). **Not done:** event delegation and cloning rows from a template (not needed now), A2 (load the
+Library list only when its tab opens; the list is 8.6 KB compressed, so the gain is small), optimistic marks (a mark already takes under 30 ms).
+**B1.3 (list payload) partly done.** The lists now carry an ETag and `Cache-Control: private, no-cache`, so an unchanged list comes back as
+"not modified" with no body. This needed one more fix: Flask renews the login cookie on every answer and then adds `Vary: Cookie`, which made
+every saved copy unusable (the cookie never matched the one the copy was stored under); the revalidated lists no longer say it. Trimming unused
+fields from the list was measured as not worth it (the compressed list is 8.6 KB).
+**B3 upkeep (done).** Numbered migrations (`app/riffbox/migrations.py`, `PRAGMA user_version`; existing databases are adopted as version 2, a
+copy is kept in `before-migration/`); vendored Flask, waitress and helpers in `vendor/` with licences, a checksum manifest
+(`deploy/verify_vendor.py`), `deploy/run-vendored.sh` and tests that start the app from only Python and `vendor/`; the browser tests can run in
+WebKit and Firefox (`RIFFBOX_BROWSER`, `tests/e2e/_browser.cjs`). **Not verified:** the scripts have **not been run** in WebKit or Firefox, because those
+engines could not be downloaded in the build environment (the network blocks the download host). Run them on a computer with the engines installed.
+**Still planned:** theme variables (B2.6), a smaller `app.js` (B2.7), shared test helpers (B2.9), the monthly self-test (B3.12), the yearly-care checklist (B3.13).

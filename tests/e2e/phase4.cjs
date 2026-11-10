@@ -1,6 +1,6 @@
 // Phase 4 browser test (inbox + intake form). Run:  RIFFBOX_PY=/path/to/python node tests/e2e/phase4.cjs
 // Self-contained on purpose (like phase3.cjs): starts the app under /ideas and drives Chromium.
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -54,7 +54,7 @@ async function waitUp() {
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1,
                                            timezoneId: AKL, locale: "en-US" });
     const page = await ctx.newPage();

@@ -12,6 +12,7 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
 | The current plan, principles and open items | `docs/PLAN.md` (the original plan is kept in `docs/archive/`) |
 | Speed, interface and upkeep work planned for later | `docs/PLAN-performance-ux-sustainability.md` |
 | Putting it on the server, routine deploys | `deploy/PHASE2.md` (and `deploy/PHASE3_5.md` for `ffmpeg`) |
+| Starting without the installed Flask and waitress; updating the vendored copies | `vendor/README.md` |
 | Backups, the restore drill, exports | `deploy/PHASE8.md` |
 | First deploy of groups (migration rehearsal, rollback) | `deploy/GROUPS.md` |
 | Uploading from the iPhone | `deploy/SHORTCUT.md` |
@@ -55,6 +56,16 @@ Browser tests (Node + Playwright with Chromium; each script starts its own serve
 ```sh
 RIFFBOX_PY=app/.venv/bin/python node tests/e2e/phase3.cjs        # one script
 for t in tests/e2e/*.cjs; do RIFFBOX_PY=app/.venv/bin/python node $t; done    # all of them
+RIFFBOX_BROWSER=webkit  RIFFBOX_PY=app/.venv/bin/python node tests/e2e/phase3.cjs   # the engine behind Safari (or firefox)
+```
+`RIFFBOX_BROWSER=webkit` or `firefox` (after `npx playwright install webkit firefox`) runs the same script in that engine; the
+scripts that use Chromium's DevTools protocol say so and stop. (Not yet run against those engines: see the status in `PHASES.md`.)
+
+Starting the app from the vendored copies of Flask and waitress, with nothing but Python (see `vendor/README.md`):
+
+```sh
+RIFFBOX_DATA_DIR=/tmp/riffbox-data RIFFBOX_SECRET=dev RIFFBOX_PASSPHRASE=pw RIFFBOX_INSECURE_COOKIES=1 sh deploy/run-vendored.sh
+python3 deploy/verify_vendor.py     # the vendored files are exactly what was recorded
 ```
 
 Measurements of load time, payload size and interaction speed (see `docs/PLAN-performance-ux-sustainability.md`):
@@ -85,9 +96,11 @@ reads at start-up (`RIFFBOX_CONFIG` names another file). Real environment variab
 ## Layout
 
 ```
-app/riffbox/   the server: __init__.py (routes), intake.py (validation), library.py (list queries), media.py (ffmpeg,
-               codec), exporter.py and backup.py (shared with deploy/), health.py, throttle.py, config.py, schema.sql,
-               about.html (the private How this works page)
+app/riffbox/   the server: __init__.py (routes), groups.py (ideas made of recordings), intake.py (validation), library.py
+               (list queries), media.py (ffmpeg, codec), migrations.py (numbered database changes), webcache.py (compression
+               and cached page files), exporter.py, restorer.py and backup.py (shared with deploy/), health.py, throttle.py,
+               config.py, schema.sql, about.html (the private How this works page)
+vendor/        Flask, waitress and their helpers, kept with the code (vendor/README.md)
 app/tests/     server tests (pytest);  app/wsgi.py  the production entry point
 static/        the page: index.html, app.js, style.css, theme.js
 tests/e2e/     browser tests (Playwright);  tests/perf/  measurements
@@ -110,14 +123,12 @@ docs/          the plan, the later-work plan, and docs/archive/ (the original pl
 - **Backups you do not have to remember:** the backup folder and nightly schedule (`deploy/PHASE8.md`), a practice restore with
   `deploy/restore.py`, and a routine for copying an export or the backup folder off the server. The code exists; the schedule does not.
 - **Speed, interface feel and upkeep.** Measured and written up in `docs/PLAN-performance-ux-sustainability.md`.
-  Done and deployed: compression and long-lived caching of the page files (about 330 KB per load became about 55 KB; LCP about 2.8 s
-  to about 1.1 s in the lab). Still planned:
-  - fix the three slow interactions (opening the Library, Select mode, Select all take 660 to 880 ms against a 200 ms
-    target) by no longer rebuilding every row on each change;
+  Done: compression and long-lived caching (deployed); on branch `speed-and-upkeep`: much faster Library, Select mode and
+  Select all, revalidated lists, numbered database migrations, vendored Flask and waitress, and test scripts that can run in WebKit
+  and Firefox. Still planned:
   - load the Library list only when its tab opens, and start the list request together with the session check;
   - one set of theme variables instead of a long override list; a smaller `app.js`; shared helpers for the browser tests;
-  - run browser tests in WebKit and Firefox as well; numbered database migrations; a monthly self-test; a yearly-care
-    checklist; pin and vendor Flask and waitress.
+  - actually run the browser tests in WebKit and Firefox; a monthly self-test; a yearly-care checklist.
 - **Interface clean-up:** an idle player that stays slim, one row-actions menu, collapsible filter groups, a two-step edit
   form, orange only for primary actions.
 - **Candidate features:** an off-server copy reminder and a Verify-library button; timestamped markers on the waveform; the memo's creation date passed from the Shortcut as the date recorded; a

@@ -1,6 +1,6 @@
 // Groups, stage 2: Select in the Inbox, the grouping dialog, adding to a group, the Parts list, upload as one idea. Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/groups2.cjs
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -38,7 +38,7 @@ async function waitUp() {
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1, locale: "en-US" });
     const up = async (title, freq) => (await (await ctx.request.post(BASE + "api/upload", { headers: { Authorization: "Bearer tok" },
       multipart: { file: { name: `${title}.wav`, mimeType: "audio/wav", buffer: wav(freq) }, title } })).json());

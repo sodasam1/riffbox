@@ -1,6 +1,6 @@
 // Editing in the Inbox: Save keeps the recording there (half-filled forms are fine); Save and move to Library moves it. Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/inboxedit.cjs
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -38,7 +38,7 @@ async function waitUp() {
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1, locale: "en-US" });
     for (const [i, title] of ["First memo", "Second memo"].entries()) {
       const r = await ctx.request.post(BASE + "api/upload", { headers: { Authorization: "Bearer tok" },

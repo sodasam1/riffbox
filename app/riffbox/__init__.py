@@ -40,7 +40,7 @@ from flask import (
 from flask.sessions import SecureCookieSessionInterface
 
 from . import backup as backups
-from . import exporter, groups, webcache
+from . import exporter, groups, migrations, webcache
 from .health import collect as collect_health
 from .intake import (
     MAX_BULK,
@@ -72,7 +72,6 @@ ALLOWED_EXT = {
 }
 FALLBACK_MIME = {".m4a": "audio/mp4", ".caf": "audio/x-caf", ".aac": "audio/aac"}
 MP4_EXT = (".m4a", ".mp4")        # containers whose audio codec we can read
-NEW_COLUMNS = ("codec", "play_status", "play_filename", "play_error")
 
 
 def disk_usage(path):
@@ -187,15 +186,6 @@ def create_app(config=None):
         conn.create_function("ulower", 1, lambda v: v.lower() if isinstance(v, str) else v, deterministic=True)
         return conn
 
-    def migrate(conn):
-        """Databases created before phase 3.5 lack the playback-copy columns: add them in place."""
-        have = {r["name"] for r in conn.execute("PRAGMA table_info(recordings)")}
-        for col in NEW_COLUMNS:
-            if col not in have:
-                conn.execute(f"ALTER TABLE recordings ADD COLUMN {col} TEXT")
-        conn.commit()
-        groups.migrate(conn)           # every recording belongs to a group (see groups.py)
-
     # Werkzeug parks big uploads in a temp file while it parses them. Keep that inside the data directory
     # (the disk with room), not the system /tmp, which may be small.
     app.session_interface = QuietSession()
@@ -213,7 +203,7 @@ def create_app(config=None):
     try:
         boot.execute("PRAGMA journal_mode = WAL")
         boot.executescript(SCHEMA.read_text())
-        migrate(boot)
+        migrations.run(boot, data_dir)
     finally:
         boot.close()
 

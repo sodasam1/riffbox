@@ -1,6 +1,6 @@
 // Backup and export page: header link, zip download, trash switch, Back up now, phone layout. Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/datapage.cjs
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -42,7 +42,7 @@ async function waitUp(base) {
   let browser, failed = false;
   try {
     await waitUp(BASE); await waitUp(BASE2);
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: "en-US", acceptDownloads: true });
     for (const [i, title] of ["Alpha riff", "Beta riff", "Deleted riff"].entries()) {
       const r = await ctx.request.post(BASE + "api/upload", { headers: { Authorization: "Bearer tok" },

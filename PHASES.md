@@ -231,3 +231,12 @@ page itself is re-checked with a weak ETag); see `app/riffbox/webcache.py` and t
 Library list 186 KB to 8.6 KB, LCP about 2.8 s to about 1.1 s. Live check by the owner: `content-encoding: gzip` and the
 `immutable` cache header are present; the group Download zip works. A grouped idea's Download gives every part as one zip (a folder
 named after the idea, files numbered in order); each part's own Download still gives that original.
+
+## Speed and upkeep (branch `speed-and-upkeep`; built and tested, not merged or deployed)
+Interaction speed (date formatters made once, off-screen rows skipped, Select mode and Select all change the rows already drawn); lists
+that revalidate with an ETag (and no `Vary: Cookie`, which had made the browser's copies unusable); numbered database migrations with a copy kept
+before the first one (`app/riffbox/migrations.py`); Flask, waitress and their helpers vendored (`vendor/`, `deploy/verify_vendor.py`,
+`deploy/run-vendored.sh`); browser tests selectable by engine (`RIFFBOX_BROWSER`). Numbers and what was not done:
+`docs/PLAN-performance-ux-sustainability.md` section 7. Not verified: the browser tests in WebKit and Firefox (the engines could not be downloaded
+in the build environment). Review: a migration rehearsal on a database made by the pre-groups code (identical lists, a copy kept, numbered 2).
+Short manual checks: `docs/CHECKLIST-speed-and-upkeep.md`.

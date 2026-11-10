@@ -1,7 +1,7 @@
 // The Menu, the compact upload bar, sortable column headings, the Compact table (short key, ISO dates, whole tags),
 // Select mode with bulk actions, and the Random button. Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/phase10.cjs
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -49,7 +49,7 @@ const SEED = [
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: "en-US", timezoneId: "UTC" });
     const ids = {};
     for (const [i, [title, rec, secs]] of SEED.entries()) {

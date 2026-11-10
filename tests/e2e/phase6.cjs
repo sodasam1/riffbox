@@ -1,7 +1,7 @@
 // Phase 6 browser test: the transport bar (waveform, scrubbing, speed, loop, download), lengths in the list,
 // the "played" marker, and sorting by length / last played. Needs ffmpeg on this machine. Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/phase6.cjs
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn, spawnSync } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -40,7 +40,7 @@ async function waitUp() {
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: "en-US" });
 
     // --- seed: two recordings, saved to the Library, and wait for the server to measure them

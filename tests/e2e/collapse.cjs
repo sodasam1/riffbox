@@ -1,6 +1,6 @@
 // The player can be collapsed to one slim row: with a button (remembered), and automatically while typing on a
 // small screen (a phone keyboard). Run:  RIFFBOX_PY=/path/to/python node tests/e2e/collapse.cjs
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -37,7 +37,7 @@ async function waitUp() {
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
     await ctx.request.post(BASE + "api/upload", { headers: { Authorization: "Bearer tok" },
       multipart: { file: { name: "a.wav", mimeType: "audio/wav", buffer: wav(220) }, title: "A recording" } });

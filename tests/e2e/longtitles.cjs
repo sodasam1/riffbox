@@ -1,6 +1,6 @@
 // Regression test: very long titles, notes and tag names must not stretch the page or push the Edit and
 // Download links off the right edge (it did, on a phone). Run:  RIFFBOX_PY=/path/to/python node tests/e2e/longtitles.cjs
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -43,7 +43,7 @@ async function waitUp() {
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 375, height: 800 }, deviceScaleFactor: 1 });   // not "mobile": keeps the width fixed
     const ids = [];
     for (let i = 0; i < SEED.length; i++) {

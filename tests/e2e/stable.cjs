@@ -1,7 +1,7 @@
 // Stable layout on desktop: moving between Inbox, Library and Resurface must not move the header, the upload bar, the tab
 // row (including Random), or the list column. Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/stable.cjs
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -39,7 +39,7 @@ async function waitUp() {
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1, locale: "en-US" });
     const titles = ["Inbox one", "Inbox two", "Lib one", "Lib two", "Lib three", "Heart one", "Trashed one"];
     for (const [i, title] of titles.entries()) {

@@ -1,6 +1,6 @@
 // Phase 8 browser test: delete (two presses), the Trash tab, restore. Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/phase8.cjs
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -38,7 +38,7 @@ async function waitUp() {
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 390, height: 800 }, deviceScaleFactor: 1, locale: "en-US" });
     const ids = {};
     for (const [i, title] of ["Keeper", "Doomed", "Inbox one"].entries()) {

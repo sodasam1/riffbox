@@ -117,7 +117,7 @@ instead of the browser.
 | Groups 5 | Resurface with whole groups, search over part titles (server done), group-aware export and restore tests, docs, migration runbook | Deployed |
 | Groups 6 | Optional: grouping suggestions from times, download all parts, play together | Not decided |
 | After groups | Compression and long-lived caching; a grouped idea's Download gives a zip of all parts | Deployed and checked on the live site (headers and group zip) |
-| Next | Speed, interface feel and upkeep: `docs/PLAN-performance-ux-sustainability.md` (interaction speed, smaller list payload, then migrations, vendoring, WebKit/Firefox tests) | In progress on branch `speed-and-upkeep` |
+| Next | Speed, interface feel and upkeep: `docs/PLAN-performance-ux-sustainability.md` (interaction speed, smaller list payload, then migrations, vendoring, WebKit/Firefox tests) | Built and tested on branch `speed-and-upkeep` (interaction speed, revalidated lists, numbered migrations, vendored libraries, engine-selectable browser tests); awaiting deploy and check |
 
 Quality gates today: 308 automated server tests on `main` (326 on `groups`) and 15 Playwright browser scripts (`tests/e2e/`), all passing. Each groups stage ends with a short manual checklist (`docs/CHECKLIST-groups.md`).
 

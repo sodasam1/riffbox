@@ -1,7 +1,7 @@
 // The minimal theme: switch in the Menu, remembered, applied before first paint, switches back, and still lays out
 // and reads well (no overflow, contrast) in light and dark. Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/theme.cjs
-const { chromium } = require("playwright");
+const { launch } = require("./_browser.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
 
@@ -45,7 +45,7 @@ const LONG = "Averyveryveryverylongtitlewithoutanyspacesatalleveryletterrunstoge
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: "en-US" });
     const titles = [LONG, "Second idea", "Third idea", "Fourth idea"];
     for (const [i, title] of titles.entries()) {

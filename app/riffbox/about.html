@@ -100,8 +100,10 @@ in ways you might not expect:</p>
     losing the server.</li>
   <li><strong>Groups, later:</strong> suggesting groups from recordings made close together in time, a zip of all parts, playing parts
     together. First deploy of groups: rehearse on a copy of your data (<code>deploy/GROUPS.md</code>).</li>
-  <li><strong>Speed and upkeep</strong> (compression and long-lived caching of the page files are done): fixing the slow Select / Library-tab interactions on large libraries; a smaller <code>app.js</code>; theme variables;
-    numbered database migrations; a monthly self-test; pinned and vendored Flask and waitress.</li>
+  <li><strong>Speed and upkeep</strong> (built: compression, long-lived caching, a much faster Library and Select mode, revalidated lists,
+    numbered migrations and the vendored libraries). Still planned are loading the Library list only when its
+    tab opens, a smaller <code>app.js</code>, theme variables, running the browser tests in Safari's and Firefox's engines, a monthly self-test and a
+    yearly-care checklist.</li>
   <li><strong>Serve the page files from your website's <code>htdocs</code> folder</strong> (your preferred direction): put the page
     files in <code>/var/www/htdocs/ideas/</code> and narrow the relayd rule to <code>/ideas/api/*</code>. The address stays
     <code>/ideas/</code>. Trade-offs: two upload destinations, the page and the data code can get out of step if only one is
@@ -150,6 +152,10 @@ before the next starts, so a problem stays confined to the newest layer.</p>
     <tr><td>Groups 1&ndash;5</td><td>Ideas made of several recordings: the data layer and an additive migration (stage 1), making and
       changing groups (stage 2), expandable rows, part playback and the player title (stage 3), arrow-key walking through parts, Random, Select and triage for groups (stage 4), Resurface, search and export for groups (stage 5). See the Quickstart.</td>
       <td><span class="status done">Deployed; quick check on iPhone Safari and Chrome, restore of an export not yet tried on your data</span></td></tr>
+    <tr><td>Speed and upkeep</td><td>Compression and long-lived caching of the page files; a much faster Library, Select mode and Select all (the
+      slowest part was formatting dates); lists that answer &ldquo;not modified&rdquo; when nothing changed; numbered database migrations with a
+      copy kept before the first one; Flask and waitress kept in the repository (<code>vendor/</code>); browser tests that can run in other engines.</td>
+      <td><span class="status done">Compression and caching deployed; the rest built, awaiting your deploy and check</span></td></tr>
   </tbody>
 </table>
 </div>
@@ -285,6 +291,12 @@ That staging step exists because FreeFileSync logs in as you and cannot write to
 <h2>Data model</h2>
 <p>Everything is stored in one SQLite file (<code>/var/riffbox/riffbox.db</code>). Times are stored in UTC and
 shown in your browser's local time.</p>
+<p><strong>The database has a version number</strong> (SQLite's own <code>user_version</code>), and the app holds the numbered list of every
+change ever made to its layout (<code>app/riffbox/migrations.py</code>). When the service starts it runs only the changes after the number
+the database has, each one all-or-nothing, and records the new number. Before the first change to a database that holds recordings, a copy
+is kept in <code>/var/riffbox/before-migration/</code> (the three newest are kept). Every change so far only adds things, so going back to an
+older version of the app still works; a database numbered higher than the app knows is opened with a warning. The version is also inside every
+export's database copy. A new database is numbered 2 (steps 1 and 2 are the play-copy columns and groups, both made before numbering).</p>
 
 <h3>Ideas (groups): one row per idea</h3>
 <p>Every recording belongs to an <strong>idea</strong>. Most ideas have a single recording and look exactly like one; a group
@@ -352,7 +364,7 @@ get the <em>data</em> out if it does.</p>
     <tr><td>Flask and waitress (plus Werkzeug, Jinja2, MarkupSafe, itsdangerous, click, blinker)</td>
       <td>Web routing, login cookie, file upload parsing, the web server.</td>
       <td><strong>The highest.</strong> Third-party code that changes between major versions, and whose OpenBSD
-        package may eventually disappear. Mitigation: pinned versions, and a plan to keep copies of them (below).</td></tr>
+        package may eventually disappear. Mitigation: pinned versions, and the exact tested copies are kept in the repository's <code>vendor/</code> folder (below).</td></tr>
     <tr><td>ffmpeg (optional)</td><td>Waveforms, lengths and FLAC play copies.</td>
       <td>Low impact. Without it everything still works; waveforms and play copies just stop being made.</td></tr>
     <tr><td>OpenBSD, relayd, acme-client, your domain and VPS</td><td>Hosting and HTTPS.</td>
@@ -372,8 +384,10 @@ from another site, any account anywhere.</p>
     audio folder are what must survive. The most valuable habit is a regular export you can open without this
     app (next section).</li>
   <li><strong>Keep your own copy of the code and its libraries.</strong> The code is on GitHub, but keep a clone on
-    your computer too, and add the exact pinned versions of Flask, waitress and their helpers (all pure Python, so
-    one copy works on any computer) to that clone. Then nothing has to be downloaded to rebuild it.</li>
+    your computer too. The exact versions of Flask, waitress and their helpers (all pure Python, so one copy works on any computer) are
+    already in that clone, in <code>vendor/</code>, with a checksum for every file (<code>python3 deploy/verify_vendor.py</code>). Nothing has to be
+    downloaded to rebuild it: <code>sh deploy/run-vendored.sh</code> starts the app with only Python. The service itself still uses the packages
+    installed on the server unless you change its start line (<code>vendor/README.md</code> says how).</li>
   <li><strong>Practice a restore.</strong> Once a year, start the app from a backup on an ordinary computer with
     only Python installed. If that works, you know the whole chain works. (Phase 8 builds this drill.)</li>
   <li><strong>Optional, later: remove Flask and waitress altogether</strong>, leaving only Python's standard library.
