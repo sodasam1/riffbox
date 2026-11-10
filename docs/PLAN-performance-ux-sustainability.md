@@ -179,3 +179,14 @@ tests (15 scripts, each copying its own setup).
 Before starting: re-run `tests/perf/measure.cjs` for a fresh baseline, and keep the 308 server tests and 15 browser scripts
 green at every step. Most of these changes touch behaviour the browser tests pin down, so update those tests deliberately,
 not as a side effect.
+
+## 6. Progress (10 Nov 2026)
+**Done, on branch `perf-compression`:** B1.1 (compression) and B1.2 (long-lived caching, with the fingerprint worked out by the server).
+`app/riffbox/webcache.py`: text answers (JSON, HTML, CSS, JS) are gzip-compressed for browsers that accept it; the page files carry
+`?v=<fingerprint>` in the addresses written into `index.html`, and a fingerprinted address is cached for a year (a changed file has a
+new fingerprint, so there is no stale copy and no build step); the page itself is re-checked on every visit and answers "not
+modified" when unchanged. Audio, ranges and the streamed export are never touched.
+Measured with `tests/perf/measure.cjs` (300 recordings, 4x CPU, 1.6 Mbps, 150 ms): bytes on the wire for one page load **about 330 KB
+to 55 KB**; the Library list **186 KB to 8.6 KB**; LCP **about 2.8 s (after groups) to about 1.1 s**, FCP about 0.8 s; a repeat visit loads
+the page files from the browser's cache. Server list time about 9 to 12 ms, as before. **Not done:** B1.3 (trim the list payload, ETag on
+the list), the interaction fixes (A1: opening the Library, Select mode and Select all are still 700 to 880 ms), the loading-order changes (A2).

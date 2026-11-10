@@ -36,7 +36,7 @@ from flask import (
 )
 
 from . import backup as backups
-from . import exporter, groups
+from . import exporter, groups, webcache
 from .health import collect as collect_health
 from .intake import (
     MAX_BULK,
@@ -905,13 +905,42 @@ def create_app(config=None):
         resp.headers["Cache-Control"] = "private, no-cache"
         return resp
 
+    pages = webcache.PageFiles(Path(app.config["STATIC_DIR"]))
+    MIME = {".html": "text/html", ".css": "text/css", ".js": "text/javascript"}
+
+    def text_response(body, gzipped, etag, cache):
+        """A text answer, gzip-compressed if the browser accepts it, with a weak ETag so a repeat visit can get "not modified"."""
+        zip_ok = webcache.accepts_gzip(request.headers.get("Accept-Encoding"))
+        resp = Response(gzipped if zip_ok else body)
+        if zip_ok:
+            resp.headers["Content-Encoding"] = "gzip"
+        resp.headers["Vary"] = "Accept-Encoding"
+        resp.headers["Cache-Control"] = cache
+        resp.set_etag(etag, weak=True)
+        return resp.make_conditional(request)
+
     @bp.get("/")
     def index():
-        return send_from_directory(app.config["STATIC_DIR"], "index.html", max_age=0)
+        page = pages.index()
+        if page is None:
+            abort(404)
+        body, fingerprint = page
+        resp = text_response(body, webcache.squeeze(body), fingerprint, "no-cache")         # always re-checked: tiny when unchanged
+        resp.mimetype = "text/html"
+        return resp
 
     @bp.get("/static/<path:name>")
     def static_files(name):
-        return send_from_directory(app.config["STATIC_DIR"], name, max_age=0)
+        ext = Path(name).suffix
+        found = pages.read(name) if ext in MIME else None
+        if found is None:                                          # anything else (or a missing file): as before
+            return send_from_directory(app.config["STATIC_DIR"], name, max_age=0)
+        body, gzipped, fingerprint = found
+        # an address with ?v=<fingerprint> (as written into the page) can be kept for a year; a bare one is re-checked every time
+        cache = f"public, max-age={webcache.ONE_YEAR}, immutable" if request.args.get("v") else "no-cache"
+        resp = text_response(body, gzipped, fingerprint, cache)
+        resp.mimetype = MIME[ext]
+        return resp
 
     app.register_blueprint(bp, url_prefix=base)
     if base:
@@ -921,6 +950,19 @@ def create_app(config=None):
     @app.after_request
     def harden(resp):
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        return resp
+
+    @app.after_request
+    def shrink(resp):
+        """Compress text answers (the idea lists, this page's explanation) for browsers that accept it. Never audio or the export."""
+        if resp.direct_passthrough or resp.is_streamed or resp.mimetype not in webcache.COMPRESSIBLE:
+            return resp
+        resp.vary.add("Accept-Encoding")
+        data = resp.get_data()
+        if (webcache.accepts_gzip(request.headers.get("Accept-Encoding"))
+                and webcache.should_compress(resp.mimetype, resp.status_code, len(data), "Content-Encoding" in resp.headers)):
+            resp.set_data(webcache.squeeze(data))
+            resp.headers["Content-Encoding"] = "gzip"
         return resp
 
     @app.errorhandler(413)
