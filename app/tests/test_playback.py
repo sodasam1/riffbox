@@ -119,7 +119,7 @@ def settle(app):
 
 def listing(client):
     client.post("/api/login", json={"passphrase": PASS})
-    return {r["id"]: r for r in client.get("/api/recordings").get_json()["recordings"]}
+    return {r["id"]: r for r in client.get("/api/groups").get_json()["groups"]}
 
 
 @needs_ffmpeg
@@ -131,7 +131,7 @@ def test_alac_upload_gets_a_lossless_flac_play_copy(make_app, tmp_path):
     settle(app)
 
     row = listing(c)[rid]
-    assert (row["codec"], row["play_status"]) == ("alac", "ready")
+    assert (row["parts"][0]["codec"], row["parts"][0]["play_status"]) == ("alac", "ready")
 
     r = c.get(f"/api/play/{rid}")                              # the player gets FLAC...
     assert r.status_code == 200 and r.mimetype == "audio/flac" and r.data[:4] == b"fLaC"
@@ -155,7 +155,7 @@ def test_aac_upload_needs_no_copy_and_plays_original(make_app, tmp_path):
     rid = up(c, original)
     settle(app)
     row = listing(c)[rid]
-    assert (row["codec"], row["play_status"]) == ("aac", None)
+    assert (row["parts"][0]["codec"], row["parts"][0]["play_status"]) == ("aac", None)
     assert c.get(f"/api/play/{rid}").data == original
     assert not list(app.config["AUDIO_DIR"].glob("*.flac"))
 
@@ -164,7 +164,7 @@ def test_non_mp4_uploads_are_marked_not_applicable(make_app):
     app = make_app()
     c = app.test_client()
     rid = up(c, b"RIFF....WAVE" + b"\0" * 64, "x.wav")
-    assert listing(c)[rid]["codec"] == "n/a"
+    assert listing(c)[rid]["parts"][0]["codec"] == "n/a"
 
 
 @needs_ffmpeg
@@ -177,7 +177,7 @@ def test_failed_conversion_is_recorded_and_playback_falls_back(make_app, tmp_pat
     original = make_m4a(tmp_path, "alac", "m.m4a")
     rid = up(c, original)
     settle(app)
-    assert listing(c)[rid]["play_status"] == "failed"
+    assert listing(c)[rid]["parts"][0]["play_status"] == "failed"
     assert c.get(f"/api/play/{rid}").data == original
     assert not list(app.config["AUDIO_DIR"].glob("*.flac"))
     assert not list(app.config["AUDIO_DIR"].glob(".incoming-*"))
@@ -195,14 +195,14 @@ def test_without_ffmpeg_alac_still_uploads_then_converts_after_ffmpeg_is_install
     rid = up(c, original)
     settle(first)
     row = listing(c)[rid]
-    assert (row["codec"], row["play_status"]) == ("alac", None)         # nothing to convert with yet
+    assert (row["parts"][0]["codec"], row["parts"][0]["play_status"]) == ("alac", None)         # nothing to convert with yet
     assert c.get(f"/api/play/{rid}").data == original                    # still playable where supported
     first.extensions["riffbox"].stop()
 
     second = make_app(FFMPEG=FFMPEG)                                    # "install ffmpeg, restart"
     settle(second)
     c2 = second.test_client()
-    assert listing(c2)[rid]["play_status"] == "ready"                   # (listing also logs in)
+    assert listing(c2)[rid]["parts"][0]["play_status"] == "ready"                   # (listing also logs in)
     assert c2.get(f"/api/play/{rid}").data[:4] == b"fLaC"
 
 
@@ -232,7 +232,7 @@ def test_database_from_before_phase_3_5_is_migrated_and_backfilled(make_app, tmp
     c = app.test_client()
     row = listing(c)[1]
     assert row["title"] == "Old memo"                                   # existing data intact
-    assert (row["codec"], row["play_status"]) == ("alac", "ready")      # examined and converted
+    assert (row["parts"][0]["codec"], row["parts"][0]["play_status"]) == ("alac", "ready")      # examined and converted
     assert c.get("/api/play/1").data[:4] == b"fLaC"
 
 

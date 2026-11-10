@@ -7,7 +7,7 @@ def test_everything_lives_under_prefix(prefixed_app):
     c = prefixed_app.test_client()
     assert c.get("/ideas/health").get_json() == {"status": "ok"}
     assert c.get("/health").status_code == 404          # not exposed at the site root
-    assert c.get("/api/recordings").status_code == 404
+    assert c.get("/api/groups").status_code == 404
 
 
 def test_bare_prefix_redirects_with_relative_location(prefixed_app):

@@ -4,7 +4,7 @@ import sqlite3
 
 import pytest
 
-from conftest import PASS, TOKEN, make_wav
+from conftest import resync, PASS, TOKEN, make_wav
 from riffbox.intake import Invalid
 from riffbox.library import build_query, parse_filters
 
@@ -42,11 +42,12 @@ def lib(app, client):
             conn.execute("UPDATE recordings SET uploaded_at = ? WHERE id = ?",
                          (f"2026-04-{n + 1:02d}T00:00:00Z", ids[title]))
         conn.execute("UPDATE recordings SET deleted_at = '2026-05-01T00:00:00Z' WHERE id = ?", (ids["Deleted bass"],))
+    resync(app.config["DB_PATH"])
 
     def get(expect=200, **q):
-        r = client.get("/api/recordings", query_string=q)
+        r = client.get("/api/groups", query_string=q)
         assert r.status_code == expect, r.get_json()
-        return [x["title"] for x in r.get_json()["recordings"]] if expect == 200 else r.get_json()
+        return [x["title"] for x in r.get_json()["groups"]] if expect == 200 else r.get_json()
 
     get.client, get.ids = client, ids
     return get
@@ -70,14 +71,15 @@ def test_equal_timestamps_keep_a_steady_order_in_both_directions(lib):
     """Uploads in one batch can share a second; ascending must then be the exact reverse of descending."""
     with sqlite3.connect(lib.client.application.config["DB_PATH"]) as conn:
         conn.execute("UPDATE recordings SET uploaded_at = '2026-05-05T05:05:05Z'")
+    resync(lib.client.application.config["DB_PATH"])
     assert lib(sort="uploaded", order="asc") == list(reversed(lib(sort="uploaded", order="desc")))
     assert lib(sort="uploaded", order="desc") == lib()
 
 
 def test_count_and_total(lib):
-    body = lib.client.get("/api/recordings?status=tagged&tags=bass").get_json()
+    body = lib.client.get("/api/groups?status=tagged&tags=bass").get_json()
     assert (body["count"], body["total"]) == (2, 7)          # Funky + Full demo of 7 tagged (deleted excluded)
-    body = lib.client.get("/api/recordings?status=inbox").get_json()
+    body = lib.client.get("/api/groups?status=inbox").get_json()
     assert (body["count"], body["total"]) == (1, 1)
 
 
@@ -204,10 +206,10 @@ def test_rating_filter_combines_with_other_filters(marked):
 
 
 def test_mark_counts_are_unaffected_by_filters(marked):
-    body = marked.client.get("/api/recordings", query_string={"status": "tagged", "tags": "bass", "rating": "x"}).get_json()
+    body = marked.client.get("/api/groups", query_string={"status": "tagged", "tags": "bass", "rating": "x"}).get_json()
     assert body["ratings"] == {"heart": 2, "check": 1, "x": 1, "none": 3}      # all 7 tagged, before any filter
     assert sum(body["ratings"].values()) == body["total"] == 7
-    inbox = marked.client.get("/api/recordings?status=inbox").get_json()
+    inbox = marked.client.get("/api/groups?status=inbox").get_json()
     assert inbox["ratings"] == {"heart": 0, "check": 0, "x": 0, "none": 1}
 
 
@@ -276,7 +278,8 @@ def test_sort_bpm_puts_missing_values_last_both_ways(lib):
 def test_ties_break_by_newest_upload_first(app, lib):
     with sqlite3.connect(app.config["DB_PATH"]) as conn:
         conn.execute("UPDATE recordings SET recorded_at = '2026-01-01T00:00:00Z'")
-    ids = [x["id"] for x in lib.client.get("/api/recordings").get_json()["recordings"]]
+    resync(app.config["DB_PATH"])
+    ids = [x["id"] for x in lib.client.get("/api/groups").get_json()["groups"]]
     assert ids == sorted(ids, reverse=True)
 
 
@@ -313,8 +316,8 @@ def test_built_sql_contains_none_of_the_request_text():
 
 # ---- access -----------------------------------------------------------------------------------
 def test_requires_a_session_and_the_token_cannot_read(client):
-    assert client.get("/api/recordings?q=bass").status_code == 401
-    assert client.get("/api/recordings", headers={"Authorization": f"Bearer {TOKEN}"}).status_code == 401
+    assert client.get("/api/groups?q=bass").status_code == 401
+    assert client.get("/api/groups", headers={"Authorization": f"Bearer {TOKEN}"}).status_code == 401
 
 
 def test_parse_filters_defaults():

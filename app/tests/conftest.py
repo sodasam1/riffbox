@@ -69,3 +69,16 @@ def prefixed_app(tmp_path):
         "SESSION_COOKIE_SECURE": False,
         "BASE_PATH": "/ideas",
     })
+
+
+def resync(db_path):
+    """Tests that edit the recordings table directly call this afterwards, so the groups (which the lists read) follow."""
+    import sqlite3
+
+    from riffbox import groups
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        conn.execute("UPDATE idea_groups SET title = (SELECT r.title FROM recordings r WHERE r.group_id = idea_groups.id),"
+                     " deleted_at = (SELECT r.deleted_at FROM recordings r WHERE r.group_id = idea_groups.id) WHERE part_count = 1")
+        for (gid,) in conn.execute("SELECT id FROM idea_groups").fetchall():
+            groups.refresh(conn, gid)

@@ -26,7 +26,7 @@ def test_empty_passphrase_config_never_logs_in(app):
 
 def test_audio_and_list_require_session(client):
     assert client.get("/api/audio/1").status_code == 401
-    assert client.get("/api/recordings").status_code == 401
+    assert client.get("/api/groups").status_code == 401
 
 
 def test_token_cannot_read_audio(client):
@@ -43,7 +43,7 @@ def test_session_status(client, authed):
 
 def test_logout(authed):
     authed.post("/api/logout")
-    assert authed.get("/api/recordings").status_code == 401
+    assert authed.get("/api/groups").status_code == 401
 
 
 # ---- upload ----------------------------------------------------------------
@@ -62,18 +62,18 @@ def test_upload_stores_file_and_row(client, app):
 
 def test_new_upload_lands_in_inbox_with_defaults(client, authed):
     upload(client, make_wav(), recorded_at="2026-11-08T15:42:00Z")
-    rec = authed.get("/api/recordings").get_json()["recordings"][0]
+    rec = authed.get("/api/groups").get_json()["groups"][0]
     assert rec["status"] == "inbox"
     assert rec["title"] == "Idea, Nov 8 3:42pm"
     assert rec["recorded_at"] == "2026-11-08T15:42:00Z"
-    assert rec["orig_filename"] == "New Recording 12.m4a"
-    assert rec["mime"] == "audio/mp4"
+    assert rec["parts"][0]["orig_filename"] == "New Recording 12.m4a"
+    assert rec["parts"][0]["mime"] == "audio/mp4"
     assert rec["rating"] is None and rec["tempo"] is None
 
 
 def test_custom_title_and_bad_date_fallback(client, authed):
     upload(client, make_wav(), title="  My riff ", recorded_at="garbage")
-    rec = authed.get("/api/recordings").get_json()["recordings"][0]
+    rec = authed.get("/api/groups").get_json()["groups"][0]
     assert rec["title"] == "My riff"
     assert rec["recorded_at"].endswith("Z")
 
@@ -85,14 +85,14 @@ def test_reupload_is_deduped(client, authed, app):
     assert second.status_code == 200
     body = second.get_json()
     assert (body["id"], body["duplicate"]) == (first["id"], True) and body["message"].startswith("Already in Riffbox")
-    assert len(authed.get("/api/recordings").get_json()["recordings"]) == 1
+    assert len(authed.get("/api/groups").get_json()["groups"]) == 1
     assert len(list(app.config["AUDIO_DIR"].iterdir())) == 1
 
 
 def test_different_files_both_kept(client, authed):
     upload(client, make_wav(freq_seed=1))
     upload(client, make_wav(freq_seed=2))
-    assert len(authed.get("/api/recordings").get_json()["recordings"]) == 2
+    assert len(authed.get("/api/groups").get_json()["groups"]) == 2
 
 
 def test_rejects_bad_type_and_empty(client):

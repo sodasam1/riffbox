@@ -6,7 +6,7 @@ import time
 import pytest
 
 import riffbox
-from conftest import PASS, TOKEN, make_wav, upload
+from conftest import resync, PASS, TOKEN, make_wav, upload
 from riffbox import create_app
 from riffbox.health import GB, assess, fmt_bytes, fmt_span
 
@@ -119,6 +119,7 @@ def test_growth_is_forecast_from_upload_history(lib):
     upload(c, make_wav(), "a.wav")
     old = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=40)).strftime("%Y-%m-%dT%H:%M:%SZ")
     sqlite3.connect(app.config["DB_PATH"]).execute("UPDATE recordings SET uploaded_at = ?", (old,)).connection.commit()
+    resync(app.config["DB_PATH"])
     h = c.get("/api/data").get_json()["health"]
     assert "growing by about" in h["summary"] and "room for" in h["summary"]
 
@@ -145,11 +146,12 @@ def test_resurface_lists_hearted_ideas_not_played_lately_oldest_first(lib):
         db.execute("UPDATE recordings SET last_played_at = ? WHERE id = ?",
                    ((now - dt.timedelta(days=ago)).strftime("%Y-%m-%dT%H:%M:%SZ"), rid))
     db.commit()
+    resync(app.config["DB_PATH"])
     body = c.get("/api/resurface").get_json()
-    assert [r["title"] for r in body["recordings"]] == ["never played", "played 200d ago", "played 100d ago"]
+    assert [r["title"] for r in body["groups"]] == ["never played", "played 200d ago", "played 100d ago"]
     assert body["hearts"] == 4 and body["days"] == 30                       # never, 100d, 200d, yesterday (Library hearts only)
-    assert [r["title"] for r in c.get("/api/resurface?days=150").get_json()["recordings"]] == ["never played", "played 200d ago"]
-    assert len(c.get("/api/resurface?days=0").get_json()["recordings"]) == 4         # 0 = every hearted idea
+    assert [r["title"] for r in c.get("/api/resurface?days=150").get_json()["groups"]] == ["never played", "played 200d ago"]
+    assert len(c.get("/api/resurface?days=0").get_json()["groups"]) == 4         # 0 = every hearted idea
     assert c.get("/api/resurface?days=x").status_code == 400 and c.get("/api/resurface?days=-1").status_code == 400
     assert never
 
@@ -164,6 +166,6 @@ def test_resurface_needs_a_login_and_the_token_is_not_enough(lib):
 def test_listening_removes_an_idea_from_the_resurface_list(lib):
     _, c = lib()
     rid = mk(c, 1, "heart")
-    assert len(c.get("/api/resurface").get_json()["recordings"]) == 1
+    assert len(c.get("/api/resurface").get_json()["groups"]) == 1
     c.post(f"/api/recordings/{rid}/played")
-    assert c.get("/api/resurface").get_json()["recordings"] == [] and c.get("/api/resurface?days=0").get_json()["hearts"] == 1
+    assert c.get("/api/resurface").get_json()["groups"] == [] and c.get("/api/resurface?days=0").get_json()["hearts"] == 1

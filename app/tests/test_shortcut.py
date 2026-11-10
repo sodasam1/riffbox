@@ -24,8 +24,8 @@ def mp4_head():
 def test_a_name_without_an_extension_is_identified_from_the_content(authed, data, ext):
     r = upload(authed, data, name="Idea, Nov 8 3:42pm")
     assert r.status_code == 201, r.get_json()
-    row = authed.get("/api/recordings").get_json()["recordings"][0]
-    assert row["orig_filename"] == "Idea, Nov 8 3:42pm" + ext
+    row = authed.get("/api/groups").get_json()["groups"][0]
+    assert row["parts"][0]["orig_filename"] == "Idea, Nov 8 3:42pm" + ext
     assert ext in authed.get(f"/api/audio/{row['id']}?download=1").headers["Content-Disposition"]
 
 
@@ -46,7 +46,7 @@ def test_replies_carry_a_message_a_shortcut_can_show(client, authed):
 
 def test_a_title_that_is_the_file_name_loses_its_extension(client, authed):
     upload(client, make_wav(freq_seed=2), name="Idea, Nov 8 3:42pm.m4a", title="Idea, Nov 8 3:42pm.m4a")
-    assert authed.get("/api/recordings").get_json()["recordings"][0]["title"] == "Idea, Nov 8 3:42pm"
+    assert authed.get("/api/groups").get_json()["groups"][0]["title"] == "Idea, Nov 8 3:42pm"
 
 
 def test_token_check_for_setting_up_the_shortcut(client):
@@ -59,5 +59,5 @@ def test_token_check_for_setting_up_the_shortcut(client):
 def test_the_token_still_cannot_read_anything(client):
     upload(client, make_wav(freq_seed=3), name="a.wav")
     auth = {"Authorization": f"Bearer {TOKEN}"}
-    for url in ("/api/recordings", "/api/data", "/api/trash", "/api/export.zip", "/api/audio/1"):
+    for url in ("/api/groups", "/api/data", "/api/trash", "/api/export.zip", "/api/audio/1"):
         assert client.get(url, headers=auth).status_code == 401, url

@@ -17,7 +17,7 @@ def three(authed):
 
 
 def rows(c):
-    return {r["title"]: r for r in c.get("/api/recordings?rating=heart,check,x,none").get_json()["recordings"]}
+    return {r["title"]: r for r in c.get("/api/groups?rating=heart,check,x,none").get_json()["groups"]}
 
 
 def bulk(c, ids, **changes):
@@ -47,14 +47,14 @@ def test_marks_status_and_the_song_box(three):
     assert {x["rating"] for x in r.values()} == {"heart"} and r["one"]["used_in"] is None
     assert bulk(c, ids, rating=None).status_code == 200 and {x["rating"] for x in rows(c).values()} == {None}
     assert bulk(c, ids[:2], status="inbox").status_code == 200
-    assert [x["title"] for x in c.get("/api/recordings?status=inbox").get_json()["recordings"]] == ["two", "one"]
+    assert [x["title"] for x in c.get("/api/groups?status=inbox").get_json()["groups"]] == ["two", "one"]
 
 
 def test_trash_many_and_they_can_be_restored(three):
     c, ids = three
     assert bulk(c, ids[:2], trash=True).get_json() == {"updated": 2}
     assert list(rows(c)) == ["three"]
-    assert {x["title"] for x in c.get("/api/trash").get_json()["recordings"]} == {"one", "two"}
+    assert {x["title"] for x in c.get("/api/trash").get_json()["groups"]} == {"one", "two"}
     assert c.post(f"/api/recordings/{ids[0]}/restore").status_code == 200
 
 

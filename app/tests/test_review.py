@@ -19,9 +19,9 @@ def test_search_ignores_case_beyond_ascii(authed):
     ids = {}
     for seed, title in enumerate(["Été en Provence", "zebra riff", "Ångström theme"]):
         ids[title] = upload(authed, make_wav(freq_seed=seed), f"{seed}.wav", title=title).get_json()["id"]
-    got = authed.get("/api/recordings?q=%C3%A9t%C3%A9").get_json()["recordings"]          # "été"
+    got = authed.get("/api/groups?q=%C3%A9t%C3%A9").get_json()["groups"]          # "été"
     assert [r["title"] for r in got] == ["Été en Provence"]
-    got = authed.get("/api/recordings?q=%C3%85NGSTR%C3%96M").get_json()["recordings"]     # "ÅNGSTRÖM"
+    got = authed.get("/api/groups?q=%C3%85NGSTR%C3%96M").get_json()["groups"]     # "ÅNGSTRÖM"
     assert [r["title"] for r in got] == ["Ångström theme"]
 
 
@@ -41,15 +41,15 @@ def test_counts_and_total_still_agree(authed):
     a = upload(authed, make_wav(freq_seed=1), "a.wav").get_json()["id"]
     b = upload(authed, make_wav(freq_seed=2), "b.wav").get_json()["id"]
     authed.patch(f"/api/recordings/{a}", json={"rating": "heart", "status": "tagged"})
-    body = authed.get("/api/recordings?status=tagged").get_json()
+    body = authed.get("/api/groups?status=tagged").get_json()
     assert (body["total"], body["ratings"]) == (1, {"heart": 1, "check": 0, "x": 0, "none": 0})
-    body = authed.get("/api/recordings?status=inbox").get_json()
+    body = authed.get("/api/groups?status=inbox").get_json()
     assert (body["total"], body["ratings"]["none"], b) == (1, 1, b)
-    assert authed.get("/api/recordings").get_json()["total"] == 2
+    assert authed.get("/api/groups").get_json()["total"] == 2
 
 
 def test_responses_say_nosniff(authed):
-    assert authed.get("/api/recordings").headers["X-Content-Type-Options"] == "nosniff"
+    assert authed.get("/api/groups").headers["X-Content-Type-Options"] == "nosniff"
 
 
 def test_identical_uploads_at_the_same_moment_make_one_recording(app):
@@ -72,7 +72,7 @@ def test_identical_uploads_at_the_same_moment_make_one_recording(app):
     assert sorted(results) == [(200, True)] * 5 + [(201, False)], results
     c = app.test_client()
     c.post("/api/login", json={"passphrase": "correct horse"})
-    assert c.get("/api/recordings").get_json()["total"] == 1
+    assert c.get("/api/groups").get_json()["total"] == 1
 
 
 def test_without_ffmpeg_the_player_is_told_there_is_no_waveform(tmp_path):
