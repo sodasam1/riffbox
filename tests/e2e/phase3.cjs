@@ -146,7 +146,7 @@ async function waitUp() {
     await page.waitForFunction((n) => document.querySelectorAll("#list li").length === n, rows + 1);
     await page.screenshot({ path: path.join(tmp, "mobile.png") });
     await page.click("#menu-btn"); await page.click("#logout"); await page.waitForSelector("#login:not([hidden])");
-    assert.strictEqual((await ctx.request.get(BASE + "api/recordings")).status(), 401);
+    assert.strictEqual((await ctx.request.get(BASE + "api/groups")).status(), 401);
     console.log("ok  reload keeps session; logout ends it");
 
     // lockout: a successful login clears the failure count, so five fresh wrong attempts reach the

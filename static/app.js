@@ -703,13 +703,23 @@ function libraryQuery() {
   return p.toString();
 }
 
+// The server sends ideas (groups). Until the page shows several parts, an idea is shown through its first
+// recording: `id` is that recording's number (used for audio and the per-recording endpoints), `gid` the idea's.
+const gidOf = new Map();
+function asRec(g) {
+  const p = g.parts[0];
+  gidOf.set(p.id, g.id);
+  return { ...g, gid: g.id, id: p.id, codec: p.codec, play_status: p.play_status, orig_filename: p.orig_filename, mime: p.mime, parts: g.parts };
+}
+const asRecs = (body) => body.groups.map(asRec);
+
 async function loadList() {
   clearTimeout(pollTimer);
   const seq = ++loadSeq;
   let inbox, lib, tags, trash, forgotten;
   try {
     [inbox, lib, tags, trash, forgotten] = await Promise.all([
-      api("recordings?status=inbox&sort=recorded&order=desc"), api("recordings?" + libraryQuery()), api("tags"),
+      api("groups?status=inbox&sort=recorded&order=desc"), api("groups?" + libraryQuery()), api("tags"),
       view === "trash" ? api("trash") : Promise.resolve(null),
       view === "resurface" ? api("resurface?days=" + resurfaceDays) : Promise.resolve(null)]);
   } catch (e) {
@@ -720,13 +730,13 @@ async function loadList() {
   if (!inbox.ok || !lib.ok) { notify("Could not load your recordings (error " + (lib.ok ? inbox.status : lib.status) + ")."); return; }
   const [inboxBody, libBody] = await Promise.all([inbox.json(), lib.json()]);
   if (seq !== loadSeq) return;                // a newer load is already on its way; this answer is stale
-  inboxRecs = inboxBody.recordings;
-  libRecs = libBody.recordings;
+  inboxRecs = asRecs(inboxBody);
+  libRecs = asRecs(libBody);
   libTotal = libBody.total;
   libRatings = libBody.ratings;
   trashCount = inboxBody.trashed;
-  if (trash && trash.ok) trashRecs = (await trash.json()).recordings;
-  if (forgotten && forgotten.ok) { const body = await forgotten.json(); resurfaceRecs = body.recordings; resurfaceHearts = body.hearts; }
+  if (trash && trash.ok) trashRecs = asRecs(await trash.json());
+  if (forgotten && forgotten.ok) { const body = await forgotten.json(); resurfaceRecs = asRecs(body); resurfaceHearts = body.hearts; }
   if (tags.ok) allTags = (await tags.json()).tags;
   if (openEditId !== null) updateTabs();     // never rebuild the list under a form someone is typing in
   else render();
@@ -1174,7 +1184,7 @@ $("#surprise").addEventListener("click", async () => {
     if (!pool.length && resurfaceHearts) {                    // all hearted ideas were played lately: draw from every one
       const r = await api("resurface?days=0");
       if (loggedOut(r)) return;
-      if (r.ok) { pool = (await r.json()).recordings; anyHeart = true; }
+      if (r.ok) { pool = asRecs(await r.json()); anyHeart = true; }
     }
     if (!pool.length) { notify("Nothing hearted yet. Heart (♥) some ideas in the Library first."); return; }
     const choices = pool.length > 1 ? pool.filter((r) => r.id !== playingId) : pool;     // not the one already playing
@@ -1269,7 +1279,7 @@ $("#bulk-all").addEventListener("change", (e) => {
   render();
 });
 async function bulk(changes, done) {
-  const ids = [...picked];
+  const ids = [...picked].map((id) => gidOf.get(id) ?? id);
   if (!ids.length) return;
   let r;
   try { r = await sendJson("bulk", "POST", { ids, changes }); } catch (e) { notify(NETWORK_ERROR); return; }

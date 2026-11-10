@@ -67,7 +67,7 @@ async function waitUp(base) {
     const iso = (days) => new Date(Date.now() - days * 86400000).toISOString().replace(/\.\d+Z$/, "Z");
     require("child_process").execFileSync(PY, ["-I", "-c",
       "import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);" +
-      "[c.execute('UPDATE recordings SET last_played_at=? WHERE id=?',(t,i)) for i,t in zip(sys.argv[2::2],sys.argv[3::2])];c.commit()",
+      "[c.execute('UPDATE recordings SET last_played_at=? WHERE id=?',(t,i)) for i,t in zip(sys.argv[2::2],sys.argv[3::2])];c.execute('UPDATE idea_groups SET last_played_at=(SELECT MAX(last_played_at) FROM recordings r WHERE r.group_id=idea_groups.id)');c.commit()",
       dbDir, String(ids["Played 100 days ago"]), iso(100), String(ids["Played 200 days ago"]), iso(200), String(ids["Played yesterday"]), iso(1)]);
 
     const page = await ctx.newPage();
@@ -164,7 +164,7 @@ async function waitUp(base) {
     assert.ok(seen.size >= 2 && [...seen].every((x) => pool.includes(x)), "Surprise me always plays the same idea: " + [...seen]);
     console.log("ok  Surprise me plays a random idea from the list, and a different one the next time");
     // when everything hearted was played lately, the list is empty but Surprise me still works from any heart
-    require("child_process").execFileSync(PY, ["-I", "-c", "import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);c.execute(\"UPDATE recordings SET last_played_at=? WHERE rating='heart'\",(sys.argv[2],));c.commit()", dbDir, iso(0)]);
+    require("child_process").execFileSync(PY, ["-I", "-c", "import sqlite3,sys;c=sqlite3.connect(sys.argv[1]);c.execute(\"UPDATE recordings SET last_played_at=? WHERE rating='heart'\",(sys.argv[2],));c.execute('UPDATE idea_groups SET last_played_at=(SELECT MAX(last_played_at) FROM recordings r WHERE r.group_id=idea_groups.id)');c.commit()", dbDir, iso(0)]);
     await page.selectOption("#resurface-days", "7");
     await page.waitForFunction(() => document.querySelectorAll("#list > li").length === 0);
     assert.match(await page.textContent("#empty"), /played recently/);

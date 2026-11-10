@@ -46,7 +46,7 @@ async function waitUp() {
       assert.strictEqual(r.status(), 201);
     }
     await ctx.request.post(BASE + "api/login", { data: { passphrase: "open sesame" } });
-    const api = async (q) => (await (await ctx.request.get(BASE + "api/recordings" + q)).json()).recordings;
+    const api = async (q) => (await (await ctx.request.get(BASE + "api/groups" + q)).json()).groups;
     const page = await ctx.newPage();
     const problems = [];
     page.on("pageerror", (e) => problems.push("pageerror: " + e.message));

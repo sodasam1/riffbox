@@ -62,7 +62,7 @@ const SEED = [
     for (const [title, , , bpm, [root, mode], tags, rating] of SEED) {
       assert.strictEqual((await ctx.request.patch(BASE + `api/recordings/${ids[title]}`, { data: { status: "tagged", bpm, key_root: root, key_mode: mode, tags, rating, notes: "n" } })).status(), 200);
     }
-    const api = async (q = "") => (await (await ctx.request.get(BASE + "api/recordings" + q)).json()).recordings;
+    const api = async (q = "") => (await (await ctx.request.get(BASE + "api/groups" + q)).json()).groups;
     const page = await ctx.newPage();
     const problems = [];
     page.on("pageerror", (e) => problems.push("pageerror: " + e.message));
