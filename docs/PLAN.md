@@ -48,7 +48,7 @@ has everything; `phase-6`, `phase-7`, `phase-8` are kept as requested).
   headings** (once ascending, twice descending, third back to the default, newest upload first), separate Recorded and Uploaded
   columns (date only; full timestamp on hover), **Select mode with bulk actions** (tags, mark, Inbox, Trash), and a **Random** button.
   Arrow keys with play-as-I-move and Space.
-- **Two themes** (standard, and a minimal one with one ink colour and no fills), switched in the Menu and remembered per device.
+- **Style and colours as two separate choices** in the Menu, remembered per device: style is standard or minimal (one ink colour, no fills); colours are auto (follow the device), light or dark. Any style works with any colours, and new styles or colour sets only add blocks of CSS variables.
 - **Cozy / Compact** row size (remembered); Compact shows `108 · A m`, ISO dates and whole tags with a "+N". **Resurface**: hearted ideas not played for N days, never-played first, and
   *Surprise me*. **Trash** tab set apart, with Restore.
 - Player bar: waveform and length measured on the server, scrubbing, speed, A/B and whole-recording loop, "played" only
@@ -152,7 +152,7 @@ Quality gates today: 308 automated server tests on `main` (326 on `groups`) and 
   install-from-that-copy path. The biggest 20-year risk per hour of effort.
 - **Timestamped markers on the waveform** (M): short notes at positions in a recording, included in the export.
 - **Interface decluttering, remaining proposals:** an idle player that stays slim, one menu for the row actions, a collapsible
-  filter sidebar, a two-step edit form, orange only for primary actions. (Done: compact Upload, tabs without the heading, header Menu, minimal theme.)
+  filter sidebar, a two-step edit form, orange only for primary actions. (Done: compact Upload, tabs without the heading, header Menu, minimal theme, dark theme, spaced button groups in the tab row.)
 - **Pass the memo's creation date from the Shortcut** as the date recorded (S).
 - **Home-screen icon** for the web app (S).
 - If Shortcuts file uploads misbehave: a base64 upload variant, a Record button inside the page, or email-in (Mail to the

@@ -387,6 +387,7 @@ function applyDensity() {
   $("#dens-compact").setAttribute("aria-pressed", String(density === "compact"));
   // On desktop a control that does not apply to the tab stays as an invisible placeholder, so nothing else moves.
   $("#library-tools").classList.toggle("slot-off", view !== "library" && view !== "inbox");
+  $("#select-toggle").classList.toggle("slot-off", view !== "library" && view !== "inbox");
   $("#random").classList.toggle("slot-off", !(view === "library" || view === "inbox") || triage !== null);     // draws from the list on screen
   scheduleFitTags();
 }
@@ -1547,15 +1548,27 @@ $("#random").addEventListener("click", () => {
 });
 
 // ---- Themes: "standard" or "minimal" (static/theme.js applies the saved one before the first paint) ----------------
-function applyTheme(minimal) {
-  if (minimal) document.documentElement.dataset.theme = "minimal"; else delete document.documentElement.dataset.theme;
-  stored.set("theme", minimal ? "minimal" : "standard");
-  $("#theme-toggle").textContent = minimal ? "Switch to the standard theme" : "Switch to the minimal theme";
+// Two separate choices: the style ("standard" or "minimal": the shapes and amount of decoration) and the colours ("auto" follows
+// the device, or "light" / "dark" always). More styles and colour sets can be added next to these.
+const STYLES = ["standard", "minimal"], COLORS = ["auto", "light", "dark"];
+function applyTheme(name) {
+  if (name === "minimal") document.documentElement.dataset.theme = "minimal"; else { delete document.documentElement.dataset.theme; name = "standard"; }
+  stored.set("theme", name);
+  for (const t of STYLES) $("#theme-" + t).setAttribute("aria-pressed", String(t === name));
   colorCache = null;                                                     // the waveform picks its colours up from the theme
   drawWave();
 }
-$("#theme-toggle").addEventListener("click", () => applyTheme(document.documentElement.dataset.theme !== "minimal"));
-if (document.documentElement.dataset.theme === "minimal") $("#theme-toggle").textContent = "Switch to the standard theme";
+function applyColors(name) {
+  if (name === "light" || name === "dark") document.documentElement.dataset.colors = name; else { delete document.documentElement.dataset.colors; name = "auto"; }
+  stored.set("colors", name);
+  for (const c of COLORS) $("#colors-" + c).setAttribute("aria-pressed", String(c === name));
+  colorCache = null;
+  drawWave();
+}
+for (const t of STYLES) $("#theme-" + t).addEventListener("click", () => applyTheme(t));
+for (const c of COLORS) $("#colors-" + c).addEventListener("click", () => applyColors(c));
+for (const t of STYLES) $("#theme-" + t).setAttribute("aria-pressed", String((document.documentElement.dataset.theme || "standard") === t));
+for (const c of COLORS) $("#colors-" + c).setAttribute("aria-pressed", String((document.documentElement.dataset.colors || "auto") === c));
 
 // ---- The header menu ---------------------------------------------------------------------------------------
 const menuBtn = $("#menu-btn"), menu = $("#menu");

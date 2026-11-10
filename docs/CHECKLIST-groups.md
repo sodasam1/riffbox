@@ -32,3 +32,7 @@ Run on a restored copy of your real data first, then on the live site. Each stag
 - [ ] h/c/x mark the whole idea while a part is highlighted; Space plays or pauses that part.
 - [ ] Random never repeats the idea that is playing, and plays a group from its first part. Select: ticking a part ticks the idea; Select all counts ideas.
 - [ ] Triage a grouped Inbox idea: the card lists its parts, and they play in order.
+
+## Tab row and themes (small changes)
+- [ ] Tab row reads as groups: Inbox / Library / Resurface, then Cozy / Compact, then Random, then Select (Random before Select), with clear space between.
+- [ ] Menu → Style (Standard, Minimal) and Colors (Auto, Light, Dark) work independently and in any combination, and are remembered; Dark stays dark when the phone is set to light.

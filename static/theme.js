@@ -1,6 +1,10 @@
 "use strict";
-// Runs in the <head>, before the page is drawn, so the chosen theme is there from the first paint (no flash).
-// "standard" is the default and needs no attribute; "minimal" sets data-theme on <html>. Chosen in the Menu.
+// Runs in the <head>, before the page is drawn, so the chosen look is there from the first paint (no flash).
+// Two independent choices, both made in the Menu:
+//   style  : "standard" (default, no attribute) or "minimal"      -> <html data-theme="minimal">
+//   colors : "auto" (default, follows the device), "light", "dark" -> <html data-colors="light|dark">
 try {
   if (localStorage.getItem("riffbox.theme") === "minimal") document.documentElement.dataset.theme = "minimal";
-} catch (e) { /* storage blocked: the standard theme */ }
+  const c = localStorage.getItem("riffbox.colors");
+  if (c === "light" || c === "dark") document.documentElement.dataset.colors = c;
+} catch (e) { /* storage blocked: standard style, device colours */ }

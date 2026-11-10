@@ -77,12 +77,12 @@ const SEED = [
     assert.ok(await page.isHidden("#menu"), "the menu starts closed");
     await page.click("#menu-btn");
     assert.strictEqual(await page.getAttribute("#menu-btn", "aria-expanded"), "true");
-    assert.deepStrictEqual((await page.locator("#menu > *").allTextContents()).map((s) => s.trim()), ["Backup and export", "How this works", "Switch to the minimal theme", "Log out"]);
+    assert.deepStrictEqual((await page.locator("#menu > *").allTextContents()).map((s) => s.replace(/\s+/g, "").trim()), ["Backupandexport", "Howthisworks", "StyleStandardMinimal", "ColorsAutoLightDark", "Logout"]);
     await page.click("header h1");                                              // a click elsewhere closes it
     assert.ok(await page.isHidden("#menu"));
     await page.click("#menu-btn"); await page.keyboard.press("Escape");
     assert.ok(await page.isHidden("#menu") && (await page.evaluate(() => document.activeElement.id)) === "menu-btn", "Escape closes it and returns to the button");
-    console.log("ok  the Menu opens from the button, closes on Escape, on an outside click, and holds its four items");
+    console.log("ok  the Menu opens from the button, closes on Escape, on an outside click, and holds its items (Style and Colors each have their own buttons)");
 
     // ---- compact upload bar
     const dropH = await page.evaluate(() => document.querySelector("#drop").getBoundingClientRect().height);

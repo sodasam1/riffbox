@@ -26,7 +26,14 @@
       <nav id="menu" aria-label="Riffbox menu" hidden>
         <a id="data-link" href="#data">Backup and export</a>
         <a id="how-link" href="#how">How this works</a>
-        <button id="theme-toggle" type="button">Switch to the minimal theme</button>
+        <div class="theme-group" role="group" aria-label="Style">
+          <span class="meta">Style</span>
+          <div><button id="theme-standard" type="button" aria-pressed="true">Standard</button><button id="theme-minimal" type="button" aria-pressed="false">Minimal</button></div>
+        </div>
+        <div class="theme-group" role="group" aria-label="Colors">
+          <span class="meta">Colors</span>
+          <div><button id="colors-auto" type="button" aria-pressed="true">Auto</button><button id="colors-light" type="button" aria-pressed="false">Light</button><button id="colors-dark" type="button" aria-pressed="false">Dark</button></div>
+        </div>
         <button id="logout" type="button">Log out</button>
       </nav>
     </div>
@@ -99,9 +106,9 @@
         <span id="density" role="group" aria-label="Row size">
           <button id="dens-cozy" type="button" aria-pressed="true">Cozy</button><button id="dens-compact" type="button" aria-pressed="false">Compact</button>
         </span>
-        <button id="select-toggle" type="button" aria-pressed="false">Select</button>
       </span>
       <button id="random" type="button" class="slot-off" title="Play a random recording from the list below">Random</button>
+      <button id="select-toggle" type="button" class="slot-off" aria-pressed="false">Select</button>
       <button id="tab-trash" type="button" aria-pressed="false" hidden>Trash</button>
     </div>
     <p id="notice" role="status" aria-live="polite" hidden></p>

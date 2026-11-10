@@ -62,7 +62,7 @@ async function waitUp(base) {
     // the link sits in the Menu, with "How this works" and "Log out"
     await page.click("#menu-btn");
     const order = await page.evaluate(() => [...document.querySelectorAll("#menu > *")].map((n) => n.textContent.trim()));
-    assert.deepStrictEqual(order, ["Backup and export", "How this works", "Switch to the minimal theme", "Log out"]);
+    assert.deepStrictEqual(order.map((s) => s.replace(/\s+/g, "")), ["Backupandexport", "Howthisworks", "StyleStandardMinimal", "ColorsAutoLightDark", "Logout"]);
     await page.click("#data-link");
     assert.ok(await page.isHidden("#menu"), "choosing an item closes the menu");
     await page.waitForSelector("#data-view:not([hidden])");

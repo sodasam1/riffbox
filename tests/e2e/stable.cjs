@@ -95,6 +95,16 @@ async function waitUp() {
     for (const s of ["#random", "#dens-cozy"]) assert.ok(await page.isHidden(s), s + " should not be usable on Resurface");
     console.log("ok  Random shows on Inbox and Library, Select and the row-size control on Inbox and Library, always in the same slots");
 
+    // the button groups sit apart: tabs | row size | Random | Select (in that order)
+    await page.click("#tab-library"); await page.waitForTimeout(150);
+    const box = (sel) => page.evaluate((q) => { const r = document.querySelector(q).getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top }; }, sel);
+    const [res, coz, cmp, rnd, sel] = [await box("#tab-resurface"), await box("#dens-cozy"), await box("#dens-compact"), await box("#random"), await box("#select-toggle")];
+    assert.ok(coz.l - res.r >= 24, "space between Resurface and Cozy: " + (coz.l - res.r));
+    assert.ok(rnd.l - cmp.r >= 16, "space between Compact and Random: " + (rnd.l - cmp.r));
+    assert.ok(sel.l - rnd.r >= 16, "space between Random and Select: " + (sel.l - rnd.r));
+    assert.ok(rnd.l < sel.l, "Random comes before Select");
+    console.log("ok  the tab row reads as groups: tabs, row size, Random, Select, with space between them");
+
     // the left column holds each tab's own controls, in the same place
     const left = {};
     for (const [view, sel] of [["inbox", "#side-inbox"], ["library", "#filters"], ["resurface", "#side-resurface"]]) {

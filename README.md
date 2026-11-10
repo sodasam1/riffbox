@@ -25,7 +25,7 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
   **triage** mode for the Inbox, and ♥ / ✓ / ✗ marks (✓ can name the song it became).
 - **Find and listen:** a Library with search, tag, BPM, key and mark filters; a table with click-to-sort headings, Cozy or
   Compact rows, Select mode with bulk actions, **Random**, and **Resurface** (hearted ideas you have not played lately).
-  A player with a waveform, scrubbing, speed, A-B loop and Download. Standard and minimal themes (Menu).
+  A player with a waveform, scrubbing, speed, A-B loop and Download. Style (standard or minimal) and colours (auto, light or dark) are separate choices in the Menu.
 - **Protect:** a Trash instead of deletion, nightly backups, a **Backup and export** page, and an export to plain files
   that needs none of this code. Originals are never changed or removed by the app.
 - **Apple Lossless (ALAC) memos:** Safari plays them, Chrome, Edge and Firefox do not. With `ffmpeg` installed the server
