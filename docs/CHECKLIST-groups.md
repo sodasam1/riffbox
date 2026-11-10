@@ -25,3 +25,10 @@ Run on a restored copy of your real data first, then on the live site. Each stag
 - [ ] The caret opens the parts under the row (Cozy, Compact, minimal theme, phone). Each part plays and downloads on its own; opened ideas stay open after a change.
 - [ ] The player names the part ("Idea — Part (part 2 of 3)"); when a part ends the next one starts, and it stops after the last.
 - [ ] The idea's own ▶ plays the part you were on (else the first). Arrow keys still move row to row (parts are not stepped through until stage 4).
+
+## Stage 4: keyboard, Random, Select and triage with groups
+- [ ] Arrow ↓ onto a closed group opens it and plays part 1; ↓ walks its parts, then on to the next idea, and the group closes behind you. ↑ onto a group opens it on its last part.
+- [ ] A group you opened with the caret stays open when you arrow past it; closing it with the caret closes it.
+- [ ] h/c/x mark the whole idea while a part is highlighted; Space plays or pauses that part.
+- [ ] Random never repeats the idea that is playing, and plays a group from its first part. Select: ticking a part ticks the idea; Select all counts ideas.
+- [ ] Triage a grouped Inbox idea: the card lists its parts, and they play in order.

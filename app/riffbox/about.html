@@ -3,7 +3,7 @@
      Quickstart, Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model, Keeping your data portable.
      UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
 
-<p class="meta">Last updated: 10 Nov 2026, after groups stage 3 (ideas made of several recordings). Written from what was
+<p class="meta">Last updated: 10 Nov 2026, after groups stage 4 (ideas made of several recordings). Written from what was
 checked on your server and in the tests; anything unverified is marked as such.</p>
 
 <h2>Quickstart</h2>
@@ -70,21 +70,26 @@ in ways you might not expect:</p>
   <li><strong>Playing:</strong> the idea's &#9654; plays the part you were on, else the first, and playback moves on to the next
     part by itself. Each open part has its own &#9654; and Download. The idea's own <em>Download</em> button gives its first
     part only (for now).</li>
-  <li><strong>Selecting a group</strong> in Select mode selects all its parts; the bulk actions apply to the whole idea.
+  <li><strong>Arrow keys:</strong> parts count as ordinary lines. Arrowing <em>down</em> onto a closed idea opens it and plays its first
+    part; arrowing <em>up</em> onto it opens it on its last part. &uarr;/&darr; then move part to part, and on to the next idea.
+    An idea opened this way <em>closes again</em> when you move off it; an idea you opened yourself with the caret <em>stays open</em>
+    (closing it with the caret closes it). <code>h</code>, <code>c</code>, <code>x</code> mark the whole idea; Space plays or pauses the
+    highlighted part. Random picks an idea (a group counts once) and starts it at its first part. A triage card for a group lists
+    its parts and plays them in order.</li>
+  <li><strong>Selecting a group</strong> in Select mode selects all its parts (ticking any part ticks the idea, and Select all counts
+    ideas, not recordings); the bulk actions apply to the whole idea.
     <em>Add to group&hellip;</em> in the Select bar adds the ticked ideas to an existing group.</li>
   <li><strong>Trash and Restore</strong> work on the whole idea. A restore can be refused if you uploaded the same audio again in
     the meantime.</li>
-  <li><strong>Not done yet:</strong> arrow keys still step idea to idea, not into the parts, and an idea does not auto-open
-    while you arrow through it; Resurface and the export do not treat groups specially yet (see Planned features).</li>
+  <li><strong>Not done yet:</strong> Resurface does not treat groups specially yet, and the export does not carry a group's own
+    details (see Planned features).</li>
 </ul>
 
 <h2>Planned features</h2>
 <p>Not built yet, roughly in order of how soon they are likely. The detailed plans are in the repository's <code>docs/</code>.</p>
 <ul>
-  <li><strong>Groups, stages 4 and 5.</strong> Keyboard: arrowing onto a group opens it and plays its first part (going up, its last),
-    moves through the parts as separate lines, and closes it when you leave, unless you opened it by hand with the caret (then it
-    stays open). Also: Random and triage that understand groups, Resurface that always shows a whole group, an export that carries
-    the group's details, and a rehearsal of the migration on a copy of your data before the first deploy.
+  <li><strong>Groups, stage 5.</strong> Resurface that always shows a whole group, an export that carries the group's details, and a
+    rehearsal of the migration on a copy of your data before the first deploy.
     Possible afterwards: suggesting groups from recordings made close together in time, a zip of all parts, playing parts together.</li>
   <li><strong>Speed and upkeep</strong> (decided: eventually): compressed responses and long-lived caching of the page files;
     fixing the slow Select / Library-tab interactions on large libraries; a smaller <code>app.js</code>; theme variables;
@@ -134,10 +139,10 @@ before the next starts, so a problem stays confined to the newest layer.</p>
       Shortcuts (confirmed working); editing in the Inbox; Library table (click-to-sort headings, Recorded and Uploaded
       columns, Compact rows, Select and bulk actions); Random; the minimal theme; tabs that no longer shift the layout; a
       restore tool (<code>deploy/restore.py</code>).</td><td><span class="status next">Built; awaiting your look on real devices</span></td></tr>
-    <tr><td>Groups 1&ndash;3</td><td>Ideas made of several recordings: the data layer and an additive migration (stage 1), making and
-      changing groups (stage 2), expandable rows, part playback and the player title (stage 3). See the Quickstart.</td>
+    <tr><td>Groups 1&ndash;4</td><td>Ideas made of several recordings: the data layer and an additive migration (stage 1), making and
+      changing groups (stage 2), expandable rows, part playback and the player title (stage 3), arrow-key walking through parts, Random, Select and triage for groups (stage 4). See the Quickstart.</td>
       <td><span class="status next">Built and tested; migration rehearsal and deploy pending</span></td></tr>
-    <tr><td>Groups 4&ndash;5</td><td>Keyboard behaviour across parts, Resurface and export for groups, final docs.</td>
+    <tr><td>Groups 5</td><td>Resurface and export for groups, final docs.</td>
       <td><span class="status next">Planned</span></td></tr>
   </tbody>
 </table>
