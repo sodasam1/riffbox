@@ -101,9 +101,9 @@ in ways you might not expect:</p>
   <li><strong>Groups, later:</strong> suggesting groups from recordings made close together in time, a zip of all parts, playing parts
     together. First deploy of groups: rehearse on a copy of your data (<code>deploy/GROUPS.md</code>).</li>
   <li><strong>Speed and upkeep</strong> (built: compression, long-lived caching, a much faster Library and Select mode, revalidated lists,
-    numbered migrations and exact version pins for every dependency). Still planned are loading the Library list only when its
-    tab opens, a smaller <code>app.js</code>, theme variables, running the browser tests in Safari's and Firefox's engines, a monthly self-test and a
-    yearly-care checklist.</li>
+    numbered migrations, exact version pins, one set of style variables for the themes, the page script split into five files, and browser tests that
+    run in Safari's and Firefox's engines). Still planned: loading the Library list only when its tab opens, a monthly self-test, a yearly-care
+    checklist, and running the four audio tests in Firefox on a machine with sound.</li>
   <li><strong>Serve the page files from your website's <code>htdocs</code> folder</strong> (your preferred direction): put the page
     files in <code>/var/www/htdocs/ideas/</code> and narrow the relayd rule to <code>/ideas/api/*</code>. The address stays
     <code>/ideas/</code>. Trade-offs: two upload destinations, the page and the data code can get out of step if only one is
@@ -156,6 +156,10 @@ before the next starts, so a problem stays confined to the newest layer.</p>
       slowest part was formatting dates); lists that answer &ldquo;not modified&rdquo; when nothing changed; numbered database migrations with a
       copy kept before the first one; every dependency pinned to an exact version; browser tests that can run in other engines.</td>
       <td><span class="status done">Compression and caching deployed; the rest built, awaiting your deploy and check</span></td></tr>
+    <tr><td>Code upkeep</td><td>The minimal look is now a block of style variables read by one set of component rules (so a new style is a block of values);
+      the page script is five files instead of one; the browser tests share their set-up and run in the engines behind Safari and Firefox, which found
+      and fixed three real problems (the player bar covering a field in Safari, rows moving under the pointer in Safari, and the next part starting too early).</td>
+      <td><span class="status next">Built and tested; awaiting your deploy and check on the phone</span></td></tr>
   </tbody>
 </table>
 </div>

@@ -1,28 +1,8 @@
 // Browser test for the "How this works" page and the player-bar spacing.
 // Run:  RIFFBOX_PY=/path/to/python node tests/e2e/howto.cjs
-const { launch } = require("./_browser.cjs");
-const { spawn } = require("child_process");
-const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
+const { setup } = require("./_helpers.cjs");
 
-const PORT = 8197, BASE = `http://127.0.0.1:${PORT}/ideas/`;
-const PY = process.env.RIFFBOX_PY || "python3";
-const ROOT = path.resolve(__dirname, "..", "..");
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "riffbox-e2e-how-"));
-
-const server = spawn(PY, ["-m", "waitress", `--listen=127.0.0.1:${PORT}`, "wsgi:app"], {
-  cwd: path.join(ROOT, "app"),
-  env: { ...process.env, RIFFBOX_DATA_DIR: path.join(tmp, "data"), RIFFBOX_SECRET: "e2e", RIFFBOX_UPLOAD_TOKEN: "tok",
-         RIFFBOX_PASSPHRASE: "open sesame", RIFFBOX_INSECURE_COOKIES: "1", RIFFBOX_BASE_PATH: "/ideas",
-         RIFFBOX_STATIC_DIR: path.join(ROOT, "static"), RIFFBOX_FFMPEG: "" },
-  stdio: "inherit",
-});
-async function waitUp() {
-  for (let i = 0; i < 50; i++) {
-    try { if ((await fetch(BASE + "health")).ok) return; } catch (e) {}
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  throw new Error("server did not start");
-}
+const { PORT, BASE, PY, ROOT, tmp, server, waitUp, wav, launch, assert, fs, os, path } = setup({ port: 8197, name: "how", wavSeconds: 6 });
 
 (async () => {
   let browser, failed = false;
@@ -122,7 +102,7 @@ async function waitUp() {
     console.log("ok  player bar floats clear of the edges with padding, on phone and desktop widths");
 
     assert.deepStrictEqual(problems, [], "browser errors: " + problems.join(" | "));
-    assert.strictEqual(n401, 1, "exactly one expected 401 (the logged-out session check on first load), got " + n401);
+    assert.ok(n401 === 1 || (process.env.RIFFBOX_BROWSER === "firefox" && n401 === 0), "exactly one expected 401 (the logged-out session check on first load; Firefox does not log it), got " + n401);
     console.log("ok  no unexpected console or page errors");
     console.log("screenshots in", tmp);
   } catch (e) {

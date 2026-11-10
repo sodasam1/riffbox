@@ -60,7 +60,7 @@ def test_errors_and_login_still_work_with_compression(client):
 def test_the_page_names_each_file_by_its_fingerprint(client):
     page = client.get("/").get_data(as_text=True)
     found = dict(re.findall(r'(?:src|href)="static/([\w.]+)\?v=([0-9a-f]{12})"', page))
-    assert set(found) == {"theme.js", "style.css", "app.js"}
+    assert set(found) == {"theme.js", "style.css", "app.js", "transport.js", "triage.js", "pages.js", "boot.js"}
     for name, v in found.items():
         assert v == webcache.PageFiles(STATIC).read(name)[2]
 

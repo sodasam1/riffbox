@@ -27,6 +27,17 @@ function loggedOut(r) {
   return true;
 }
 
+// Send a change request and answer with its JSON body, or null after saying why it failed in the notice (and showing the login page
+// if the session ended). `failed` finishes the sentence "Could not ...".
+async function ask(path, method, body, failed) {
+  let r;
+  try { r = await (body === undefined ? api(path, { method }) : sendJson(path, method, body)); } catch (e) { notify(NETWORK_ERROR); return null; }
+  if (loggedOut(r)) return null;
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { notify(data.error || "Could not " + failed + " (error " + r.status + ")."); return null; }
+  return data;
+}
+
 // ---- login ---------------------------------------------------------------
 function show(view) {
   $("#login").hidden = view !== "login";
@@ -39,119 +50,6 @@ async function boot() {
   try { ok = (await api("session")).ok; } catch (e) { /* offline: fall through to login */ }
   if (ok) { show("app"); route(); await loadList(); } else { show("login"); $("#pass").focus(); }
 }
-
-// ---- "How this works": a private page, fetched from the server only after login ---------------
-// (It describes the server setup, so it is not part of the public page files.) Reached through
-// the link in the header; the address gets "#how", so the browser's Back button works.
-async function route() {
-  const how = location.hash === "#how", data = location.hash === "#data";
-  $("#how-view").hidden = !how;
-  $("#data-view").hidden = !data;
-  $("#main-view").hidden = how || data;
-  if (data) { window.scrollTo(0, 0); loadData(); return; }
-  clearTimeout(dataTimer);
-  if (!how) return;
-  window.scrollTo(0, 0);
-  const body = $("#how-body");
-  try {
-    const r = await api("about");
-    if (loggedOut(r)) return;
-    if (r.ok) body.innerHTML = await r.text();      // our own file from our own server, never user input
-    else body.textContent = "Could not load this page (error " + r.status + ").";
-  } catch (e) {
-    body.textContent = NETWORK_ERROR;
-  }
-}
-window.addEventListener("hashchange", route);
-
-// ---- "Backup and export": download the export, see the server backup, start one -----------------------
-// The downloads are plain links (the browser shows the progress); only the backup status needs script.
-let dataTimer = null;
-function ago(iso) {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 2) return "just now";
-  if (mins < 120) return mins + " minutes ago";
-  if (mins < 2880) return Math.round(mins / 60) + " hours ago";
-  return Math.round(mins / 1440) + " days ago";
-}
-async function loadData() {
-  clearTimeout(dataTimer);
-  const err = $("#data-err");
-  err.hidden = true;
-  let r;
-  try { r = await api("data"); } catch (e) { err.textContent = NETWORK_ERROR; err.hidden = false; return; }
-  if (loggedOut(r)) return;
-  if (!r.ok) { err.textContent = "Could not load this page (error " + r.status + ")."; err.hidden = false; return; }
-  const d = await r.json();
-  if (location.hash !== "#data") return;                 // the user already left
-  const st = d.health, box = $("#data-status");
-  box.hidden = false;
-  box.className = "status-line " + st.level;
-  $("#status-head").textContent = (st.level === "ok" ? "✓ " : st.level === "warn" ? "⚠ " : "✖ ") + st.headline;
-  $("#status-sum").textContent = st.summary;
-  const list = $("#status-items");
-  list.replaceChildren(...st.items.filter((i) => i.text !== st.headline).map((i) => el("li", { class: i.level }, i.text)));
-  $("#data-summary").textContent = d.recordings + (d.recordings === 1 ? " recording" : " recordings") +
-    (d.trashed ? " (plus " + d.trashed + " in the Trash)" : "") + " · " + fmtSize(d.audio_bytes) + " of original audio";
-  $("#data-trash-n").textContent = d.trashed ? "(" + d.trashed + ")" : "";
-  $("#data-trash").disabled = d.trashed === 0;
-  $("#backup-off").hidden = d.backup !== null;
-  $("#backup-on").hidden = d.backup === null;
-  if (!d.backup) return;
-  const b = d.backup, job = b.job;
-  $("#backup-state").textContent = b.latest
-    ? "Last backup: " + ago(b.latest) + " (" + new Date(b.latest).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) + "). " +
-      b.copies + " database " + (b.copies === 1 ? "copy" : "copies") + " kept. " +
-      (b.audio_missing ? b.audio_missing + " of " + b.audio_total + " audio files are not backed up yet." : "All " + b.audio_total + " audio files are backed up.")
-    : "No backup yet. " + b.audio_total + " audio files are waiting to be backed up.";
-  $("#backup-now").disabled = job.running;
-  $("#backup-msg").textContent = job.running ? "Backing up… this page updates when it finishes."
-    : job.message ? job.message + (job.problems.length ? " Problems: " + job.problems.join("; ") : "") : "";
-  if (job.running) dataTimer = setTimeout(loadData, 1500);
-}
-$("#data-trash").addEventListener("change", (e) => { $("#data-zip").setAttribute("href", "api/export.zip" + (e.target.checked ? "?trash=1" : "")); });
-$("#backup-now").addEventListener("click", async () => {
-  $("#backup-now").disabled = true;
-  try {
-    const r = await api("backup", { method: "POST" });
-    if (loggedOut(r)) return;
-    if (!r.ok && r.status !== 409) {
-      const body = await r.json().catch(() => ({}));
-      $("#backup-msg").textContent = body.error || "Could not start the backup (error " + r.status + ").";
-      $("#backup-now").disabled = false;
-      return;
-    }
-  } catch (e) { $("#backup-msg").textContent = NETWORK_ERROR; $("#backup-now").disabled = false; return; }
-  loadData();
-});
-
-$("#login-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const err = $("#login-error");
-  err.hidden = true;
-  let r;
-  try {
-    r = await sendJson("login", "POST", { passphrase: $("#pass").value });
-  } catch (e) {
-    err.textContent = NETWORK_ERROR;
-    err.hidden = false;
-    return;
-  }
-  if (r.ok) { $("#pass").value = ""; boot(); }
-  else if (r.status === 429) {
-    const secs = Number(r.headers.get("Retry-After")) || 900;
-    err.textContent = "Too many wrong attempts. Try again in about " + Math.ceil(secs / 60) + " minutes.";
-    err.hidden = false;
-  } else { err.textContent = "Wrong passphrase."; err.hidden = false; }
-});
-
-$("#logout").addEventListener("click", async () => {
-  player.pause();
-  try { await api("logout", { method: "POST" }); }
-  catch (e) { notify("Could not log out: " + NETWORK_ERROR); return; }       // still logged in, so do not pretend otherwise
-  history.replaceState(null, "", location.pathname + location.search);   // leave "#how" behind
-  show("login");
-});
 
 // ---- list + playback -------------------------------------------------------
 const player = $("#player");
@@ -247,6 +145,16 @@ function togglePlay(rec, part) {
 }
 
 // Highlight a row (the one the arrow keys move from, and Space plays).
+// Scroll just far enough that `el` is clear of the top edge and of the player bar. (CSS scroll-padding does the same for most
+// browsers, but Safari does not apply it when focusing a field or scrolling a row into view.)
+function reveal(el) {
+  const r = el.getBoundingClientRect();
+  const bar = playerBar.hidden ? window.innerHeight : playerBar.getBoundingClientRect().top;
+  const limit = Math.min(window.innerHeight, bar) - 8;
+  if (r.bottom > limit) window.scrollBy(0, r.bottom - limit);
+  else if (r.top < 8) window.scrollBy(0, r.top - 8);
+}
+
 function setSelected(id, partId = null) {
   selectedId = id;
   selectedPart = partId;
@@ -256,7 +164,7 @@ function setSelected(id, partId = null) {
     const on = isPart ? partId !== null && Number(li.dataset.part) === partId : own && partId === null;
     li.classList.toggle("selected", on);
     li.classList.toggle("sel-parent", own && partId !== null);       // the idea whose part is highlighted
-    if (on) { li.setAttribute("aria-current", "true"); li.scrollIntoView({ block: "nearest" }); }
+    if (on) { li.setAttribute("aria-current", "true"); reveal(li); }
     else li.removeAttribute("aria-current");
   }
 }
@@ -397,7 +305,7 @@ function applyDensity() {
   scheduleFitTags();
 }
 for (const [id, value] of [["#dens-cozy", "cozy"], ["#dens-compact", "compact"]]) {
-  $(id).addEventListener("click", () => { density = value; stored.set("density", value); applyDensity(); const li = document.querySelector("#list li.selected"); if (li) li.scrollIntoView({ block: "nearest" }); });
+  $(id).addEventListener("click", () => { density = value; stored.set("density", value); applyDensity(); const li = document.querySelector("#list li.selected"); if (li) reveal(li); });
 }
 
 function updateTabs() {
@@ -569,7 +477,7 @@ function buildRow(rec) {
     if (openEditId !== null) {
       const first = document.querySelector("#list form.edit input");
       // put the cursor in the Title box, except on a touch screen, where that would throw the keyboard up at once
-      if (first && !window.matchMedia("(pointer: coarse)").matches) first.focus();
+      if (first && !window.matchMedia("(pointer: coarse)").matches) { first.focus({ preventScroll: true }); reveal(first); }
     }
   });
   const rate = el("div", { class: "rate", role: "group", "aria-label": "Mark this recording" });
@@ -614,18 +522,9 @@ function buildTrashRow(rec) {
   const restore = el("button", { class: "link restore-btn", type: "button" }, "Restore");
   restore.addEventListener("click", async () => {
     restore.disabled = true;
-    try {
-      const r = await api("groups/" + rec.gid + "/restore", { method: "POST" });
-      if (loggedOut(r)) return;
-      if (!r.ok) {
-        const body = await r.json().catch(() => ({}));
-        notify(body.error || "Could not restore it (error " + r.status + ").");
-        restore.disabled = false;
-        return;
-      }
-      await loadList();
-      notify("Restored to the " + (rec.status === "inbox" ? "Inbox" : "Library") + ".");
-    } catch (e) { notify(NETWORK_ERROR); restore.disabled = false; }
+    if (!(await ask("groups/" + rec.gid + "/restore", "POST", undefined, "restore it"))) { restore.disabled = false; return; }
+    await loadList();
+    notify("Restored to the " + (rec.status === "inbox" ? "Inbox" : "Library") + ".");
   });
   const meta = el("div", { class: "meta when" }, "Deleted " + fmtDay(rec.deleted_at) + " · " + fmtSize(rec.size) +
     (rec.parts.length > 1 ? " · " + rec.parts.length + " parts" : ""));
@@ -939,304 +838,6 @@ function schedulePoll() {
   pollTimer = setTimeout(() => { if (openEditId !== null) schedulePoll(); else loadList(); }, 3000);
 }
 
-// ---- transport bar: waveform, scrubbing, speed, loop, download --------------------------------------
-// The waveform and length are measured once on the server (ffmpeg) when a recording is uploaded, so
-// nothing heavy is decoded on a phone. Without them the bar still works: it just shows a plain line.
-const wave = $("#wave");
-const wctx = wave.getContext("2d");
-const SPEEDS = ["0.5", "0.75", "1", "1.25", "1.5", "2"];
-let current = null;            // the recording loaded in the player
-let peaks = null;              // waveform: numbers 0-255; [] = could not be measured; null = not known (yet)
-let knownDuration = 0;         // seconds, from the server's measurement
-let loopA = null, loopB = null, loopOn = false;
-let pendingSeek = null;        // a seek asked for before the file's length was known
-let reported = false;          // has this listen been counted as "played" yet?
-let rafId = 0;
-
-function fmtTime(sec) {
-  if (!Number.isFinite(sec) || sec < 0) sec = 0;
-  const s = Math.floor(sec), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
-  return (h ? h + ":" + String(m).padStart(2, "0") : String(m)) + ":" + String(r).padStart(2, "0");
-}
-const totalTime = () => (Number.isFinite(player.duration) && player.duration > 0) ? player.duration : knownDuration;
-
-// speed (pitch stays put when you slow down or speed up)
-for (const v of SPEEDS) $("#pb-speed").append(el("option", { value: v }, v + "×"));
-let speed = SPEEDS.includes(stored.get("speed")) ? stored.get("speed") : "1";
-$("#pb-speed").value = speed;
-function applySpeed() {
-  player.defaultPlaybackRate = Number(speed);
-  player.playbackRate = Number(speed);
-  for (const k of ["preservesPitch", "mozPreservesPitch", "webkitPreservesPitch"]) if (k in player) player[k] = true;
-}
-$("#pb-speed").addEventListener("change", (e) => { speed = e.target.value; stored.set("speed", speed); applySpeed(); });
-applySpeed();
-
-function loadTransport(rec) {
-  current = rec;
-  lastTimeText = "";
-  peaks = null;
-  knownDuration = rec.duration_s || 0;
-  loopA = loopB = null; loopOn = false; pendingSeek = null; reported = false;
-  player.loop = false;
-  $("#pb-title").textContent = rec.title;
-  const dl = $("#pb-dl");
-  dl.href = "api/audio/" + rec.id + "?download=1";
-  dl.hidden = false;
-  $("#pb-play").disabled = false;
-  applySpeed();                    // a new source resets the rate in some browsers
-  syncLoopUI(); updateTime(); drawWave();
-  loadAnalysis(rec, 0);
-}
-
-async function loadAnalysis(rec, attempt) {
-  try {
-    const r = await api("recordings/" + rec.id + "/analysis");
-    if (!r.ok || !current || current.id !== rec.id) return;
-    const body = await r.json();
-    if (body.duration_s) knownDuration = body.duration_s;
-    if (body.peaks === null) {                   // not measured yet (just uploaded): look again shortly
-      if (attempt < 8) setTimeout(() => { if (current && current.id === rec.id && peaks === null) loadAnalysis(rec, attempt + 1); }, 4000);
-      return;
-    }
-    peaks = body.peaks;
-    updateTime(); drawWave();
-  } catch (e) { /* offline: the plain line is fine */ }
-}
-
-let lastTimeText = "";
-function updateTime() {       // runs every animation frame while playing: only touch the page when the text changes
-  const total = totalTime();
-  const text = fmtTime(player.currentTime) + " / " + fmtTime(total);
-  if (text === lastTimeText && current) return;
-  lastTimeText = text;
-  $("#pb-time").textContent = text;
-  wave.setAttribute("aria-valuemax", String(Math.round(total)));
-  wave.setAttribute("aria-valuenow", String(Math.round(player.currentTime)));
-  wave.setAttribute("aria-valuetext", current ? fmtTime(player.currentTime) + " of " + fmtTime(total) : "Nothing playing");
-}
-
-let colorCache = null;       // reading computed styles every frame is wasteful; the colours only change with the theme
-window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { colorCache = null; drawWave(); });
-function waveColors() {
-  if (!colorCache) {
-    const css = getComputedStyle(document.documentElement);
-    colorCache = { accent: css.getPropertyValue("--accent").trim() || "#d9480f", muted: css.getPropertyValue("--muted").trim() || "#888" };
-  }
-  return colorCache;
-}
-
-function drawWave() {
-  const dpr = window.devicePixelRatio || 1;
-  const w = wave.clientWidth, h = wave.clientHeight;
-  if (!w || !h) return;
-  if (wave.width !== Math.round(w * dpr) || wave.height !== Math.round(h * dpr)) {
-    wave.width = Math.round(w * dpr); wave.height = Math.round(h * dpr);
-  }
-  wctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  wctx.clearRect(0, 0, w, h);
-  const { accent, muted } = waveColors();
-  const total = totalTime();
-  const progress = total > 0 ? Math.min(1, player.currentTime / total) : 0;
-
-  if (peaks && peaks.length) {
-    const n = peaks.length, barW = w / n;
-    for (let i = 0; i < n; i++) {
-      const bh = Math.max(2, Math.pow(peaks[i] / 255, 0.75) * (h - 10));
-      wctx.fillStyle = (i + 0.5) / n <= progress ? accent : muted;
-      wctx.globalAlpha = (i + 0.5) / n <= progress ? 1 : 0.55;
-      wctx.fillRect(i * barW + 0.5, (h - bh) / 2, Math.max(1, barW - 1), bh);
-    }
-  } else {                                        // not measured: a plain line, filled up to the playhead
-    wctx.globalAlpha = 0.55; wctx.fillStyle = muted; wctx.fillRect(0, h / 2 - 1, w, 2);
-    wctx.globalAlpha = 1; wctx.fillStyle = accent; wctx.fillRect(0, h / 2 - 1, w * progress, 2);
-  }
-  wctx.globalAlpha = 1;
-
-  if (loopA !== null && total > 0) {              // the A–B section
-    const a = (loopA / total) * w, b = (loopB !== null ? loopB / total : loopA / total) * w;
-    wctx.fillStyle = accent;
-    if (loopB !== null) { wctx.globalAlpha = loopOn ? 0.22 : 0.1; wctx.fillRect(a, 0, b - a, h); }
-    wctx.globalAlpha = 1;
-    wctx.fillRect(a - 1, 0, 2, h);
-    if (loopB !== null) wctx.fillRect(b - 1, 0, 2, h);
-  }
-  if (current && total > 0) { wctx.fillStyle = accent; wctx.fillRect(progress * w - 1, 0, 2, h); }   // playhead
-}
-
-function syncLoopUI() {
-  player.loop = loopOn && (loopA === null || loopB === null);     // no section set: repeat the whole recording
-  $("#pb-loop").setAttribute("aria-pressed", String(loopOn));
-  $("#pb-a").classList.toggle("set", loopA !== null);
-  $("#pb-b").classList.toggle("set", loopB !== null);
-  $("#pb-clear").disabled = loopA === null && loopB === null && !loopOn;
-  drawWave();
-}
-
-function enforceLoop() {
-  if (loopOn && loopA !== null && loopB !== null && player.currentTime >= loopB) player.currentTime = loopA;
-}
-
-function seekTo(seconds) {
-  const total = totalTime();
-  const t = Math.min(Math.max(0, seconds), total > 0 ? total : seconds);
-  if (player.readyState === 0) pendingSeek = t;     // length not loaded yet: apply it when it is
-  else player.currentTime = t;
-  updateTime(); drawWave();
-}
-
-// animation loop while playing: smooth playhead and an accurate loop point (timeupdate is too coarse)
-function tick() {
-  rafId = 0;
-  enforceLoop(); updateTime(); drawWave();
-  if (!player.paused && !player.ended) rafId = requestAnimationFrame(tick);
-}
-const startTicking = () => { if (!rafId) rafId = requestAnimationFrame(tick); };
-
-player.addEventListener("loadedmetadata", () => {
-  if (pendingSeek !== null) { player.currentTime = pendingSeek; pendingSeek = null; }
-  updateTime(); drawWave();
-});
-player.addEventListener("play", () => { $("#pb-play").textContent = "❚❚"; $("#pb-play").setAttribute("aria-label", "Pause"); startTicking(); });
-for (const ev of ["pause", "ended", "error"]) {
-  player.addEventListener(ev, () => { $("#pb-play").textContent = "▶"; $("#pb-play").setAttribute("aria-label", "Play"); updateTime(); drawWave(); });
-}
-player.addEventListener("ended", () => {          // a section that runs to the very end still repeats
-  if (loopOn && loopA !== null && loopB !== null) { player.currentTime = loopA; player.play().catch(() => {}); return; }
-  if (current && current.rec) {                    // an idea with several recordings plays on to the next one
-    const parts = current.rec.parts, i = parts.findIndex((p) => p.id === current.id);
-    if (i >= 0 && i < parts.length - 1) startPlay(current.rec, parts[i + 1]);
-  }
-});
-player.addEventListener("timeupdate", () => {
-  enforceLoop(); updateTime();
-  // count it as "played" only once it has really been listened to, not skipped past while browsing
-  if (!reported && current && player.currentTime >= Math.min(5, (totalTime() || 10) * 0.5)) {
-    reported = true;
-    api("recordings/" + current.id + "/played", { method: "POST" }).catch(() => {});
-  }
-});
-
-$("#pb-play").addEventListener("click", () => {
-  if (!current) return;
-  if (player.error) { startPlay(current); return; }
-  if (player.paused) player.play().catch(() => {}); else player.pause();
-});
-
-// click or drag on the waveform to scrub; Shift + drag selects a loop section (touch: use the A and B buttons)
-let drag = null;
-const fractionAt = (e) => { const r = wave.getBoundingClientRect(); return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); };
-wave.addEventListener("pointerdown", (e) => {
-  if (!current || !totalTime()) return;
-  wave.setPointerCapture(e.pointerId);
-  wave.focus({ preventScroll: true });
-  drag = { select: e.shiftKey, start: fractionAt(e), moved: false };
-  if (!drag.select) seekTo(drag.start * totalTime());
-});
-wave.addEventListener("pointermove", (e) => {
-  if (!drag) return;
-  const f = fractionAt(e), total = totalTime();
-  if (Math.abs(f - drag.start) > 0.004) drag.moved = true;
-  if (drag.select) { loopA = Math.min(drag.start, f) * total; loopB = Math.max(drag.start, f) * total; drawWave(); }
-  else seekTo(f * total);
-});
-const endDrag = () => {
-  if (drag && drag.select) {
-    if (drag.moved && loopB !== null && loopB - loopA >= 0.5) loopOn = true; else { loopA = loopB = null; }
-    syncLoopUI();
-  }
-  drag = null;
-};
-wave.addEventListener("pointerup", endDrag);
-wave.addEventListener("pointercancel", () => { drag = null; });
-
-wave.addEventListener("keydown", (e) => {
-  if (!current || e.altKey || e.ctrlKey || e.metaKey) return;
-  const total = totalTime();
-  const step = { ArrowLeft: -5, ArrowRight: 5, PageDown: -30, PageUp: 30 }[e.key];
-  if (step !== undefined) { e.preventDefault(); seekTo(player.currentTime + step); }
-  else if (e.key === "Home") { e.preventDefault(); seekTo(0); }
-  else if (e.key === "End") { e.preventDefault(); seekTo(total); }
-  else if (e.key === " ") { e.preventDefault(); $("#pb-play").click(); }
-  else if (e.key === "[") { e.preventDefault(); $("#pb-a").click(); }
-  else if (e.key === "]") { e.preventDefault(); $("#pb-b").click(); }
-});
-
-$("#pb-a").addEventListener("click", () => {
-  if (!current) return;
-  loopA = player.currentTime;
-  if (loopB !== null && loopB <= loopA) loopB = null;
-  if (loopB !== null) loopOn = true;
-  syncLoopUI();
-});
-$("#pb-b").addEventListener("click", () => {
-  if (!current) return;
-  const t = player.currentTime;
-  if (loopA === null) loopA = 0;
-  if (t <= loopA) { loopB = loopA; loopA = t; } else loopB = t;
-  if (loopB - loopA < 0.2) { loopB = null; syncLoopUI(); return; }   // too short to be a section
-  loopOn = true;
-  syncLoopUI();
-});
-$("#pb-loop").addEventListener("click", () => { loopOn = !loopOn; syncLoopUI(); });
-$("#pb-clear").addEventListener("click", () => { loopA = loopB = null; loopOn = false; syncLoopUI(); });
-
-new ResizeObserver(drawWave).observe(wave);
-
-// Collapse the player to one slim row: by the button (remembered), and automatically while typing on a small or
-// touch screen, so a phone keyboard doesn't leave the form with a sliver of screen.
-const playerBar = $("#playerbar"), barToggle = $("#pb-toggle");
-let barMini = stored.get("mini") === "1";
-let typing = false;
-const isTextField = (n) => Boolean(n && n.matches && !n.closest("#playerbar") &&
-  n.matches('textarea, select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"])'));
-const smallScreen = () => window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
-function applyBar() {
-  const collapsed = barMini || typing;
-  playerBar.classList.toggle("mini", collapsed);
-  barToggle.textContent = collapsed ? "▴" : "▾";
-  barToggle.setAttribute("aria-label", collapsed ? "Expand the player" : "Collapse the player");
-  barToggle.setAttribute("aria-expanded", String(!collapsed));
-  if (!collapsed) drawWave();
-}
-// Collapse at once when a text box gets the cursor; expand only after it has been gone for a moment and no finger or
-// mouse button is down. Expanding the instant focus moved (e.g. onto a button being pressed) made the bar jump up over
-// the very spot being tapped, so the tap landed on the player and the button never got its click.
-let typingTimer = null, pointerDown = false;
-function syncTyping() {
-  const now = smallScreen() && isTextField(document.activeElement);
-  if (now) {
-    clearTimeout(typingTimer); typingTimer = null;
-    if (!typing) { typing = true; applyBar(); }
-    return;
-  }
-  if (!typing || typingTimer) return;
-  typingTimer = setTimeout(function settle() {
-    typingTimer = null;
-    if (smallScreen() && isTextField(document.activeElement)) return;
-    if (pointerDown) { typingTimer = setTimeout(settle, 150); return; }
-    typing = false; applyBar();
-  }, 300);
-}
-document.addEventListener("pointerdown", () => { pointerDown = true; }, true);
-for (const ev of ["pointerup", "pointercancel"]) document.addEventListener(ev, () => { pointerDown = false; }, true);
-barToggle.addEventListener("click", () => {
-  const collapsedNow = barMini || typing;                 // collapsed for either reason: the button expands it
-  if (typing && document.activeElement && document.activeElement.blur) document.activeElement.blur();   // also puts the keyboard away
-  clearTimeout(typingTimer); typingTimer = null;
-  typing = false;
-  barMini = !collapsedNow;
-  stored.set("mini", barMini ? "1" : "0");
-  applyBar();
-});
-// Tell the page how tall the floating player is, so scrolling a row or form into view keeps it clear of the player.
-new ResizeObserver(() => document.documentElement.style.setProperty("--bar-h", (playerBar.offsetHeight ? playerBar.offsetHeight + 28 : 0) + "px"))
-  .observe(playerBar);
-document.addEventListener("focusin", syncTyping);
-document.addEventListener("focusout", syncTyping);
-setInterval(syncTyping, 1000);                                                // safety net: a field removed while focused
-applyBar();
-
 // ---- Library sidebar: search, tag/tempo/key filters, sorting ----------------------------------------
 const SORT_WORDS = {      // what the direction button says, per sort
   recorded: { desc: "Newest first", asc: "Oldest first" },
@@ -1498,30 +1099,23 @@ $("#bulk-all").addEventListener("change", (e) => {
   if (e.target.checked) for (const r of selectableRecs()) picked.add(r.id);
   syncPicked();
 });
+const gidsPicked = () => [...picked].map((id) => gidOf.get(id) ?? id);
+async function afterChange() { picked.clear(); lastPicked = null; openEditId = null; await loadList(); }
 async function bulk(changes, done) {
-  const ids = [...picked].map((id) => gidOf.get(id) ?? id);
+  const ids = gidsPicked();
   if (!ids.length) return;
-  let r;
-  try { r = await sendJson("bulk", "POST", { ids, changes }); } catch (e) { notify(NETWORK_ERROR); return; }
-  if (loggedOut(r)) return;
-  if (!r.ok) { notify((await r.json().catch(() => ({}))).error || "Could not change them (error " + r.status + ")."); return; }
-  picked.clear(); lastPicked = null; openEditId = null;
-  await loadList();
+  if (!(await ask("bulk", "POST", { ids, changes }, "change them"))) return;
+  await afterChange();
   notify(done(ids.length));
 }
-const gidsPicked = () => [...picked].map((id) => gidOf.get(id) ?? id);
 $("#bulk-addto").addEventListener("change", async (e) => {
   const target = e.target.value;
   e.target.value = "";
   if (!target || picked.size < 1) return;
   const ids = gidsPicked();
-  let r;
-  try { r = await sendJson("groups/" + target + "/parts", "POST", { ids }); } catch (err) { notify(NETWORK_ERROR); return; }
-  if (loggedOut(r)) return;
-  if (!r.ok) { notify((await r.json().catch(() => ({}))).error || "Could not add them (error " + r.status + ")."); return; }
-  const body = await r.json();
-  picked.clear(); lastPicked = null; openEditId = null;
-  await loadList();
+  const body = await ask("groups/" + target + "/parts", "POST", { ids }, "add them");
+  if (!body) return;
+  await afterChange();
   notify("Added " + nRecordings(ids.length) + " to “" + body.group.title + "”.");
 });
 // Group… is one click: the recordings are combined at once, and anything they disagree on (tempo, key) is kept
@@ -1530,13 +1124,10 @@ $("#bulk-group").addEventListener("click", async () => {
   const ids = gidsPicked();
   if (ids.length < 2) return;
   $("#bulk-group").disabled = true;
-  let r;
-  try { r = await sendJson("groups", "POST", { ids }); } catch (e) { notify(NETWORK_ERROR); updateBulkBar(); return; }
-  if (loggedOut(r)) return;
-  if (!r.ok) { notify((await r.json().catch(() => ({}))).error || "Could not group them (error " + r.status + ")."); updateBulkBar(); return; }
-  const made = (await r.json()).group;
-  picked.clear(); lastPicked = null; openEditId = null;
-  await loadList();
+  const body = await ask("groups", "POST", { ids }, "group them");
+  if (!body) { updateBulkBar(); return; }
+  const made = body.group;
+  await afterChange();
   const open = made.unresolved ? Object.keys(made.unresolved).map((k) => (k === "bpm" ? "tempo" : "key")).join(" and ") : "";
   notify("Grouped " + nRecordings(ids.length) + " as “" + made.title + "”." + (open ? " They disagree on " + open + "; pick one in Edit when you are ready." : ""));
 });
@@ -1613,208 +1204,15 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !menu.hi
 const MARKS = [["heart", "♥", "Interesting"], ["check", "✓", "Used in a song"], ["x", "✗", "No longer interesting"]];
 
 async function setMark(rec, value) {
-  const r = await sendJson("groups/" + rec.gid, "PATCH", { rating: value });
-  if (loggedOut(r)) return;
-  if (!r.ok) { notify("Could not save that mark (error " + r.status + ")."); return; }
-  const saved = (await r.json()).group;
+  const body = await ask("groups/" + rec.gid, "PATCH", { rating: value }, "save that mark");
+  if (!body) return;
+  const saved = body.group;
   rec.rating = saved.rating; rec.used_in = saved.used_in;
   for (const li of document.querySelectorAll('#list > li[data-id="' + rec.id + '"] .side .ratebtn')) {
     li.setAttribute("aria-pressed", String(li.dataset.rating === rec.rating));     // update in place: keeps any open form
   }
   await loadList();      // a mark can change what a filter shows (✗ leaves "All"); this refreshes lists and counts
 }
-
-// ---- triage: work through the Inbox one recording at a time, keyboard first ---------------------
-// Each card autoplays (if "play as I move" is on). Number keys toggle tags, h / c / x mark it, n or u jump to
-// the notes or the song name, and Right arrow or Enter saves it to the Library and moves on; s skips it.
-let triage = null;       // null, or { recs, queue, index, savedIds, skippedIds, drafts }
-
-function startTriage() {
-  if (!inboxRecs.length) return;
-  triage = { recs: new Map(inboxRecs.map((r) => [r.id, r])), queue: inboxRecs.map((r) => r.id), index: 0,
-             savedIds: new Set(), skippedIds: new Set(), drafts: new Map() };
-  openEditId = null;
-  notify("");
-  $("#browser").hidden = true;
-  $("#random").classList.add("slot-off");
-  $("#triage").hidden = false;
-  $("#triage-start").hidden = true;
-  renderTriage();
-}
-
-function exitTriage() {
-  if (!triage) return;
-  triage = null;
-  $("#triage").hidden = true;
-  $("#browser").hidden = false;
-  $("#random").classList.toggle("slot-off", view !== "inbox" && view !== "library");
-  player.pause();
-  loadList();
-}
-
-function readCard() {            // what is on the card right now (null on the "done" screen)
-  if (!$("#t-notes")) return null;
-  const card = $("#triage-card");
-  const mark = card.querySelector('.ratebtn[aria-pressed="true"]');
-  return { tags: [...card.querySelectorAll('.tagbtn[aria-pressed="true"]')].map((b) => b.dataset.tag),
-           rating: mark ? mark.dataset.rating : null, used_in: $("#t-used").value.trim(), notes: $("#t-notes").value };
-}
-
-function setCardMark(key, forceOn) {
-  const buttons = [...document.querySelectorAll("#triage-card .ratebtn")];
-  const current = buttons.find((b) => b.getAttribute("aria-pressed") === "true");
-  const turnOn = forceOn || !current || current.dataset.rating !== key;      // pressing the same mark again removes it
-  for (const b of buttons) b.setAttribute("aria-pressed", String(turnOn && b.dataset.rating === key));
-  $("#t-used-wrap").hidden = !(turnOn && key === "check");
-}
-
-function renderTriage() {
-  const card = $("#triage-card");
-  card.replaceChildren();
-  if (triage.index >= triage.queue.length) {
-    const skipped = [...triage.skippedIds].filter((id) => !triage.savedIds.has(id)).length;
-    const done = el("button", { type: "button", class: "primary" }, "Back to the Inbox");
-    done.addEventListener("click", exitTriage);
-    $("#triage-pos").textContent = "Done";
-    card.append(el("h4", {}, "That's the whole Inbox."),
-      el("p", {}, "Saved " + triage.savedIds.size + (triage.savedIds.size === 1 ? " recording" : " recordings") +
-                  " to the Library" + (skipped ? ", left " + skipped + " in the Inbox." : ".")), done);
-    $("#triage").focus({ preventScroll: true });
-    return;
-  }
-  const id = triage.queue[triage.index];
-  const rec = triage.recs.get(id);
-  const draft = triage.drafts.get(id) || { tags: rec.tags, rating: rec.rating, used_in: rec.used_in || "", notes: rec.notes || "" };
-  $("#triage-pos").textContent = (triage.index + 1) + " of " + triage.queue.length;
-  card.append(el("h4", {}, rec.title),
-    el("div", { class: "meta" }, whenText(rec) + (rec.duration_s ? " · " + fmtTime(rec.duration_s) : "")));
-  if (rec.parts && rec.parts.length > 1) {                     // an idea of several recordings: they play one after the other
-    card.append(el("div", { class: "meta triage-parts" }, rec.parts.length + " parts, played in order: " + rec.parts.map((p) => p.title).join(" · ")));
-  }
-
-  const tagBox = el("div", { class: "tagbox", role: "group", "aria-label": "Instruments and ideas (keys 1 to 9)" });
-  allTags.forEach((t, i) => {
-    const b = el("button", { type: "button", class: "tagbtn", "data-tag": t, "aria-pressed": String(draft.tags.includes(t)) });
-    if (i < 9) b.append(el("span", { class: "key", "aria-hidden": "true" }, String(i + 1)));
-    b.append(t);
-    b.addEventListener("click", () => b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true")));
-    tagBox.append(b);
-  });
-  const hints = { heart: "h", check: "c", x: "x" };
-  const markBox = el("div", { class: "rate", role: "group", "aria-label": "Mark this recording" });
-  for (const [key, glyph, label] of MARKS) {
-    const b = el("button", { type: "button", class: "ratebtn", "data-rating": key, title: label + " (" + hints[key] + ")",
-                             "aria-label": label, "aria-pressed": String(draft.rating === key) }, glyph);
-    b.addEventListener("click", () => setCardMark(key));
-    markBox.append(b);
-  }
-  const used = el("input", { id: "t-used", type: "text", maxlength: "200", placeholder: "Which song? (optional)", value: draft.used_in });
-  const usedWrap = el("div", { id: "t-used-wrap" }, el("label", { for: "t-used" }, "Used in (u)"), used);
-  usedWrap.hidden = draft.rating !== "check";
-  const notes = el("textarea", { id: "t-notes", rows: "3", maxlength: "5000" });
-  notes.value = draft.notes;
-  const error = el("p", { id: "t-error", class: "error", role: "alert", hidden: "" });
-  const back = el("button", { type: "button" }, "← Back");
-  const skip = el("button", { type: "button" }, "Skip (s)");
-  const save = el("button", { type: "button", class: "primary" }, "Save and next (→)");
-  back.addEventListener("click", triageBack); skip.addEventListener("click", triageSkip); save.addEventListener("click", triageSave);
-  card.append(tagBox, markBox, usedWrap,
-    el("div", {}, el("label", { for: "t-notes" }, "Notes (n)"), notes), error,
-    el("div", { class: "actions" }, back, skip, save));
-  if (autoPreview) startPlay(rec);
-  $("#triage").focus({ preventScroll: true });
-}
-
-async function triageSave() {
-  if (!triage || triage.saving) return;       // a held-down key or a double press must not save (and skip) twice
-  const data = readCard();
-  if (!data) return;
-  triage.saving = true;
-  const session = triage;
-  try { await saveCard(data); } finally { session.saving = false; }
-}
-
-async function saveCard(data) {
-  const id = triage.queue[triage.index];
-  const err = $("#t-error");
-  err.hidden = true;
-  const session = triage;
-  let r;
-  try {
-    r = await sendJson("groups/" + (recById(id) || { gid: id }).gid, "PATCH", { tags: data.tags, rating: data.rating, notes: data.notes, status: "tagged",
-                                                      used_in: data.rating === "check" ? (data.used_in || null) : null });
-  } catch (e) {
-    err.textContent = NETWORK_ERROR;
-    err.hidden = false;
-    return;
-  }
-  if (session !== triage) return;               // triage was closed while this was saving
-  if (loggedOut(r)) return;
-  if (!r.ok) {
-    const body = await r.json().catch(() => ({}));
-    err.textContent = body.error || "Could not save (error " + r.status + ").";
-    err.hidden = false;
-    return;
-  }
-  const saved = (await r.json()).group;
-  if (session !== triage) return;
-  triage.recs.set(id, asRec(saved));
-  triage.drafts.delete(id);
-  triage.savedIds.add(id);
-  triage.index++;
-  renderTriage();
-}
-
-function triageSkip() {
-  if (triage.saving) return;
-  const data = readCard();
-  if (!data) return;
-  const id = triage.queue[triage.index];
-  triage.drafts.set(id, data);
-  triage.skippedIds.add(id);
-  triage.index++;
-  renderTriage();
-}
-
-function triageBack() {
-  if (triage.saving) return;
-  const data = readCard();
-  if (data) triage.drafts.set(triage.queue[triage.index], data);
-  triage.index = Math.max(0, triage.index - 1);
-  renderTriage();
-}
-
-$("#triage-start").addEventListener("click", startTriage);
-$("#triage-exit").addEventListener("click", exitTriage);
-
-document.addEventListener("keydown", (e) => {
-  if (!triage || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-  const target = e.target;
-  if (target.closest && target.closest("input, textarea, select")) {      // typing: only Escape and Enter-in-a-box are ours
-    if (e.key === "Escape") { e.preventDefault(); target.blur(); $("#triage").focus({ preventScroll: true }); }
-    else if (e.key === "Enter" && target.tagName === "INPUT") { e.preventDefault(); triageSave(); }
-    return;
-  }
-  const onControl = target.closest && target.closest("button, a");      // Space and Enter already press a focused button
-  const k = e.key;
-  if (k === "Escape") { e.preventDefault(); exitTriage(); return; }
-  if (!$("#t-notes")) return;                                             // the "done" screen has no card
-  const rec = triage.recs.get(triage.queue[triage.index]);
-  if (k >= "1" && k <= "9") {
-    const b = $("#triage-card").querySelectorAll(".tagbtn")[Number(k) - 1];
-    if (b) { e.preventDefault(); b.click(); }
-  } else if (k === "h" || k === "c" || k === "x") { e.preventDefault(); setCardMark({ h: "heart", c: "check", x: "x" }[k]); }
-  else if (k === "u") { e.preventDefault(); setCardMark("check", true); $("#t-used").focus(); }
-  else if (k === "n") { e.preventDefault(); $("#t-notes").focus(); }
-  else if (k === "s") { e.preventDefault(); triageSkip(); }
-  else if (k === "ArrowLeft") { e.preventDefault(); triageBack(); }
-  else if (k === "ArrowRight" || (k === "Enter" && !onControl)) { e.preventDefault(); triageSave(); }
-  else if (k === " " && !onControl) {
-    e.preventDefault();
-    if (playingId === rec.id && !player.error) { if (player.paused) player.play().catch(() => {}); else player.pause(); }
-    else startPlay(rec);
-  }
-});
 
 // ---- moving through the list with the keyboard -----------------------------------------------------
 // Click a row (or Tab to the list), then Up/Down move the highlight and, with "play as I move" on,
@@ -1982,5 +1380,3 @@ window.addEventListener("drop", (e) => {
   dragDepth = 0; veil.hidden = true;
   if (canUpload() && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
 });
-
-boot();

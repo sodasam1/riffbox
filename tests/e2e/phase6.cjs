@@ -1,14 +1,10 @@
 // Phase 6 browser test: the transport bar (waveform, scrubbing, speed, loop, download), lengths in the list,
 // the "played" marker, and sorting by length / last played. Needs ffmpeg on this machine. Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/phase6.cjs
-const { launch } = require("./_browser.cjs");
-const { spawn, spawnSync } = require("child_process");
-const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
+const { setup } = require("./_helpers.cjs");
+const { spawnSync } = require("child_process");
 
-const PORT = 8194, BASE = `http://127.0.0.1:${PORT}/ideas/`;
-const PY = process.env.RIFFBOX_PY || "python3";
-const ROOT = path.resolve(__dirname, "..", "..");
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "riffbox-e2e6-"));
+const { PORT, BASE, PY, ROOT, tmp, server, waitUp, wav, launch, assert, fs, os, path } = setup({ port: 8194, name: "6", wavSeconds: 6, ffmpeg: true });
 
 if (spawnSync("ffmpeg", ["-version"]).status !== 0) { console.log("skip: ffmpeg is not installed here"); process.exit(0); }
 function makeAudio(name, args) {
@@ -20,21 +16,6 @@ function makeAudio(name, args) {
 // 6 s: a loud tone for the first 3 s, then silence. 3 s: a plain tone.
 const LONG = makeAudio("long.wav", ["aevalsrc='if(lt(t,3),0.8*sin(2*PI*440*t),0)':d=6:s=44100"]);
 const SHORT = makeAudio("short.wav", ["sine=frequency=330:duration=3"]);
-
-const server = spawn(PY, ["-m", "waitress", `--listen=127.0.0.1:${PORT}`, "wsgi:app"], {
-  cwd: path.join(ROOT, "app"),
-  env: { ...process.env, RIFFBOX_DATA_DIR: path.join(tmp, "data"), RIFFBOX_SECRET: "e2e", RIFFBOX_UPLOAD_TOKEN: "tok",
-         RIFFBOX_PASSPHRASE: "open sesame", RIFFBOX_INSECURE_COOKIES: "1", RIFFBOX_BASE_PATH: "/ideas",
-         RIFFBOX_STATIC_DIR: path.join(ROOT, "static") },     // ffmpeg is found on PATH, as on the real server
-  stdio: "inherit",
-});
-async function waitUp() {
-  for (let i = 0; i < 50; i++) {
-    try { if ((await fetch(BASE + "health")).ok) return; } catch (e) {}
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  throw new Error("server did not start");
-}
 
 (async () => {
   let browser, failed = false;

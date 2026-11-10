@@ -210,3 +210,13 @@ removed at the owner's request: it tripled the size of the application for littl
 WebKit and Firefox (`RIFFBOX_BROWSER`, `tests/e2e/_browser.cjs`). **Not verified:** the scripts have **not been run** in WebKit or Firefox, because those
 engines could not be downloaded in the build environment (the network blocks the download host). Run them on a computer with the engines installed.
 **Still planned:** theme variables (B2.6), a smaller `app.js` (B2.7), shared test helpers (B2.9), the monthly self-test (B3.12), the yearly-care checklist (B3.13).
+
+## 8. Progress, branch `code-upkeep` (10 Nov 2026; built, not deployed)
+**B2.6 theme variables (done):** the minimal style is a block of variables plus 22 selectors (was 67 override selectors); 104 screenshots pixel-identical
+before and after. **B2.7 smaller `app.js` (done, as a split):** 2,012 to 1,382 lines in the core; `transport.js`, `triage.js`, `pages.js`, `boot.js`; a shared `ask()` for change
+requests. The files are plain scripts that share names, so there is no module system and no build step; each is cached for a year (fingerprinted). **B2.9 shared test helpers
+(done):** `tests/e2e/_helpers.cjs`. **B3.10 WebKit and Firefox runs (done, with one limit):** see `PHASES.md` (three real fixes found; four Firefox scripts that play sound need
+a machine with a sound device). **Still planned:** A2 (Library list only when its tab opens), the monthly self-test (B3.12), the yearly-care checklist (B3.13).
+Measured after this branch (300 recordings, 4x CPU, 1.6 Mbps): page load LCP about 1.1 s, FCP about 0.9 s; 12 requests (the page, three style/theme files, five scripts, the API
+calls), 59 KB on the wire (the split into five scripts costs about 4 KB and no extra waiting: the requests run in parallel and are cached for a year); Library open 158 ms, Select on 48 ms,
+Select all 38 ms, Cozy/Compact 44-70 ms in Chromium. Safari and Firefox draw every row (no off-screen skipping), about 330-430 ms to open the Library in the same lab.

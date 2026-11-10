@@ -240,3 +240,23 @@ tried and removed at the owner's request: it tripled the size of the application
 `docs/PLAN-performance-ux-sustainability.md` section 7. Not verified: the browser tests in WebKit and Firefox (the engines could not be downloaded
 in the build environment). Review: a migration rehearsal on a database made by the pre-groups code (identical lists, a copy kept, numbered 2).
 Short manual checks: `docs/CHECKLIST-speed-and-upkeep.md`.
+
+## Code upkeep (branch `code-upkeep`; built and tested, not merged or deployed)
+Built on top of `speed-and-upkeep`. **Theme variables:** the minimal style's long list of override rules is now a block of variables (radii,
+fills, borders, shadows, the "pressed" look, the docked player), read by the component rules, which carry the standard value as their
+fallback; only 22 minimal-specific selectors remain (67 before). Checked by 104 screenshots (standard and minimal, light and dark, desktop and
+phone, 13 states each) that are pixel-identical before and after. **`app.js` split:** the core is 1,382 lines (was 2,012); the player bar
+(`transport.js`), triage (`triage.js`), the two private pages (`pages.js`) and the start-up call (`boot.js`) are separate scripts loaded after it
+(they share one set of names, so no wiring was needed); one `ask()` helper replaced five copies of "send, check login, check errors". **Shared test set-up:**
+`tests/e2e/_helpers.cjs` (server, temporary data, WAV maker); the 24 scripts went from 4,009 to 3,396 lines.
+**Browser engines:** the browser tests were run in WebKit and Firefox (the engines were downloaded after the environment's network allowlist
+was extended with the two Playwright download hosts). In WebKit every script passes. In Firefox every script passes except `groups4`, `groups5`,
+`phase3` and `phase6`, which need to play sound: the machine had no sound device, so Firefox reported a media error (`OnMediaSinkAudioError`) after
+playback started; they need a run on a machine with sound. **Real problems the engine runs found and fixed:** (1) in Safari the player bar could cover the
+field being edited when it grew or when focus moved (CSS `scroll-padding` is not applied there): a `reveal()` helper now scrolls the field clear of the
+bar, also when the bar changes height; (2) `content-visibility` (the off-screen-row speed-up from `speed-and-upkeep`) let a row move under the pointer between
+pressing and releasing in WebKit, so a click could land on the wrong element: it is now switched on only in Chromium (`data-cv` set by `theme.js`; Safari and
+Firefox draw every row, still much faster than before because of the date-formatting fix); (3) the player now moves on to the next part only when the loaded
+recording really ended. Also found: two browser test scripts (`datapage`, `phase9`) had a name clash introduced earlier that made them fail to start, and the
+pass/fail loop used until then did not notice (it only looked for a "FAIL" line): they now run, and the loop checks exit codes.
+Short manual checks: `docs/CHECKLIST-code-upkeep.md`.

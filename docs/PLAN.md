@@ -117,7 +117,8 @@ instead of the browser.
 | Groups 5 | Resurface with whole groups, search over part titles (server done), group-aware export and restore tests, docs, migration runbook | Deployed |
 | Groups 6 | Optional: grouping suggestions from times, download all parts, play together | Not decided |
 | After groups | Compression and long-lived caching; a grouped idea's Download gives a zip of all parts | Deployed and checked on the live site (headers and group zip) |
-| Next | Speed, interface feel and upkeep: `docs/PLAN-performance-ux-sustainability.md` (interaction speed, smaller list payload, then migrations, pinned dependencies, WebKit/Firefox tests) | Built and tested on branch `speed-and-upkeep` (interaction speed, revalidated lists, numbered migrations, every dependency pinned, engine-selectable browser tests); awaiting deploy and check |
+| Next | Code upkeep on branch `code-upkeep` (theme variables, `app.js` split into five scripts, shared test set-up, browser tests in WebKit and Firefox, three engine-specific fixes); built and tested, awaiting deploy and check |
+| Before that | Speed, interface feel and upkeep: `docs/PLAN-performance-ux-sustainability.md` (interaction speed, smaller list payload, then migrations, pinned dependencies, WebKit/Firefox tests) | Built and tested on branch `speed-and-upkeep` (interaction speed, revalidated lists, numbered migrations, every dependency pinned, engine-selectable browser tests); awaiting deploy and check |
 
 Quality gates today: 308 automated server tests on `main` (326 on `groups`) and 15 Playwright browser scripts (`tests/e2e/`), all passing. Each groups stage ends with a short manual checklist (`docs/CHECKLIST-groups.md`).
 
