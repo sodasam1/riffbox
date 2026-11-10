@@ -16,3 +16,9 @@ Run on a restored copy of your real data first, then on the live site. Each stag
 - [ ] Edit a grouped idea: rename and reorder parts, Save; Take out one part; Break up this idea. Every recording is still there afterwards.
 - [ ] Upload two files with "Upload several files as one idea" ticked: one idea with two parts in the Inbox; a normal multi-upload without the tick still makes separate ideas.
 - [ ] Trash a grouped idea and restore it: all parts, tags and notes come back. (Until stage 3 a grouped row plays and downloads its first part only.)
+
+## Stage 3: how groups look and play
+- [ ] A grouped idea is one row (caret, "N parts" badge; in Compact just the number). Singles look exactly as before.
+- [ ] The caret opens the parts under the row (Cozy, Compact, minimal theme, phone). Each part plays and downloads on its own; opened ideas stay open after a change.
+- [ ] The player names the part ("Idea — Part (part 2 of 3)"); when a part ends the next one starts, and it stops after the last.
+- [ ] The idea's own ▶ plays the part you were on (else the first). Arrow keys still move row to row (parts are not stepped through until stage 4).

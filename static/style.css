@@ -454,3 +454,19 @@ form.edit .parts-list { list-style: none; margin: 0 0 .7rem; padding: 0; display
 form.edit .parts-list li { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; border: 0; padding: 0; background: none; }
 form.edit .parts-list input { flex: 1 1 10rem; min-width: 0; }
 form.edit .parts-list button { min-height: 36px; }
+
+/* ---- groups, stage 3: the caret, the parts badge, and the recordings inside an open idea ---- */
+#list .caret { background: none; border: 0; padding: 0; margin: 0 .25rem 0 -.3rem; min-width: 26px; min-height: 26px; color: var(--muted); font: inherit; cursor: pointer; }
+#list .caret:hover { color: var(--text); }
+#list .title .chip.parts { margin-left: .5rem; font-weight: 400; vertical-align: baseline; }
+#list li.part { background: none; }
+#list li.part .title { font-weight: 400; padding-left: 1.4rem; }
+#list li.part .play { width: 30px; height: 30px; margin-top: 0; font-size: .7rem; }
+#list li.part .lead { padding-left: .4rem; }
+#list li.part.playing { background: var(--panel); }
+html[data-theme="minimal"] #list li.part.playing { background: none; }
+html[data-theme="minimal"] #list .title .chip.parts { border: 0; padding: 0; background: none; color: var(--muted); }
+#list .title.has-parts { display: flex; align-items: center; min-width: 0; }
+#list .title.has-parts .tt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#list .title.has-parts .chip.parts, #list .title.has-parts .caret { flex: none; }
+#list.compact .title.has-parts .p-w { display: none; }

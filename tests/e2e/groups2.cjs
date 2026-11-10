@@ -55,7 +55,7 @@ async function waitUp() {
     await page.goto(BASE);
     await page.waitForSelector("#list > li");
     const notice = () => page.textContent("#notice").then((t) => t.trim());
-    const rowOf = (t) => page.locator("#list > li", { has: page.locator(".title", { hasText: new RegExp("^" + t + "$") }) });
+    const rowOf = (t) => page.locator(`#list > li[data-title="${t}"]`);
 
     // Select mode exists in the Inbox, with Group… (needs two) and without Move to Inbox
     await page.click("#select-toggle");
