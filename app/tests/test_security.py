@@ -29,7 +29,7 @@ def with_clock(monkeypatch):
 # ---- upload token is add-only ------------------------------------------------
 def test_token_cannot_list_library(client):
     upload(client, make_wav())
-    r = client.get("/api/recordings", headers={"Authorization": f"Bearer {TOKEN}"})
+    r = client.get("/api/groups", headers={"Authorization": f"Bearer {TOKEN}"})
     assert r.status_code == 401
 
 

@@ -47,8 +47,8 @@ const server = spawn(PY, ["-m", "waitress", `--listen=127.0.0.1:${PORT}`, "--thr
     for (let i = 1; i <= N; i++) await ctx.request.patch(BASE + "api/recordings/" + i, { data: { status: i % 10 ? "tagged" : "inbox",
       tags: [tags[i % 9], tags[(i * 3) % 9]], notes: "Some notes about idea " + i, rating: i % 3 ? null : "heart", bpm: 60 + (i % 100), key_root: "A", key_mode: "minor" } });
     console.log(`seeded ${N} recordings`);
-    for (const [label, url] of [["list library", "api/recordings?status=tagged&sort=uploaded&order=desc&rating=heart,check,none"],
-                                ["list inbox", "api/recordings?status=inbox"], ["tags", "api/tags"], ["data page", "api/data"]]) {
+    for (const [label, url] of [["list library", "api/groups?status=tagged&sort=uploaded&order=desc&rating=heart,check,none"],
+                                ["list inbox", "api/groups?status=inbox"], ["tags", "api/tags"], ["data page", "api/data"]]) {
       const runs = []; let body;
       for (let i = 0; i < 5; i++) { const t = performance.now(); body = await (await ctx.request.get(BASE + url)).body(); runs.push(performance.now() - t); }
       runs.sort((a, b) => a - b);

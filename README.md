@@ -25,7 +25,7 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
   **triage** mode for the Inbox, and ♥ / ✓ / ✗ marks (✓ can name the song it became).
 - **Find and listen:** a Library with search, tag, BPM, key and mark filters; a table with click-to-sort headings, Cozy or
   Compact rows, Select mode with bulk actions, **Random**, and **Resurface** (hearted ideas you have not played lately).
-  A player with a waveform, scrubbing, speed, A-B loop and Download. Standard and minimal themes (Menu).
+  A player with a waveform, scrubbing, speed, A-B loop and Download. Style (standard or minimal) and colours (auto, light or dark) are separate choices in the Menu.
 - **Protect:** a Trash instead of deletion, nightly backups, a **Backup and export** page, and an export to plain files
   that needs none of this code. Originals are never changed or removed by the app.
 - **Apple Lossless (ALAC) memos:** Safari plays them, Chrome, Edge and Firefox do not. With `ffmpeg` installed the server
@@ -110,9 +110,12 @@ docs/          the plan, the later-work plan, and docs/archive/ (the original pl
   - one set of theme variables instead of a long override list; a smaller `app.js`; shared helpers for the browser tests;
   - run browser tests in WebKit and Firefox as well; numbered database migrations; a monthly self-test; a yearly-care
     checklist; pin and vendor Flask and waitress.
-- **Groups** (next big feature, designed, not started): one idea made of several recordings (keys, drums and vocal memos), with
-  the details on the group, expandable rows, grouping from Select mode in the Inbox and Library, keyboard play-through, and
-  Resurface bringing up the whole group. Spec, open questions and a six-stage plan: `docs/PLAN-groups.md`.
+- **Groups** (stages 1 to 3 of 5 built on the `groups` branch, not merged or deployed): one idea made of several recordings
+  (keys, drums and vocal memos). Built: the data layer and migration, making and changing groups (Select mode also in the Inbox,
+  *Group…*, *Add to group…*, upload several files as one idea, a Parts list in the edit form), expandable rows and part playback.
+  Still to do: keyboard play-through that opens and closes groups as you arrow through them, Resurface bringing up the whole
+  group, an export that carries the group's details, and a rehearsal of the migration on a copy of your data. Spec, status and
+  stages: `docs/PLAN-groups.md`; short manual checks per stage: `docs/CHECKLIST-groups.md`.
 - **Interface clean-up:** an idle player that stays slim, one row-actions menu, collapsible filter groups, a two-step edit
   form, orange only for primary actions.
 - **Candidate features:** an off-server copy reminder and a Verify-library button; timestamped markers on the waveform; the memo's creation date passed from the Shortcut as the date recorded; a

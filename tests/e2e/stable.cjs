@@ -89,11 +89,21 @@ async function waitUp() {
       vis[view] = await page.evaluate(() => Object.fromEntries(["#random", "#dens-cozy", "#select-toggle"].map((s) => [s, getComputedStyle(document.querySelector(s)).visibility])));
     }
     assert.deepStrictEqual(vis, {
-      inbox: { "#random": "visible", "#dens-cozy": "hidden", "#select-toggle": "hidden" },
+      inbox: { "#random": "visible", "#dens-cozy": "visible", "#select-toggle": "visible" },
       library: { "#random": "visible", "#dens-cozy": "visible", "#select-toggle": "visible" },
       resurface: { "#random": "hidden", "#dens-cozy": "hidden", "#select-toggle": "hidden" } });
     for (const s of ["#random", "#dens-cozy"]) assert.ok(await page.isHidden(s), s + " should not be usable on Resurface");
-    console.log("ok  Random shows on Inbox and Library, the row-size and Select controls on Library only, always in the same slots");
+    console.log("ok  Random shows on Inbox and Library, Select and the row-size control on Inbox and Library, always in the same slots");
+
+    // the button groups sit apart: tabs | row size | Random | Select (in that order)
+    await page.click("#tab-library"); await page.waitForTimeout(150);
+    const box = (sel) => page.evaluate((q) => { const r = document.querySelector(q).getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top }; }, sel);
+    const [res, coz, cmp, rnd, sel] = [await box("#tab-resurface"), await box("#dens-cozy"), await box("#dens-compact"), await box("#random"), await box("#select-toggle")];
+    assert.ok(coz.l - res.r >= 24, "space between Resurface and Cozy: " + (coz.l - res.r));
+    assert.ok(rnd.l - cmp.r >= 16, "space between Compact and Random: " + (rnd.l - cmp.r));
+    assert.ok(sel.l - rnd.r >= 16, "space between Random and Select: " + (sel.l - rnd.r));
+    assert.ok(rnd.l < sel.l, "Random comes before Select");
+    console.log("ok  the tab row reads as groups: tabs, row size, Random, Select, with space between them");
 
     // the left column holds each tab's own controls, in the same place
     const left = {};

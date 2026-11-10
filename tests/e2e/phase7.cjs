@@ -66,7 +66,7 @@ async function waitUp() {
       const r = await ctx.request.patch(BASE + `api/recordings/${ids[title]}`, { data: { status, tags, rating, used_in } });
       assert.strictEqual(r.status(), 200, title + ": " + (await r.text()));
     }
-    const api = async (q = "") => (await (await ctx.request.get(BASE + "api/recordings" + q)).json()).recordings;
+    const api = async (q = "") => (await (await ctx.request.get(BASE + "api/groups" + q)).json()).groups;
     const byTitle = async (title) => (await api()).find((r) => r.title === title);
 
     const page = await ctx.newPage();

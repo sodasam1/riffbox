@@ -44,3 +44,36 @@ CREATE TABLE IF NOT EXISTS recording_tags (
 INSERT OR IGNORE INTO tags(name) VALUES
   ('bass'),('drums'),('keys'),('guitar'),('harmony'),
   ('vocal'),('melody'),('rhythmic idea'),('full song');
+
+-- Groups (added with the groups feature; see docs/PLAN-groups.md). Every recording belongs to one group; a group of one
+-- recording is an ordinary single idea. The group holds the details of the idea; migrate() adds recordings.group_id and
+-- recordings.position and gives every existing recording a group of its own.
+CREATE TABLE IF NOT EXISTS idea_groups (
+  id                INTEGER PRIMARY KEY,
+  title             TEXT NOT NULL,
+  tempo             TEXT CHECK (tempo IN ('slow','medium','fast')),   -- no longer shown anywhere; kept so nothing is lost
+  bpm               INTEGER,
+  key_root          TEXT,
+  key_mode          TEXT CHECK (key_mode IN ('major','minor')),
+  notes             TEXT NOT NULL DEFAULT '',
+  status            TEXT NOT NULL DEFAULT 'inbox' CHECK (status IN ('inbox','tagged')),
+  rating            TEXT CHECK (rating IN ('heart','check','x')),
+  used_in           TEXT,
+  recorded_override TEXT,                  -- a date recorded set by hand; NULL = the earliest part
+  unresolved        TEXT,                  -- JSON: tempos/keys the parts disagreed on when grouped, until the owner picks one
+  deleted_at        TEXT,
+  -- derived from the parts by groups.refresh()
+  recorded_at       TEXT NOT NULL,         -- override, else the earliest part
+  uploaded_at       TEXT NOT NULL,         -- the latest part
+  length_s          REAL,                  -- the longest part
+  size              INTEGER NOT NULL DEFAULT 0,
+  last_played_at    TEXT,
+  part_count        INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_groups_status ON idea_groups(status, deleted_at);
+
+CREATE TABLE IF NOT EXISTS group_tags (
+  group_id INTEGER NOT NULL REFERENCES idea_groups(id) ON DELETE CASCADE,
+  tag      TEXT NOT NULL REFERENCES tags(name) ON DELETE CASCADE ON UPDATE CASCADE,
+  PRIMARY KEY (group_id, tag)
+);

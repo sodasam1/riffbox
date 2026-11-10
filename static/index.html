@@ -26,7 +26,14 @@
       <nav id="menu" aria-label="Riffbox menu" hidden>
         <a id="data-link" href="#data">Backup and export</a>
         <a id="how-link" href="#how">How this works</a>
-        <button id="theme-toggle" type="button">Switch to the minimal theme</button>
+        <div class="theme-group" role="group" aria-label="Style">
+          <span class="meta">Style</span>
+          <div><button id="theme-standard" type="button" aria-pressed="true">Standard</button><button id="theme-minimal" type="button" aria-pressed="false">Minimal</button></div>
+        </div>
+        <div class="theme-group" role="group" aria-label="Colors">
+          <span class="meta">Colors</span>
+          <div><button id="colors-auto" type="button" aria-pressed="true">Auto</button><button id="colors-light" type="button" aria-pressed="false">Light</button><button id="colors-dark" type="button" aria-pressed="false">Dark</button></div>
+        </div>
         <button id="logout" type="button">Log out</button>
       </nav>
     </div>
@@ -84,6 +91,7 @@
     <div id="drop">
       <button id="pick" type="button">Upload audio…</button>
       <span class="meta">or drop files anywhere on this page</span>
+      <label class="as-one meta"><input type="checkbox" id="as-one"> Upload several files as one idea</label>
       <input id="file" type="file" multiple accept="audio/*,.m4a,.caf,.aac,.wav,.mp3,.aif,.aiff,.flac,.ogg">
     </div>
     <ul id="queue"></ul>
@@ -98,9 +106,9 @@
         <span id="density" role="group" aria-label="Row size">
           <button id="dens-cozy" type="button" aria-pressed="true">Cozy</button><button id="dens-compact" type="button" aria-pressed="false">Compact</button>
         </span>
-        <button id="select-toggle" type="button" aria-pressed="false">Select</button>
       </span>
       <button id="random" type="button" class="slot-off" title="Play a random recording from the list below">Random</button>
+      <button id="select-toggle" type="button" class="slot-off" aria-pressed="false">Select</button>
       <button id="tab-trash" type="button" aria-pressed="false" hidden>Trash</button>
     </div>
     <p id="notice" role="status" aria-live="polite" hidden></p>
@@ -151,6 +159,7 @@
             <span class="radio"><input type="radio" name="f-show" id="f-show-x" value="x"><label for="f-show-x" data-base="✗ No longer interesting">✗ No longer interesting</label></span>
             <span class="radio"><input type="radio" name="f-show" id="f-show-none" value="none"><label for="f-show-none" data-base="No mark">No mark</label></span>
           </fieldset>
+          <div class="field needsfilter"><span class="radio"><input type="checkbox" id="f-unresolved"><label for="f-unresolved" id="f-unresolved-label">Needs a tempo or key choice</label></span></div>
           <fieldset>
             <legend>Tags</legend>
             <div id="f-tags" class="tagbox" role="group" aria-label="Filter by tag"></div>
@@ -203,6 +212,8 @@
             <option value="">Mark…</option><option value="heart">♥ Interesting</option><option value="check">✓ Used in a song</option>
             <option value="x">✗ No longer interesting</option><option value="none">No mark</option>
           </select>
+          <button id="bulk-group" type="button">Group…</button>
+          <select id="bulk-addto" aria-label="Add the selected to an existing group"><option value="">Add to group…</option></select>
           <button id="bulk-inbox" type="button">Move to Inbox</button>
           <button id="bulk-trash" type="button" class="link danger">Move to Trash</button>
           <button id="bulk-done" type="button" class="link">Done</button>

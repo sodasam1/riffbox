@@ -36,11 +36,13 @@ from flask import (
 )
 
 from . import backup as backups
-from . import exporter
+from . import exporter, groups
 from .health import collect as collect_health
 from .intake import (
+    MAX_BULK,
     MAX_TAGS_PER_RECORDING,
     MAX_TAGS_TOTAL,
+    MAX_TITLE,
     Invalid,
     normalize_tag,
     validate_bulk,
@@ -175,6 +177,7 @@ def create_app(config=None):
             if col not in have:
                 conn.execute(f"ALTER TABLE recordings ADD COLUMN {col} TEXT")
         conn.commit()
+        groups.migrate(conn)           # every recording belongs to a group (see groups.py)
 
     # Werkzeug parks big uploads in a temp file while it parses them. Keep that inside the data directory
     # (the disk with room), not the system /tmp, which may be small.
@@ -240,7 +243,7 @@ def create_app(config=None):
         can sort by length. A failure is remembered (an empty waveform) so it is not retried forever."""
         conn = connect()
         try:
-            row = conn.execute("SELECT filename FROM recordings WHERE id = ?", (rec_id,)).fetchone()
+            row = conn.execute("SELECT filename, group_id FROM recordings WHERE id = ?", (rec_id,)).fetchone()
             if row is None:
                 return
             ok, duration, peaks, err = analyze_audio(app.config["FFMPEG"], audio_dir / row["filename"],
@@ -248,6 +251,7 @@ def create_app(config=None):
             if ok:
                 conn.execute("UPDATE recordings SET duration_s=?, peaks=? WHERE id=?",
                              (duration, json.dumps(peaks, separators=(",", ":")), rec_id))
+                groups.refresh(conn, row["group_id"])             # the idea's length follows its longest part
             else:
                 app.logger.error("riffbox: could not analyse recording %s: %s", rec_id, err)
                 conn.execute("UPDATE recordings SET peaks='[]' WHERE id=?", (rec_id,))
@@ -377,28 +381,6 @@ def create_app(config=None):
         db().execute("SELECT 1").fetchone()
         return jsonify(status="ok")
 
-    def row_to_dict(row, tags=()):
-        keys = ("id", "title", "orig_filename", "mime", "size", "duration_s",
-                "recorded_at", "uploaded_at", "status", "tempo", "bpm",
-                "key_root", "key_mode", "notes", "rating", "used_in", "codec", "play_status", "last_played_at")
-        out = {k: row[k] for k in keys}
-        out["tags"] = list(tags)
-        return out
-
-    def tags_for(ids):
-        """{recording id: [tag names]} in the order tags were created (seeded ones first)."""
-        if not ids:
-            return {}
-        marks = ",".join("?" * len(ids))
-        found = {}
-        for r in db().execute(
-            f"SELECT rt.recording_id AS rid, rt.tag AS tag FROM recording_tags rt"
-            f" JOIN tags t ON t.name = rt.tag WHERE rt.recording_id IN ({marks}) ORDER BY t.rowid",
-            list(ids),
-        ):
-            found.setdefault(r["rid"], []).append(r["tag"])
-        return found
-
     def bad_request(message):
         return jsonify(error=message), 400
 
@@ -443,11 +425,11 @@ def create_app(config=None):
             digest = h.hexdigest()
             db().execute("BEGIN IMMEDIATE")      # check-then-insert as one step: two identical uploads at once cannot both pass
             existing = db().execute(
-                "SELECT id, title FROM recordings WHERE sha256 = ? AND deleted_at IS NULL", (digest,)
+                "SELECT id, title, group_id FROM recordings WHERE sha256 = ? AND deleted_at IS NULL", (digest,)
             ).fetchone()
             if existing:
                 db().rollback()
-                return jsonify(id=existing["id"], duplicate=True,
+                return jsonify(id=existing["id"], group_id=existing["group_id"], duplicate=True,
                                message=f"Already in Riffbox as \u201c{existing['title']}\u201d."), 200
 
             now = utcnow_iso()
@@ -469,13 +451,14 @@ def create_app(config=None):
                 (title, stored, orig, mime, size, digest, recorded_at, now, codec,
                  "pending" if needs_copy else None),
             )
+            gid = groups.create_single(db(), cur.lastrowid, title, recorded_at, now)     # every recording belongs to a group
             db().commit()
             stored_path = None                          # recorded in the database: keep the file
             if needs_copy:
                 jobs.put(("convert", cur.lastrowid))   # convert in the background; the upload returns now
             if app.config["FFMPEG"] and ext in INPUT_FORMAT:
                 jobs.put(("analyze", cur.lastrowid))   # and measure it (length + waveform)
-            return jsonify(id=cur.lastrowid, duplicate=False, message=f"Uploaded \u201c{title}\u201d to the Riffbox Inbox."), 201
+            return jsonify(id=cur.lastrowid, group_id=gid, duplicate=False, message=f"Uploaded \u201c{title}\u201d to the Riffbox Inbox."), 201
         finally:
             tmp_path.unlink(missing_ok=True)
             if stored_path is not None:                 # the database insert failed: don't leave an orphan file
@@ -487,10 +470,36 @@ def create_app(config=None):
         """For setting up the phone Shortcut: answers 200 when the upload token (or a login) is right."""
         return jsonify(ok=True, message="Riffbox: the upload token works.")
 
-    @bp.get("/api/recordings")
+    def group_or_404(gid, live=True):
+        row = groups.get(db(), gid, live)
+        if row is None:
+            abort(404)
+        return row
+
+    def one_group(gid):
+        return groups.load(db(), [groups.get(db(), gid, live=False)])[0]
+
+    def known_tags():
+        return {r["name"] for r in db().execute("SELECT name FROM tags")}
+
+    def guarded(work):
+        """Run a change that writes several rows: all of it, or none of it. A refused request answers 409 with a message."""
+        conn = db()
+        try:
+            result = work(conn)
+            conn.commit()
+            return result
+        except groups.Conflict as exc:
+            conn.rollback()
+            return jsonify(error=str(exc)), 409
+        except BaseException:
+            conn.rollback()
+            raise
+
+    @bp.get("/api/groups")
     @require_auth()      # the upload token is add-only: it must not be able to read the library
-    def list_recordings():
-        """Recordings matching the filters in the query string (see library.py). `count` is how many
+    def list_groups():
+        """The ideas (groups) matching the filters in the query string (see library.py). `count` is how many
         matched; `total` is how many exist in this status before any filter, for "12 of 40"."""
         try:
             filters = parse_filters(request.args)
@@ -498,7 +507,7 @@ def create_app(config=None):
             return bad_request(str(exc))
         sql, params = build_query(filters)
         rows = db().execute(sql, params).fetchall()
-        count_sql, count_params = "SELECT rating, COUNT(*) AS n FROM recordings WHERE deleted_at IS NULL", []
+        count_sql, count_params = "SELECT rating, COUNT(*) AS n FROM idea_groups WHERE deleted_at IS NULL", []
         if filters["status"]:
             count_sql += " AND status = ?"
             count_params.append(filters["status"])
@@ -506,124 +515,229 @@ def create_app(config=None):
         for r in db().execute(count_sql + " GROUP BY rating", count_params):
             counts[r["rating"] or "none"] = r["n"]
         total = sum(counts.values())
-        trashed = db().execute("SELECT COUNT(*) FROM recordings WHERE deleted_at IS NOT NULL").fetchone()[0]
-        tags = tags_for([r["id"] for r in rows])
-        return jsonify(recordings=[row_to_dict(r, tags.get(r["id"], ())) for r in rows],
-                       count=len(rows), total=total, ratings=counts, trashed=trashed)
+        needs = db().execute("SELECT COUNT(*) FROM idea_groups WHERE deleted_at IS NULL AND unresolved IS NOT NULL"
+                             + (" AND status = ?" if filters["status"] else ""), [filters["status"]] if filters["status"] else []).fetchone()[0]
+        trashed = db().execute("SELECT COUNT(*) FROM idea_groups WHERE deleted_at IS NOT NULL").fetchone()[0]
+        return jsonify(groups=groups.load(db(), rows), count=len(rows), total=total, ratings=counts, needs=needs, trashed=trashed)
 
-    @bp.patch("/api/recordings/<int:rec_id>")
-    @require_auth()
-    def update_recording(rec_id):
-        """Change a recording's details. Every field is optional; saving an unchanged or empty
-        form is fine. `status: "tagged"` is what moves a recording out of the inbox."""
-        row = live_row(rec_id)
-        body = request.get_json(silent=True)
+    def patch_group(gid, body, part_title_for=None):
+        """Validate and apply a change request to a group. `part_title_for` is the recording id a legacy request named: for a
+        group with several parts its `title` renames that part instead of the group."""
+        row = group_or_404(gid)
         if not isinstance(body, dict):
             return bad_request("send a JSON object")
-        known = {r["name"] for r in db().execute("SELECT name FROM tags")}
+        body = dict(body)
+        labels = body.pop("parts", None)
+        resolved = body.pop("resolved", [])
+        if not isinstance(resolved, list) or any(r not in ("bpm", "key") for r in resolved):
+            return bad_request("resolved must be a list of 'bpm' and/or 'key'")
+        if part_title_for is not None and row["part_count"] > 1 and "title" in body:
+            title = body.pop("title")
+            if not isinstance(title, str) or not title.strip() or len(title.strip()) > MAX_TITLE:
+                return bad_request(f"a part's title must be text of 1 to {MAX_TITLE} characters")
+            db().execute("UPDATE recordings SET title = ? WHERE id = ?", (title.strip(), part_title_for))
+        if labels is not None:
+            if (not isinstance(labels, list) or any(not isinstance(p, dict) or isinstance(p.get("id"), bool) or not isinstance(p.get("id"), int)
+                                                    or not isinstance(p.get("title"), str) or not p["title"].strip()
+                                                    or len(p["title"].strip()) > MAX_TITLE for p in labels)):
+                return bad_request("parts must be a list of {id, title}")
+            labels = [{"id": p["id"], "title": p["title"].strip()} for p in labels]
         try:
-            cols, tag_list = validate_patch(body, known, default_title(row["recorded_at"]), row["uploaded_at"])
+            cols, tag_list = validate_patch(body, known_tags(), default_title(row["recorded_at"]), row["uploaded_at"])
         except Invalid as exc:
             return bad_request(str(exc))
+        recorded = groups.KEEP
+        if "recorded_at" in cols:       # a date typed by hand; blank goes back to the earliest part
+            recorded = None if body.get("recorded_at") in (None, "") else cols["recorded_at"]
+            del cols["recorded_at"]
         # "used in" names the song a ✓ idea became, so it only belongs to a ✓
         rating_after = cols["rating"] if "rating" in cols else row["rating"]
         if "rating" in cols and rating_after != "check" and "used_in" not in cols:
             cols["used_in"] = None
         if cols.get("used_in") and rating_after != "check":
-            return bad_request("'used in' only applies to a recording marked ✓")
-        conn = db()
-        if cols:    # column names come from validate_patch's fixed set, never from the request
-            conn.execute("UPDATE recordings SET " + ", ".join(f"{c} = ?" for c in cols) + " WHERE id = ?",
-                         [*cols.values(), rec_id])
-        if tag_list is not None:
-            conn.execute("DELETE FROM recording_tags WHERE recording_id = ?", (rec_id,))
-            conn.executemany("INSERT INTO recording_tags (recording_id, tag) VALUES (?, ?)",
-                             [(rec_id, t) for t in tag_list])
-        conn.commit()
-        fresh = live_row(rec_id)
-        return jsonify(recording=row_to_dict(fresh, tags_for([rec_id]).get(rec_id, ())))
+            return bad_request("'used in' only applies to an idea marked ✓")
+        failed = guarded(lambda conn: groups.update(conn, gid, cols, tag_list, recorded, labels, resolved))
+        return failed
+
+    @bp.patch("/api/groups/<int:gid>")
+    @require_auth()
+    def update_group(gid):
+        """Change an idea's details. Every field is optional; saving an unchanged or empty form is fine. `status: "tagged"`
+        is what moves an idea out of the inbox. `parts: [{id, title}, ...]` renames and reorders the parts."""
+        failed = patch_group(gid, request.get_json(silent=True))
+        return failed if failed is not None else jsonify(group=one_group(gid))
+
+    @bp.patch("/api/recordings/<int:rec_id>")
+    @require_auth()
+    def update_recording(rec_id):
+        """Older form of the change request, kept for compatibility: it changes the group the recording belongs to."""
+        row = groups.group_of_recording(db(), rec_id)
+        if row is None:
+            abort(404)
+        failed = patch_group(row["id"], request.get_json(silent=True), part_title_for=rec_id)
+        return failed if failed is not None else jsonify(recording=one_group(row["id"]))
+
+    @bp.post("/api/groups/suggest")
+    @require_auth()
+    def suggest_group():
+        """What a group made from these ideas would start with, and which tempos and keys disagree (for the Group dialog)."""
+        ids = (request.get_json(silent=True) or {}).get("ids")
+        if not isinstance(ids, list) or not ids or any(isinstance(i, bool) or not isinstance(i, int) for i in ids):
+            return bad_request("ids must be a list of idea numbers")
+        try:
+            return jsonify(groups.suggest(db(), list(dict.fromkeys(ids))))
+        except groups.Conflict as exc:
+            return jsonify(error=str(exc)), 409
+
+    @bp.post("/api/groups")
+    @require_auth()
+    def create_group():
+        """Make one group out of several ideas. Any detail left out is filled in from the ideas (see `suggest`); the ones given
+        replace it. Nothing is lost: every recording keeps its own copy of what it had."""
+        body = request.get_json(silent=True)
+        ids = body.get("ids") if isinstance(body, dict) else None
+        if not isinstance(ids, list) or len(ids) < 2 or len(ids) > MAX_BULK or any(isinstance(i, bool) or not isinstance(i, int) for i in ids):
+            return bad_request(f"ids must be a list of 2 to {MAX_BULK} idea numbers")
+        ids = list(dict.fromkeys(ids))
+        try:
+            start = groups.suggest(db(), ids)
+        except groups.Conflict as exc:
+            return jsonify(error=str(exc)), 409
+        given = {k: v for k, v in body.items() if k in (*groups.GROUP_FIELDS, "tags")}
+        fields = {**{k: start.get(k) for k in groups.GROUP_FIELDS}, **given}
+        fields["tags"] = given.get("tags", start["tags"])
+        try:
+            cols, tag_list = validate_patch(fields, known_tags(), start["title"])
+        except Invalid as exc:
+            return bad_request(str(exc))
+        cols.setdefault("title", start["title"])
+        if cols.get("used_in") and cols.get("rating") != "check":
+            return bad_request("'used in' only applies to an idea marked ✓")
+        unresolved = {}                      # tempos or keys the recordings disagree on are kept, to be picked later in Edit
+        if "bpm" not in given and start["conflicts"]["bpm"]:
+            unresolved["bpm"] = start["conflicts"]["bpm"]
+        if "key_root" not in given and "key_mode" not in given and start["conflicts"]["key"]:
+            unresolved["key"] = start["conflicts"]["key"]
+        made = guarded(lambda conn: groups.combine(conn, ids, cols, tag_list, unresolved or None))
+        return made if isinstance(made, tuple) else (jsonify(group=one_group(made)), 201)
+
+    @bp.post("/api/groups/<int:gid>/parts")
+    @require_auth()
+    def add_parts(gid):
+        """Move other ideas into this group (it keeps its own details)."""
+        ids = (request.get_json(silent=True) or {}).get("ids")
+        if not isinstance(ids, list) or not ids or any(isinstance(i, bool) or not isinstance(i, int) for i in ids):
+            return bad_request("ids must be a list of idea numbers")
+        done = guarded(lambda conn: groups.add_to(conn, gid, ids))
+        return done if isinstance(done, tuple) else jsonify(group=one_group(gid))
+
+    @bp.delete("/api/groups/<int:gid>/parts/<int:rec_id>")
+    @require_auth()
+    def remove_part(gid, rec_id):
+        """Take one recording out of a group: it becomes its own idea again."""
+        done = guarded(lambda conn: groups.remove_part(conn, gid, rec_id))
+        return done if isinstance(done, tuple) else jsonify(group=one_group(gid), freed=one_group(done))
+
+    @bp.post("/api/groups/<int:gid>/ungroup")
+    @require_auth()
+    def ungroup(gid):
+        done = guarded(lambda conn: groups.ungroup(conn, gid))
+        return done if isinstance(done, tuple) else jsonify(groups=[one_group(g) for g in done])
 
     @bp.post("/api/bulk")
     @require_auth()
     def bulk_update():
-        """Change many recordings at once (the Library's Select mode). All or nothing: if any recording is missing or a
-        tag limit would be broken, nothing changes."""
+        """Change many ideas at once (Select mode). All or nothing: if any idea is missing or a tag limit would be broken,
+        nothing changes."""
         body = request.get_json(silent=True)
         if not isinstance(body, dict):
             return bad_request("send a JSON object")
-        known = {r["name"] for r in db().execute("SELECT name FROM tags")}
         try:
-            ids, changes = validate_bulk(body, known)
+            ids, changes = validate_bulk(body, known_tags())
         except Invalid as exc:
             return bad_request(str(exc))
         conn = db()
         marks = ",".join("?" * len(ids))
-        found = conn.execute(f"SELECT COUNT(*) FROM recordings WHERE deleted_at IS NULL AND id IN ({marks})", ids).fetchone()[0]
+        found = conn.execute(f"SELECT COUNT(*) FROM idea_groups WHERE deleted_at IS NULL AND id IN ({marks})", ids).fetchone()[0]
         if found != len(ids):
             return bad_request("some of these recordings no longer exist; reload the page")
         if changes.get("add_tags"):
             held = {}
-            for r in conn.execute(f"SELECT recording_id, tag FROM recording_tags WHERE recording_id IN ({marks})", ids):
-                held.setdefault(r["recording_id"], set()).add(r["tag"])
-            if any(len(held.get(rid, set()) | set(changes["add_tags"])) > MAX_TAGS_PER_RECORDING for rid in ids):
+            for r in conn.execute(f"SELECT group_id, tag FROM group_tags WHERE group_id IN ({marks})", ids):
+                held.setdefault(r["group_id"], set()).add(r["tag"])
+            if any(len(held.get(gid, set()) | set(changes["add_tags"])) > MAX_TAGS_PER_RECORDING for gid in ids):
                 return bad_request(f"at most {MAX_TAGS_PER_RECORDING} tags per recording")
-        try:
+
+        def work(conn):
             if changes.get("trash"):
-                conn.execute(f"UPDATE recordings SET deleted_at = ? WHERE id IN ({marks})", [utcnow_iso(), *ids])
+                groups.trash(conn, ids, utcnow_iso())
             if "rating" in changes:        # "used in" only belongs to a ✓, as with a single change
                 clear = "" if changes["rating"] == "check" else ", used_in = NULL"
-                conn.execute(f"UPDATE recordings SET rating = ?{clear} WHERE id IN ({marks})", [changes["rating"], *ids])
+                conn.execute(f"UPDATE idea_groups SET rating = ?{clear} WHERE id IN ({marks})", [changes["rating"], *ids])
             if "status" in changes:
-                conn.execute(f"UPDATE recordings SET status = ? WHERE id IN ({marks})", [changes["status"], *ids])
+                conn.execute(f"UPDATE idea_groups SET status = ? WHERE id IN ({marks})", [changes["status"], *ids])
             if changes.get("add_tags"):
-                conn.executemany("INSERT OR IGNORE INTO recording_tags (recording_id, tag) VALUES (?, ?)",
-                                 [(rid, t) for rid in ids for t in changes["add_tags"]])
+                conn.executemany("INSERT OR IGNORE INTO group_tags (group_id, tag) VALUES (?, ?)",
+                                 [(gid, t) for gid in ids for t in changes["add_tags"]])
             if changes.get("remove_tags"):
                 tag_marks = ",".join("?" * len(changes["remove_tags"]))
-                conn.execute(f"DELETE FROM recording_tags WHERE recording_id IN ({marks}) AND tag IN ({tag_marks})",
+                conn.execute(f"DELETE FROM group_tags WHERE group_id IN ({marks}) AND tag IN ({tag_marks})",
                              [*ids, *changes["remove_tags"]])
-            conn.commit()
-        except BaseException:
-            conn.rollback()
-            raise
-        return jsonify(updated=len(ids))
+            for gid in ids:
+                groups.sync_single(conn, gid)
+        failed = guarded(work)
+        return failed if failed is not None else jsonify(updated=len(ids))
 
-    # ---- delete and restore: "delete" only moves a recording to the Trash; nothing is removed from disk ----
+    # ---- delete and restore: "delete" only moves an idea to the Trash; nothing is removed from disk ----
+    @bp.delete("/api/groups/<int:gid>")
+    @require_auth()
+    def trash_group(gid):
+        group_or_404(gid)
+        guarded(lambda conn: groups.trash(conn, [gid], utcnow_iso()))
+        return jsonify(ok=True)
+
     @bp.delete("/api/recordings/<int:rec_id>")
     @require_auth()
     def trash_recording(rec_id):
-        live_row(rec_id)
-        db().execute("UPDATE recordings SET deleted_at = ? WHERE id = ?", (utcnow_iso(), rec_id))
-        db().commit()
+        row = groups.group_of_recording(db(), rec_id)
+        if row is None:
+            abort(404)
+        guarded(lambda conn: groups.trash(conn, [row["id"]], utcnow_iso()))
         return jsonify(ok=True)
+
+    def restore_by_group(gid, legacy):
+        row = groups.get(db(), gid, live=False)
+        if row is None or not row["deleted_at"]:
+            abort(404)
+        done = guarded(lambda conn: groups.restore(conn, gid))
+        if done is not None:
+            return done
+        return jsonify(recording=one_group(gid)) if legacy else jsonify(group=one_group(gid))
+
+    @bp.post("/api/groups/<int:gid>/restore")
+    @require_auth()
+    def restore_group(gid):
+        return restore_by_group(gid, False)
 
     @bp.post("/api/recordings/<int:rec_id>/restore")
     @require_auth()
     def restore_recording(rec_id):
-        row = db().execute("SELECT * FROM recordings WHERE id = ? AND deleted_at IS NOT NULL", (rec_id,)).fetchone()
+        row = groups.group_of_recording(db(), rec_id, live=False)
         if row is None:
             abort(404)
-        # a copy of the same audio may have been uploaded since; two live rows for one file would break the duplicate check
-        twin = db().execute("SELECT id, title FROM recordings WHERE sha256 = ? AND deleted_at IS NULL AND id != ?",
-                            (row["sha256"], rec_id)).fetchone()
-        if twin:
-            return jsonify(error=f"The same audio is already in your lists as \"{twin['title']}\"."), 409
-        db().execute("UPDATE recordings SET deleted_at = NULL WHERE id = ?", (rec_id,))
-        db().commit()
-        return jsonify(recording=row_to_dict(live_row(rec_id), tags_for([rec_id]).get(rec_id, ())))
+        return restore_by_group(row["id"], True)
 
     @bp.get("/api/trash")
     @require_auth()
     def list_trash():
-        rows = db().execute("SELECT * FROM recordings WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC").fetchall()
-        tags = tags_for([r["id"] for r in rows])
-        return jsonify(recordings=[{**row_to_dict(r, tags.get(r["id"], ())), "deleted_at": r["deleted_at"]} for r in rows])
+        rows = db().execute("SELECT * FROM idea_groups WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC").fetchall()
+        return jsonify(groups=groups.load(db(), rows))
 
     @bp.get("/api/resurface")
     @require_auth()
     def resurface():
         """Hearted Library ideas not played for `days` days (0 = every hearted one), never-played first, then the
-        longest ago. `hearts` is how many hearted ideas exist at all."""
+        longest ago. A group counts once, with all its parts. `hearts` is how many hearted ideas exist at all."""
         try:
             days = int(request.args.get("days", "30"))
         except ValueError:
@@ -631,13 +745,12 @@ def create_app(config=None):
         if not 0 <= days <= 3650:
             return bad_request("days must be between 0 and 3650")
         cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        base = "FROM recordings WHERE deleted_at IS NULL AND status = 'tagged' AND rating = 'heart'"
+        base = "FROM idea_groups WHERE deleted_at IS NULL AND status = 'tagged' AND rating = 'heart'"
         hearts = db().execute("SELECT COUNT(*) " + base).fetchone()[0]
         rows = db().execute(
             "SELECT * " + base + " AND (? = 0 OR last_played_at IS NULL OR last_played_at < ?)"
             " ORDER BY last_played_at IS NOT NULL, last_played_at ASC, recorded_at ASC, id ASC", (days, cutoff)).fetchall()
-        tags = tags_for([r["id"] for r in rows])
-        resp = jsonify(recordings=[row_to_dict(r, tags.get(r["id"], ())) for r in rows], hearts=hearts, days=days)
+        resp = jsonify(groups=groups.load(db(), rows), hearts=hearts, days=days)
         resp.headers["Cache-Control"] = "no-store"
         return resp
 
@@ -724,6 +837,7 @@ def create_app(config=None):
         live_row(rec_id)
         now = utcnow_iso()
         db().execute("UPDATE recordings SET last_played_at = ? WHERE id = ?", (now, rec_id))
+        groups.refresh(db(), live_row(rec_id)["group_id"])
         db().commit()
         return jsonify(ok=True, last_played_at=now)
 

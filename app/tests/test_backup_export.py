@@ -56,12 +56,12 @@ def test_backup_then_restore_drill_runs_the_app_from_the_backup(populated):
     try:
         c = app.test_client()
         c.post("/api/login", json={"passphrase": PASS})
-        body = c.get("/api/recordings").get_json()
+        body = c.get("/api/groups").get_json()
         assert body["total"] == 4 and body["trashed"] == 1
-        first = next(x for x in body["recordings"] if x["title"].startswith("Riff"))
+        first = next(x for x in body["groups"] if x["title"].startswith("Riff"))
         assert first["tags"] == ["bass", "keys"] and first["notes"] == "note 0\nsecond line"
         assert hashlib.sha256(c.get(f"/api/audio/{first['id']}").data).hexdigest() == hashlib.sha256(make_wav(freq_seed=0)).hexdigest()
-        assert [x["title"] for x in c.get("/api/trash").get_json()["recordings"]] == ["gone"]
+        assert [x["title"] for x in c.get("/api/trash").get_json()["groups"]] == ["gone"]
     finally:
         app.extensions["riffbox"].stop()
 

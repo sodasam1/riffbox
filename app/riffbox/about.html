@@ -1,108 +1,152 @@
 <!-- The private "How this works" page. Served only to a logged-in session (GET /api/about) because it
      describes the server setup. This is an HTML fragment, not a full page. Keep the section order:
-     Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model, Keeping your data portable.
+     Quickstart, Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model, Keeping your data portable.
      UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
 
-<p class="meta">Last updated: 8 Nov 2026, after the code review and clean-up. Written from what was checked on your server and
-in the tests, not from assumptions; anything unverified is marked as such.</p>
+<p class="meta">Last updated: 10 Nov 2026, after groups stage 4 (ideas made of several recordings). Written from what was
+checked on your server and in the tests; anything unverified is marked as such.</p>
+
+<h2>Quickstart</h2>
+<h3>The everyday workflow</h3>
+<ol>
+  <li><strong>Capture.</strong> Record a voice memo on the phone and send it with the <em>Send to Riffbox</em> Shortcut
+    (<code>deploy/SHORTCUT.md</code>), or press <em>Upload audio&hellip;</em> or drop files anywhere on the page. Nothing needs
+    filling in. A file you already uploaded is recognised and refused.</li>
+  <li><strong>Inbox.</strong> New recordings wait here. Press <em>Edit</em> to add a title, instruments, marks, BPM (with tap
+    tempo), key, date recorded and notes, and save with <em>Save</em> (it stays in the Inbox, so half-filled is fine) or
+    <em>Save and move to Library</em>. <em>Triage the Inbox</em> works through them one at a time from the keyboard.</li>
+  <li><strong>Library.</strong> Browse like a sample library: search, filter by tag, BPM range, key and mark, click a column
+    heading to sort, and play anything at once.</li>
+  <li><strong>Come back to ideas.</strong> <em>Resurface</em> lists hearted ideas you have not played for a while, and
+    <em>Surprise me</em> plays one. <em>Random</em> (Inbox and Library) plays a random one from the list on screen.</li>
+  <li><strong>Keep it safe.</strong> Delete only moves an idea to the <em>Trash</em>, where Restore brings it back. The
+    <em>Backup and export</em> page (Menu) shows the backup status and downloads an export of everything as plain files.
+    Now and then copy an export off the server: a backup on the same server does not survive losing the server.</li>
+</ol>
+
+<h3>Core features</h3>
+<ul>
+  <li><strong>Marks:</strong> &hearts; interesting, &check; used in a song (name it in the edit form), &cross; no longer
+    interesting (hidden from <em>All</em>). Keys <code>h</code>, <code>c</code>, <code>x</code> on the highlighted row.</li>
+  <li><strong>Player:</strong> a waveform you can click or drag, speed with the pitch kept, an A-B loop (A and B buttons, or
+    Shift + drag on the waveform), Loop for the whole recording, and <em>Download</em> for the untouched original. An idea
+    counts as played only after a real listen.</li>
+  <li><strong>Keyboard:</strong> click the list (or Tab to it), then &uarr; &darr; to move and play as you go (switchable),
+    Space to play or pause.</li>
+  <li><strong>Apple Lossless memos</strong> play in Safari; with ffmpeg on the server a FLAC play copy makes them play in
+    Chrome too. Download always gives the original.</li>
+</ul>
+
+<h3>Extras</h3>
+<ul>
+  <li><strong>Select</strong> (Inbox and Library): tick rows (shift-click for a range) to add or remove a tag, set a mark,
+    move to the Inbox or the Trash for many at once, all or nothing.</li>
+  <li><strong>Cozy / Compact</strong> rows (Inbox and Library, one setting for both) and two separate look choices in the Menu, each remembered on that device: <strong>Style</strong> (Standard or Minimal) and
+    <strong>Colors</strong> (Auto follows the device's light or dark setting; Light and Dark force one). Any style works with any colors. The player bar can be collapsed to one row.</li>
+  <li><strong>Tap tempo</strong> in the edit form; keys <code>1</code>&ndash;<code>9</code> toggle tags in triage.</li>
+</ul>
+
+<h3>Groups: one idea made of several recordings</h3>
+<p>For recordings that make little sense alone (keys, drums and a vocal memo of the same idea). In the Inbox or Library press
+<em>Select</em>, tick two or more and press <em>Group&hellip;</em> (one click, no questions); or tick <em>Upload several files as one idea</em> before
+uploading. A group looks like one row with a caret and a parts badge; the caret shows the recordings inside. Things that behave
+in ways you might not expect:</p>
+<ul>
+  <li><strong>The details belong to the group.</strong> Tags, marks, tempo, key and notes are set on the idea, not on each part.
+    Grouping combines the parts' tags and notes and takes the strongest mark, and the idea is named after its earliest part.
+    It goes to the Inbox if any part was there, otherwise it stays where the parts were.</li>
+  <li><strong>Clashing tempo or key is kept, not decided.</strong> If the parts disagree (say 120 and 96 BPM) the idea starts with no
+    tempo and shows a dashed <em>&#9888; pick tempo</em> tag (just &#9888; in Compact). Open <em>Edit</em>: the choices are listed above
+    the BPM box; press one, or <em>No tempo</em> to stop asking, then Save. Typing a tempo yourself also settles it. Keys work the
+    same way. Nothing else is blocked while it waits. The Library's filters have <em>Needs a tempo or key choice</em> to list them.</li>
+  <li><strong>The parts keep a private copy</strong> of what they had when they joined. <em>Take out</em> and <em>Break up this
+    idea</em> (in the edit form, each asks for a second press) give each recording back that old copy. Anything you changed on
+    the group afterwards stays with the group, it is not copied to the parts.</li>
+  <li><strong>Dates and size:</strong> the idea shows the <em>earliest</em> recorded date and the <em>latest</em> upload date;
+    its length is its <em>longest</em> part and its size the total. Each part keeps its own dates.</li>
+  <li><strong>Inbox or Library:</strong> saving a group to the Library (or moving it back) moves the whole idea.</li>
+  <li><strong>Names:</strong> the title in the edit form is the idea's; each part's own name is edited under <em>Parts</em>, where
+    you can also reorder them. Search finds an idea by any part's name.</li>
+  <li><strong>Playing:</strong> the idea's &#9654; plays the part you were on, else the first, and playback moves on to the next
+    part by itself. Each open part has its own &#9654; and Download. The idea's own <em>Download</em> button gives its first
+    part only (for now).</li>
+  <li><strong>Arrow keys:</strong> parts count as ordinary lines. Arrowing <em>down</em> onto a closed idea opens it and plays its first
+    part; arrowing <em>up</em> onto it opens it on its last part. &uarr;/&darr; then move part to part, and on to the next idea.
+    An idea opened this way <em>closes again</em> when you move off it; an idea you opened yourself with the caret <em>stays open</em>
+    (closing it with the caret closes it). <code>h</code>, <code>c</code>, <code>x</code> mark the whole idea; Space plays or pauses the
+    highlighted part. Random picks an idea (a group counts once) and starts it at its first part. A triage card for a group lists
+    its parts and plays them in order.</li>
+  <li><strong>Selecting a group</strong> in Select mode selects all its parts (ticking any part ticks the idea, and Select all counts
+    ideas, not recordings); the bulk actions apply to the whole idea.
+    <em>Add to group&hellip;</em> in the Select bar adds the ticked ideas to an existing group.</li>
+  <li><strong>Trash and Restore</strong> work on the whole idea. A restore can be refused if you uploaded the same audio again in
+    the meantime.</li>
+  <li><strong>Not done yet:</strong> Resurface does not treat groups specially yet, and the export does not carry a group's own
+    details (see Planned features).</li>
+</ul>
 
 <h2>Planned features</h2>
-<p>Not built yet, roughly in the order they look most useful. (The numbered phases further down are the
-committed build order; these are the extras that come after, or alongside, them.)</p>
+<p>Not built yet, roughly in order of how soon they are likely. The detailed plans are in the repository's <code>docs/</code>.</p>
 <ul>
-  <li><strong>Serve this page's files from your website's <code>htdocs</code> folder</strong> (your preferred
-    direction). Today the Python app hands out the page files along with the data. The plan: put the page
-    files in <code>/var/www/htdocs/ideas/</code> so your normal site tooling uploads them, and narrow the
-    relayd rule so only <code>/ideas/api/*</code> goes to the app. The address stays
-    <code>/ideas/</code>. Accepted trade-offs: two upload destinations, the page and the data code can get
-    out of step if only one is uploaded, and the page files are no longer removed by the Riffbox-only
-    uninstall.</li>
-  <li><strong>Record-and-send Shortcut</strong> (Action Button, Back Tap or Lock Screen) that records and
-    uploads directly, skipping the Voice Memos app.</li>
-  <li><strong>Weekly email digest</strong> of a few forgotten hearted ideas, sent through your server's
-    existing mail setup (<code>smtpd</code> and smtp2go), so no new service is needed.</li>
-  <li><strong>Possible later:</strong> small waveform thumbnails in the list.</li>
+  <li><strong>Groups, stage 5.</strong> Resurface that always shows a whole group, an export that carries the group's details, and a
+    rehearsal of the migration on a copy of your data before the first deploy.
+    Possible afterwards: suggesting groups from recordings made close together in time, a zip of all parts, playing parts together.</li>
+  <li><strong>Speed and upkeep</strong> (decided: eventually): compressed responses and long-lived caching of the page files;
+    fixing the slow Select / Library-tab interactions on large libraries; a smaller <code>app.js</code>; theme variables;
+    numbered database migrations; a monthly self-test; pinned and vendored Flask and waitress.</li>
+  <li><strong>Serve the page files from your website's <code>htdocs</code> folder</strong> (your preferred direction): put the page
+    files in <code>/var/www/htdocs/ideas/</code> and narrow the relayd rule to <code>/ideas/api/*</code>. The address stays
+    <code>/ideas/</code>. Trade-offs: two upload destinations, the page and the data code can get out of step if only one is
+    uploaded, and the Riffbox-only uninstall would no longer remove the page files.</li>
+  <li><strong>An off-server copy reminder and a Verify-library button</strong>; <strong>timestamped markers</strong> on the waveform;
+    the memo's creation date passed from the Shortcut as the date recorded; a <strong>home-screen icon</strong>.</li>
+  <li><strong>Record-and-send Shortcut</strong> (Action Button, Back Tap or Lock Screen) that records and uploads directly.</li>
+  <li><strong>Weekly email digest</strong> of a few forgotten hearted ideas, through your server's existing mail setup.</li>
+  <li><strong>Interface clean-up:</strong> a slimmer idle player, one row-actions menu, collapsible filter groups, a two-step edit form.
+    <strong>Possible later:</strong> waveform thumbnails in the list.</li>
 </ul>
 
 <h2>Roadmap and progress</h2>
-<p>The app is built in phases, and each phase has to pass its tests (and, where it touches your server or
-phone, a check by you) before the next one starts. That keeps any problem confined to the newest layer.</p>
+<p>The app is built in phases; each must pass its automated tests (and, where it touches your server or phone, a check by you)
+before the next starts, so a problem stays confined to the newest layer.</p>
 <div class="scroll">
 <table>
   <thead><tr><th>Phase</th><th>What it adds</th><th>Status</th></tr></thead>
   <tbody>
     <tr><td>0</td><td>Look at the real server setup before writing anything for it.</td>
       <td><span class="status done">Done</span></td></tr>
-    <tr><td>1</td><td>The core: upload with duplicate detection, audio streaming that supports scrubbing,
-      and passphrase login.</td><td><span class="status done">Done</span></td></tr>
-    <tr><td>2</td><td>First deployment: the background service, the relayd route for
-      <code>/ideas</code>, and public HTTPS.</td><td><span class="status done">Done</span></td></tr>
+    <tr><td>1</td><td>The core: upload with duplicate detection, audio streaming that supports scrubbing, passphrase login.</td>
+      <td><span class="status done">Done</span></td></tr>
+    <tr><td>2</td><td>First deployment: the background service, the relayd route for <code>/ideas</code>, public HTTPS.</td>
+      <td><span class="status done">Done</span></td></tr>
     <tr><td>3</td><td>The first screens: login, uploader, list of recordings, and a player.</td>
       <td><span class="status done">Done</span></td></tr>
-    <tr><td>3.5</td><td>Added mid-way: Chrome can't play Apple Lossless (Voice Memos in Lossless mode), so
-      the server makes a lossless FLAC copy for playback and keeps your original untouched.</td>
+    <tr><td>3.5</td><td>Chrome can't play Apple Lossless, so the server makes a lossless FLAC copy for playback and keeps your
+      original untouched.</td><td><span class="status done">Done</span></td></tr>
+    <tr><td>4</td><td>Inbox and intake form: title, instruments, BPM with tap tempo, key, date recorded, notes, all optional;
+      automatic names in your local time; both dates always stored.</td><td><span class="status done">Done</span></td></tr>
+    <tr><td>5</td><td>Library browser: filter sidebar (tags, BPM range, key, search), sorting, arrow-key browsing with audition.</td>
       <td><span class="status done">Done</span></td></tr>
-    <tr><td>4</td><td>Inbox and intake form: title, instruments, BPM with tap tempo, key, an optional date
-      recorded, and notes, all optional. Saving, even an empty form, moves a recording from the Inbox to the
-      Library. Also added afterwards: automatic names use your local time; the date recorded (blank means the date
-      it was uploaded; both dates are always stored); the Slow/Medium/Fast words were removed in favour of BPM.</td>
-      <td><span class="status done">Done</span></td></tr>
-    <tr><td>5</td><td><strong>Library browser</strong> in the style of a DAW sample browser: a table with a
-      filter sidebar (on a phone the filters fold behind a button). Filter by tags (has all or has any of the
-      selected), by a BPM range (a two-thumb slider; recordings with no BPM are hidden while it is set) and by key; search across titles, notes and tag names; sort by date recorded, date
-      uploaded, title or BPM (recordings with no BPM always go last). Click a recording or Tab to the list, then
-      use the up and down arrows to move through it, auditioning each one as you land on it (switchable), and
-      Space to play or pause. Sorting by length or by last played arrives with Phase 6, once those are
-      recorded.</td><td><span class="status done">Done</span></td></tr>
-    <tr><td>6</td><td><strong>Player polish</strong>: a player bar with a waveform you can click or drag to jump
-      around, speed control that keeps the pitch, an A-B loop (A and B buttons, or Shift + drag on the waveform
-      to select a section; Loop on its own repeats the whole recording), and a Download link to the untouched
-      original. The waveform and each recording's length are measured once by the server (with ffmpeg) soon after
-      upload, so your phone never has to decode the whole file; recordings uploaded earlier are measured the next
-      time the service restarts. Lengths now show in the list, the player records when you last <em>really</em>
-      listened to a recording (not when you skip past it), and the Library can be sorted by length and by last
-      played.</td><td><span class="status done">Built; awaiting your check</span></td></tr>
-    <tr><td>7</td><td><strong>Ratings and triage</strong>: three marks &mdash; &hearts; interesting, &check; used in a
-      song (with a box for which song) and &cross; no longer interesting &mdash; set from buttons on each row, with
-      <code>h</code>, <code>c</code> and <code>x</code> on the highlighted row, or in the edit form. The Library's
-      &ldquo;Show&rdquo; filter has All (which leaves out the &cross; ones), each mark on its own, and No mark, each
-      with a count. <strong>Triage</strong> takes the Inbox one recording at a time, keyboard first: it plays, number
-      keys toggle tags, <code>h</code>/<code>c</code>/<code>x</code> mark, <code>n</code> and <code>u</code> jump to the notes
-      and song name, Right arrow or Enter saves it to the Library and moves on, <code>s</code> skips, Left arrow goes
-      back, Esc leaves. Also added: the player can be collapsed to one slim row (by a button, and automatically while
-      you type on a phone), and opening the form no longer raises the keyboard on a touch screen.</td>
-      <td><span class="status done">Built; awaiting your check</span></td></tr>
-    <tr><td>8</td><td><strong>Hardening and backup</strong>: <strong>Delete</strong> (twice in the edit form) moves a
-      recording to a <strong>Trash</strong> tab, and <strong>Restore</strong> brings it back; nothing is removed from
-      disk. <code>deploy/backup.py</code> makes a checked copy of the database plus every original, nightly if you
-      schedule it; <code>deploy/export.py</code> makes the plain-file export described at the bottom of this page; and
-      <code>deploy/PHASE8.md</code> has the practice restore. A <strong>Backup and export</strong> page (link at the top) downloads the export as a zip, shows the backup status and has a <em>Back up now</em> button. Also fixed in this phase: very long uploads' temporary
-      files now go to the data disk. (Login attempt limiting was pulled forward and is already live.)</td>
-      <td><span class="status next">Built; awaiting your check</span></td></tr>
-
+    <tr><td>6</td><td>Player polish: waveform, speed, A-B loop, Download of the original, lengths measured by the server,
+      "played" only after a real listen, sort by length and last played.</td>
+      <td><span class="status done">Done; in daily use</span></td></tr>
+    <tr><td>7</td><td>Marks (&hearts; &check; &cross;) and keyboard triage of the Inbox.</td>
+      <td><span class="status done">Done; in daily use</span></td></tr>
+    <tr><td>8</td><td>Hardening and backup: Trash and Restore, checked backups (<code>deploy/backup.py</code>), the plain-file export
+      (<code>deploy/export.py</code>), the practice restore (<code>deploy/PHASE8.md</code>), login throttling.</td>
+      <td><span class="status next">Built; your deploy check pending</span></td></tr>
+    <tr><td>After 8</td><td>Backup and export page with a status line; Resurface and Surprise me; the Trash tab; the iPhone Outbox
+      Shortcuts (confirmed working); editing in the Inbox; Library table (click-to-sort headings, Recorded and Uploaded
+      columns, Compact rows, Select and bulk actions); Random; a Style choice (standard, minimal) and a separate Colors choice (auto, light, dark); tabs that no longer shift the layout; a
+      restore tool (<code>deploy/restore.py</code>).</td><td><span class="status next">Built; awaiting your look on real devices</span></td></tr>
+    <tr><td>Groups 1&ndash;4</td><td>Ideas made of several recordings: the data layer and an additive migration (stage 1), making and
+      changing groups (stage 2), expandable rows, part playback and the player title (stage 3), arrow-key walking through parts, Random, Select and triage for groups (stage 4). See the Quickstart.</td>
+      <td><span class="status next">Built and tested; migration rehearsal and deploy pending</span></td></tr>
+    <tr><td>Groups 5</td><td>Resurface and export for groups, final docs.</td>
+      <td><span class="status next">Planned</span></td></tr>
   </tbody>
 </table>
 </div>
-<p><strong>Added since Phase 8:</strong> the <strong>Backup and export</strong> page with a status line (disk space,
-growth forecast, backup state); <strong>Resurface</strong> (hearted ideas you have not played for a while, and a
-<em>Surprise me</em> button); a Trash tab set apart from Inbox and Library; and the iPhone <strong>Outbox</strong> upload
-Shortcuts, which you have confirmed working (Voice Memos, Share, <em>Send to Riffbox</em>; a memo stays in the Outbox until
-the server confirms it; steps in <code>deploy/SHORTCUT.md</code>).</p>
-<p><strong>Editing in the Inbox</strong> (waiting for your check): an Inbox row now says <em>Edit</em>, and its form has a plain
-<em>Save</em> that keeps the recording in the Inbox &mdash; so a half-filled form can be saved and finished later &mdash; next to
-<em>Save and move to Library</em>. Enter in a field is a plain Save.</p>
-<p><strong>The Library table</strong> (latest changes, waiting for your check): click a column heading to sort &mdash;
-once ascending, twice descending, a third time back to the default, newest upload first &mdash; with a small &#9650;/&#9660;
-beside the active heading. There are separate <em>Recorded</em> and <em>Uploaded</em> columns that show the date only;
-hover for the full timestamp. <em>Compact</em> shortens tempo and key to <code>108 &middot; A m</code> (M for major, m for
-minor; hover for the long form), shows dates as <code>2026-03-01</code>, and fits as many whole tags as the column allows,
-with <code>+N</code> (hover for the rest) instead of cutting a tag short. <em>Select</em> adds checkboxes (shift-click for a
-range) and a bar to add or remove a tag, set a mark, move to the Inbox or move to the Trash for many recordings at once,
-all or nothing. <em>Random</em> (in the Library and the Inbox) plays a different recording from the list on screen each time you press it, which makes a big Inbox backlog a bit more fun. The upload
-control is one line, and files can be dropped anywhere on the page. The header links live under <em>Menu</em>, together with a switch between the <strong>standard</strong> theme and a plainer
-<strong>minimal</strong> one (one ink colour, no fills or shadows, a docked player); the choice is remembered on that device, and
-the same switch brings the standard theme back.
-The Inbox still lists newest first by date recorded.</p>
 
 <h2>Context</h2>
 <p><strong>The problem.</strong> Ideas were recorded as voice memos, then moved by hand into Obsidian and
@@ -181,10 +225,10 @@ audio files. Everything else on your domain is still handled by httpd exactly as
 
 <h3>Uploading and playing</h3>
 <ul>
-  <li><strong>Upload:</strong> the page sends each file along with its recorded time (the file's own
-    timestamp) and an automatic title built from your local time. The server fingerprints the file
+  <li><strong>Upload:</strong> the page sends each file with an automatic title built from your local time; the date recorded
+    starts out equal to the date uploaded (set it in the form if you know it). The server fingerprints the file
     (SHA-256) to refuse duplicates, stores it under a random name so file names can never collide or
-    escape the folder, and puts it in the Inbox.</li>
+    escape the folder, and puts it in the Inbox as an idea of its own.</li>
   <li><strong>Apple Lossless memos:</strong> the server reads the file's own structure to see which codec it
     uses (no extra tool needed). If it is Apple Lossless, a single background worker converts it to FLAC
     (lossless in both directions; the tests compare the decoded audio sample for sample). The player uses
@@ -236,6 +280,15 @@ That staging step exists because FreeFileSync logs in as you and cannot write to
 <p>Everything is stored in one SQLite file (<code>/var/riffbox/riffbox.db</code>). Times are stored in UTC and
 shown in your browser's local time.</p>
 
+<h3>Ideas (groups): one row per idea</h3>
+<p>Every recording belongs to an <strong>idea</strong>. Most ideas have a single recording and look exactly like one; a group
+has several. The idea's own details (title, tempo, BPM, key, notes, status, mark, song, tags) live in
+<code>idea_groups</code> and <code>group_tags</code>, together with figures worked out from its parts: earliest recorded date, latest
+upload date, longest length, total size, last played. Each recording points to its idea with <code>group_id</code> and its order
+inside it with <code>position</code>. For an idea of one recording the old recording columns below are still kept in step
+(that is what lets an older version of the app read the database). When recordings are grouped, each keeps the details it had
+at that moment as a private copy, which is what <em>Take out</em> and <em>Break up</em> restore.</p>
+
 <h3>Recordings (one row per upload)</h3>
 <div class="scroll">
 <table>
@@ -255,8 +308,8 @@ shown in your browser's local time.</p>
     <tr><td><code>play_status</code>, <code>play_filename</code>, <code>play_error</code></td><td>State of the FLAC playback copy (<code>pending</code>, <code>ready</code>, <code>failed</code>), its file name, and the last error (for the server log only, never shown on the page).</td><td>Yes</td></tr>
     <tr><td><code>duration_s</code>, <code>peaks</code></td><td>Length in seconds, and 200 points used to draw the waveform (empty if the file could not be measured). Measured once by the server.</td><td>Yes</td></tr>
     <tr><td><code>rating</code>, <code>used_in</code></td><td>Heart, check or X, and which song a checked idea became (the song name only exists while the mark is a check; changing the mark clears it).</td><td>Yes</td></tr>
-    <tr><td><code>last_played_at</code></td><td>When it was last played.</td><td>Yes (set once you've really listened; the "not played in a while" list is still planned)</td></tr>
-    <tr><td><code>deleted_at</code></td><td>Marks a recording as deleted without erasing it. The app already hides these.</td><td>Phase 8 adds the delete and restore buttons</td></tr>
+    <tr><td><code>last_played_at</code></td><td>When it was last played.</td><td>Yes (set once you've really listened; Resurface uses it)</td></tr>
+    <tr><td><code>deleted_at</code></td><td>Marks a recording as deleted without erasing it: the Trash tab lists these and Restore clears it.</td><td>Yes</td></tr>
   </tbody>
 </table>
 </div>
@@ -369,7 +422,10 @@ your SFTP tool:</p>
     them). The export also compares each audio file with the checksum recorded when you uploaded it, and warns if one
     is damaged or missing.</li>
 </ul>
-<p>Recordings in the Trash are left out unless you tick the box on the page (or add <code>--include-trash</code>). FLAC play copies are left out
+<p><strong>Groups and the export (known gap, planned):</strong> the export still lists each recording on its own, using the
+details that recording kept when it joined its idea. The idea's own tags, notes and marks are in the database copy
+(<code>riffbox.db</code>, tables <code>idea_groups</code> and <code>group_tags</code>) but not yet in the readable notes and indexes.
+Recordings in the Trash are left out unless you tick the box on the page (or add <code>--include-trash</code>). FLAC play copies are left out
 (they can be rebuilt from the originals). Other formats considered and not built: writing the details into the
 audio files' own tags (works for m4a, mp3 and flac, badly for wav) and a BagIt archive package (a library-world
 standard for exactly this purpose).</p>
@@ -379,4 +435,5 @@ standard for exactly this purpose).</p>
 copy of every original audio file (copied once, never deleted). The <em>Backup and export</em> page shows the last
 backup, whether every audio file is covered, and has a <em>Back up now</em> button; <code>deploy/backup.py</code> does
 the same from the command line or a nightly schedule. Setup, the schedule and the restore drill are in
-<code>deploy/PHASE8.md</code>. There is deliberately no restore button.</p>
+<code>deploy/PHASE8.md</code>. There is deliberately no restore button. To rebuild a data folder from an export (zip or folder), run <code>deploy/restore.py</code>:
+it maps each file back by the number in its name, checks every checksum and reports anything missing or damaged.</p>

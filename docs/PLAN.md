@@ -1,11 +1,12 @@
-# Riffbox: current plan (updated 10 Nov 2026, groups designed)
+# Riffbox: current plan (updated 10 Nov 2026, groups stage 1 built)
 
 The original plan is archived, unchanged, at `docs/archive/plan-original-2026-11-08.md` in the repository. This version
 reflects what was actually built, the principles that emerged, and what comes next. Day-to-day status lives in
 `PHASES.md`; the owner-facing explanation is the app's private **How this works** page. This file is committed as
 `docs/PLAN.md`. The detailed, measured proposal for speed, interface feel and long-term upkeep (not built yet, to be done
 eventually) is `docs/PLAN-performance-ux-sustainability.md`. The design and staged plan for **groups** (one idea made of several
-recordings; designed, not started) is `docs/PLAN-groups.md`.
+recordings; stage 1 of 5 built on the `groups` branch) is `docs/PLAN-groups.md`; its short manual test lists are in
+`docs/CHECKLIST-groups.md`.
 
 ## 1. What Riffbox is
 A private, single-user web app for organizing musical voice-memo ideas, at `https://sanjaysubramanian.com/ideas/`, run
@@ -47,7 +48,7 @@ has everything; `phase-6`, `phase-7`, `phase-8` are kept as requested).
   headings** (once ascending, twice descending, third back to the default, newest upload first), separate Recorded and Uploaded
   columns (date only; full timestamp on hover), **Select mode with bulk actions** (tags, mark, Inbox, Trash), and a **Random** button.
   Arrow keys with play-as-I-move and Space.
-- **Two themes** (standard, and a minimal one with one ink colour and no fills), switched in the Menu and remembered per device.
+- **Style and colours as two separate choices** in the Menu, remembered per device: style is standard or minimal (one ink colour, no fills); colours are auto (follow the device), light or dark. Any style works with any colours, and new styles or colour sets only add blocks of CSS variables.
 - **Cozy / Compact** row size (remembered); Compact shows `108 · A m`, ISO dates and whole tags with a "+N". **Resurface**: hearted ideas not played for N days, never-played first, and
   *Surprise me*. **Trash** tab set apart, with Restore.
 - Player bar: waveform and length measured on the server, scrubbing, speed, A/B and whole-recording loop, "played" only
@@ -63,6 +64,20 @@ has everything; `phase-6`, `phase-7`, `phase-8` are kept as requested).
   practice restore is documented and covered by an automated test.
 - Login throttling, signed cookies scoped to `/ideas`, add-only upload token, no data readable with that token.
 - A private **How this works** page, including a dependency table and a "Keeping your data portable" section.
+
+**Added since the last version of this plan** (all merged to `main` except groups)
+- **Stable tabs:** switching between Inbox, Library and Resurface no longer shifts the layout (each tab keeps its controls in
+  the same column; the Trash tab and counts reserve their space). Merged.
+- **Edit in the Inbox:** an Inbox idea can be edited and saved partly, staying in the Inbox, or saved and moved to the
+  Library; a Library idea can be sent back. Merged.
+- **Restore tool (`deploy/restore.py`, `app/riffbox/restorer.py`):** rebuilds a data folder from a website export (zip or
+  folder), checks every checksum, reports missing or damaged files, and can drop Trash entries whose audio was not exported.
+  Tested. Used for the migration rehearsal.
+- **Groups, stage 1 (branch `groups`, not merged, not deployed):** every recording now belongs to an idea (a "group";
+  singles are groups of one and look exactly as before). New tables `idea_groups` and `group_tags`; the additive, repeatable
+  migration; `/api/groups` endpoints and library queries over groups; legacy recording endpoints kept as aliases; the page
+  reads groups. Single ideas are also written to the old columns so rolling back to `main` stays lossless until a
+  multi-recording group exists. 326 server tests and 15 browser scripts pass. Not yet rehearsed on the owner's real data.
 
 ## 4. Architecture and where things live
 | Piece | Choice |
@@ -94,10 +109,16 @@ instead of the browser.
 | After 8 | iPhone Outbox Shortcuts | Done; confirmed working by the owner |
 | Review 2 | Clean-up without behaviour change; layout, contrast and tap-target fixes (see `PHASES.md`) | Done; tested |
 | After 8 | Minimal theme with a switch in the Menu | Done; tested; awaiting the owner's look |
-| Next | Groups (multi-recording ideas): `docs/PLAN-groups.md` | Designed; waiting for the owner's answers to its open questions, then six stages |
+| After 8 | Stable tabs; edit in the Inbox; restore tool | Built and merged to `main` |
+| Groups 1 | Data layer, migration, page reads groups; no visible change | Built and tested on branch `groups`; **owner rehearsal and deploy pending** |
+| Groups 2 | Making and changing groups: Select mode in the Inbox, one-click Group… (clashing tempo/key kept and flagged to resolve later in Edit), Add to group…, upload as one idea, Parts list in the edit form, group trash and restore | Built and tested on branch `groups`; a grouped row plays and downloads its first part until stage 3 |
+| Groups 3 | Looks: expandable rows with caret and parts badge, Compact and minimal theme, player "part n of m", auto-advance | Built and tested on branch `groups` |
+| Groups 4 | Keyboard: auto-open and collapse (manual-open stays open), arrows across parts, Random, triage with parts, select-all | Built and tested on branch `groups` |
+| Groups 5 | Resurface with whole groups, search over part titles (server done), group-aware export and restore tests, docs, migration runbook | Planned |
+| Groups 6 | Optional: grouping suggestions from times, download all parts, play together | Not decided |
 | Later | Speed, interface feel and upkeep: `docs/PLAN-performance-ux-sustainability.md` | Planned, not started (owner: eventually, not now) |
 
-Quality gates today: 308 automated server tests and 15 Playwright browser scripts (`tests/e2e/`), all passing.
+Quality gates today: 308 automated server tests on `main` (326 on `groups`) and 15 Playwright browser scripts (`tests/e2e/`), all passing. Each groups stage ends with a short manual checklist (`docs/CHECKLIST-groups.md`).
 
 ## 6. Open items that need the owner
 1. Deploy the latest `main` (routine deploy: no new package, no database step) and run `deploy/PHASE8.md`: make the backup
@@ -108,8 +129,8 @@ Quality gates today: 308 automated server tests and 15 Playwright browser script
    survive losing the VPS.
 
 ## 7. Candidate next features (not decided; the owner chooses)
-- **Groups: one idea made of several recordings (designed 10 Nov, next big feature; full spec and staged plan in
-  `docs/PLAN-groups.md`, nothing built yet).** The owner's model: a group is for recordings that make no sense alone but are one
+- **Groups: one idea made of several recordings (designed 10 Nov; stage 1 built; full spec and staged plan in
+  `docs/PLAN-groups.md`).** The owner's model: a group is for recordings that make no sense alone but are one
   idea (keys, drums and vocal memos). For a multi-recording idea the tags, tempo, key, notes and marks belong to the **group**;
   the parts keep their own data as a snapshot "just in case". Every recording belongs to a group internally (singles are groups
   of one and look exactly as today); the table is `idea_groups`. A group shows the earliest recorded and latest upload dates.
@@ -131,7 +152,7 @@ Quality gates today: 308 automated server tests and 15 Playwright browser script
   install-from-that-copy path. The biggest 20-year risk per hour of effort.
 - **Timestamped markers on the waveform** (M): short notes at positions in a recording, included in the export.
 - **Interface decluttering, remaining proposals:** an idle player that stays slim, one menu for the row actions, a collapsible
-  filter sidebar, a two-step edit form, orange only for primary actions. (Done: compact Upload, tabs without the heading, header Menu, minimal theme.)
+  filter sidebar, a two-step edit form, orange only for primary actions. (Done: compact Upload, tabs without the heading, header Menu, minimal theme, dark theme, spaced button groups in the tab row.)
 - **Pass the memo's creation date from the Shortcut** as the date recorded (S).
 - **Home-screen icon** for the web app (S).
 - If Shortcuts file uploads misbehave: a base64 upload variant, a Record button inside the page, or email-in (Mail to the

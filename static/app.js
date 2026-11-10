@@ -198,8 +198,9 @@ function markPlaying() {
   for (const li of document.querySelectorAll("#list li")) {
     const btn = li.querySelector(".play");
     if (!btn) continue;                                   // Trash rows have nothing to play
-    const on = Number(li.dataset.id) === playingId && !player.paused;
-    li.classList.toggle("playing", Number(li.dataset.id) === playingId);
+    const mine = playingId !== null && (li.dataset.pids || "").split(",").includes(String(playingId));   // an idea's row lights up for any of its parts
+    const on = mine && !player.paused;
+    li.classList.toggle("playing", mine);
     li.querySelector(".play").textContent = on ? "❚❚" : "▶";
     li.querySelector(".play").setAttribute("aria-label", (on ? "Pause " : "Play ") + li.dataset.title);
   }
@@ -208,32 +209,48 @@ function markPlaying() {
 let playStatus = new Map();    // recording id -> play_status from the latest list ("pending", "failed", ...)
 
 // Start `rec` from the beginning (or, if it is already the loaded recording, make sure it is playing).
-function startPlay(rec) {
+// `rec` is an idea; `part` one of its recordings (the one playing, else the first).
+function startPlay(rec, part) {
   $("#audio-error").hidden = true;
+  if (rec.rec) { part = rec.part; rec = rec.rec; }          // the player's own track object: play that part again
+  part = part || (rec.parts || []).find((p) => p.id === playingId) || (rec.parts || [])[0] || rec;
   // After an error, starting again reloads the source (a FLAC play copy may be ready by now).
-  if (playingId === rec.id && !player.error) {
+  if (playingId === part.id && !player.error) {
     if (player.paused) player.play().catch(() => {});
     return;
   }
-  playingId = rec.id;
-  player.src = "api/play/" + rec.id;     // the FLAC play copy if there is one, else the original
-  loadTransport(rec);
+  playingId = part.id;
+  player.src = "api/play/" + part.id;     // the FLAC play copy if there is one, else the original
+  loadTransport(trackFor(rec, part));
   player.play().catch(() => {});
   markPlaying();
 }
 
-function togglePlay(rec) {
-  setSelected(rec.id);
-  if (playingId === rec.id && !player.error && !player.paused) { player.pause(); return; }
-  startPlay(rec);
+// What the player bar shows for a recording: for one part of several, the idea, the part and where it stands.
+function trackFor(rec, part) {
+  if (!rec.parts || rec.parts.length < 2) return rec;
+  const n = rec.parts.findIndex((p) => p.id === part.id) + 1;
+  return { id: part.id, gid: rec.gid, rec, part, duration_s: part.duration_s,
+           title: rec.title + " \u2014 " + part.title + " (part " + n + " of " + rec.parts.length + ")" };
+}
+
+function togglePlay(rec, part) {
+  setSelected(rec.id, part ? part.id : null);
+  part = part || (rec.parts || []).find((p) => p.id === playingId) || (rec.parts || [])[0] || rec;
+  if (playingId === part.id && !player.error && !player.paused) { player.pause(); return; }
+  startPlay(rec, part);
 }
 
 // Highlight a row (the one the arrow keys move from, and Space plays).
-function setSelected(id) {
+function setSelected(id, partId = null) {
   selectedId = id;
+  selectedPart = partId;
   for (const li of document.querySelectorAll("#list > li")) {
-    const on = Number(li.dataset.id) === id;
+    const isPart = li.classList.contains("part");
+    const own = !isPart && Number(li.dataset.id) === id;
+    const on = isPart ? partId !== null && Number(li.dataset.part) === partId : own && partId === null;
     li.classList.toggle("selected", on);
+    li.classList.toggle("sel-parent", own && partId !== null);       // the idea whose part is highlighted
     if (on) { li.setAttribute("aria-current", "true"); li.scrollIntoView({ block: "nearest" }); }
     else li.removeAttribute("aria-current");
   }
@@ -283,13 +300,15 @@ let density = "cozy";          // Library row size: "cozy" | "compact"
 let trashRecs = [];            // recordings moved to the Trash (only fetched while that tab is open)
 let trashCount = 0;
 let inboxRecs = [];            // everything not yet saved to the Library
+let libNeeds = 0;               // Library ideas still waiting for a tempo or key choice
 let libRecs = [];              // Library recordings matching the current filters (the server does the filtering)
 let libTotal = 0;              // Library size before any filter
 let libRatings = { heart: 0, check: 0, x: 0, none: 0 };   // how many Library recordings carry each mark
 let allTags = [];
 let openEditId = null;         // at most one edit form open at a time
 let selectedId = null;         // the highlighted row; arrow keys move it, Space plays it
-let selecting = false;         // Library "Select" mode: checkboxes and the bulk-action bar
+let selectedPart = null;       // the recording highlighted inside an open idea (null: the idea's own row)
+let selecting = false;         // "Select" mode (Inbox and Library): checkboxes and the bulk-action bar
 const picked = new Set();      // ids ticked in Select mode
 let lastPicked = null;         // for shift-click ranges
 let pollTimer = null;
@@ -297,7 +316,7 @@ let loadSeq = 0;               // numbers each load so a slow, older response ca
 
 // What the Library sidebar is asking for. Sort and the preview switch are remembered between visits
 // (a per-device convenience only: everything still works if the browser refuses to store them).
-const filters = { q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "", rating: "all",
+const filters = { unresolved: false, q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "", rating: "all",
                   sort: "uploaded", order: "desc" };      // newest upload first unless the owner picks otherwise
 const DEFAULT_SORT = { sort: "uploaded", order: "desc" };
 const BPM_LO = 40, BPM_HI = 240;   // the slider's ends; a thumb sitting at an end means "no limit" on that side
@@ -347,6 +366,7 @@ function setView(next) {
   if (triage) exitTriage();
   view = next;
   selecting = false; picked.clear();
+  autoOpened.clear(); selectedPart = null;
   openEditId = null;
   notify("");
   render();
@@ -357,15 +377,17 @@ $("#tab-library").addEventListener("click", () => setView("library"));
 $("#tab-resurface").addEventListener("click", () => setView("resurface"));
 $("#tab-trash").addEventListener("click", () => setView("trash"));
 
-// Library row size: cozy (the full row) or compact (one slim line, to see more at once). Remembered on this device.
+// Row size for the Inbox and the Library: cozy (the full row) or compact (one slim line, to see more at once). One setting for
+// both, remembered on this device.
 function applyDensity() {
-  const compact = view === "library" && density === "compact";
+  const compact = (view === "library" || view === "inbox") && density === "compact";
   $("#list").classList.toggle("compact", compact);
   $("#results").classList.toggle("compact", compact);
   $("#dens-cozy").setAttribute("aria-pressed", String(density === "cozy"));
   $("#dens-compact").setAttribute("aria-pressed", String(density === "compact"));
   // On desktop a control that does not apply to the tab stays as an invisible placeholder, so nothing else moves.
-  $("#library-tools").classList.toggle("slot-off", view !== "library");
+  $("#library-tools").classList.toggle("slot-off", view !== "library" && view !== "inbox");
+  $("#select-toggle").classList.toggle("slot-off", view !== "library" && view !== "inbox");
   $("#random").classList.toggle("slot-off", !(view === "library" || view === "inbox") || triage !== null);     // draws from the list on screen
   scheduleFitTags();
 }
@@ -386,7 +408,7 @@ function updateTabs() {
 }
 
 const bpmActive = () => filters.bpm_min !== null || filters.bpm_max !== null;
-const filtersActive = () => Boolean(filters.q.trim() || filters.tags.length || bpmActive() ||
+const filtersActive = () => Boolean(filters.unresolved || filters.q.trim() || filters.tags.length || bpmActive() ||
                                     filters.key_root || filters.key_mode || filters.rating !== "all");
 
 function render() {
@@ -422,15 +444,72 @@ function render() {
   $("#triage-start").hidden = !(view === "inbox" && inboxRecs.length && !triage);
   $("#triage-start").textContent = "Triage the Inbox (" + inboxRecs.length + ")";
   if (inLibrary) { updateFilterUI(); updateSortHeaders(); }
-  for (const id of picked) if (!libRecs.some((r) => r.id === id)) picked.delete(id);   // a filter hid it: never act on what you cannot see
-  $("#results").classList.toggle("selecting", inLibrary && selecting);
+  for (const id of picked) if (!selectableRecs().some((r) => r.id === id)) picked.delete(id);   // a filter hid it: never act on what you cannot see
+  const canSelect = view === "library" || view === "inbox";
+  $("#results").classList.toggle("selecting", canSelect && selecting);
   $("#select-toggle").setAttribute("aria-pressed", String(selecting));
-  $("#bulkbar").hidden = !(inLibrary && selecting);
-  if (inLibrary && selecting) updateBulkBar();
-  playStatus = new Map([...inboxRecs, ...libRecs, ...resurfaceRecs].map((rec) => [rec.id, rec.play_status]));
-  if (selectedId !== null && !shown.some((r) => r.id === selectedId)) selectedId = null;   // filtered out
-  for (const rec of shown) ul.append(view === "trash" ? buildTrashRow(rec) : buildRow(rec));
+  $("#bulkbar").hidden = !(canSelect && selecting);
+  $("#bulk-inbox").hidden = view === "inbox";                    // already there
+  if (canSelect && selecting) updateBulkBar();
+  playStatus = new Map([...inboxRecs, ...libRecs, ...resurfaceRecs].flatMap((rec) => rec.parts.map((p) => [p.id, p.play_status])));
+  if (selectedId !== null && !shown.some((r) => r.id === selectedId)) { selectedId = null; selectedPart = null; }   // filtered out
+  for (const rec of shown) {
+    if (view === "trash") ul.append(buildTrashRow(rec));
+    else ul.append(buildRow(rec), ...(isOpen(rec) ? buildPartRows(rec) : []));
+  }
   applyDensity();
+  markPlaying();
+}
+
+const openParts = new Set();     // ideas whose parts are shown because you opened them (with the caret): they stay open
+const autoOpened = new Set();    // ideas opened by arrowing onto them: they close again when you move off them
+const isOpen = (rec) => openParts.has(rec.gid) || autoOpened.has(rec.gid);
+const rowFor = (rec) => document.querySelector('#list > li[data-id="' + rec.id + '"]');
+
+// The rows for the recordings inside an idea, shown under it when it is open.
+function buildPartRows(rec) {
+  return rec.parts.map((p, i) => {
+    const btn = el("button", { class: "play", type: "button" }, "▶");
+    btn.addEventListener("click", () => togglePlay(rec, p));
+    const lead = el("div", { class: "lead" });
+    if ((view === "library" || view === "inbox") && selecting) {       // ticking a part ticks the whole idea
+      const box = el("input", { type: "checkbox", class: "rowsel", "aria-label": "Select " + rec.title });
+      box.checked = picked.has(rec.id);
+      box.addEventListener("click", (e) => pickRow(rec.id, box.checked, e.shiftKey));
+      lead.append(box);
+    }
+    lead.append(btn);
+    const info = el("div", { class: "info" }, el("div", { class: "title" }, p.title),
+      el("div", { class: "meta when" }, (p.duration_s ? fmtTime(p.duration_s) + " · " : "") + fmtSize(p.size)),
+      el("span", { class: "c-len", title: fmtSize(p.size) }, p.duration_s ? fmtTime(p.duration_s) : ""));
+    const side = el("div", { class: "side" }, el("a", { class: "dl", href: "api/audio/" + p.id + "?download=1", title: "Download the original",
+      "aria-label": "Download " + p.title }, el("span", { class: "dl-full" }, "Download"), el("span", { class: "dl-short", "aria-hidden": "true" }, "↓")));
+    const li = el("li", { class: "part", "data-part": String(p.id), "data-gid": String(rec.gid), "data-owner": String(rec.id), "data-pids": String(p.id),
+                          "data-title": p.title, "aria-label": "Part " + (i + 1) + " of " + rec.parts.length + ": " + p.title }, lead, info, side);
+    if (picked.has(rec.id)) li.classList.add("picked");
+    if (p.id === selectedPart) { li.classList.add("selected"); li.setAttribute("aria-current", "true"); }
+    return li;
+  });
+}
+
+// By hand (the caret): opening keeps it open, closing closes it; either way the "opened by arrowing" mark is cleared.
+function toggleParts(rec, li) {
+  const on = !isOpen(rec);
+  autoOpened.delete(rec.gid);
+  if (on) openParts.add(rec.gid); else openParts.delete(rec.gid);
+  showParts(rec, li, on);
+}
+
+// Show or hide an idea's part rows in place (no rebuild of the list) and keep the caret in step.
+function showParts(rec, li, on) {
+  const caret = li.querySelector(".caret");
+  if (caret) {
+    caret.setAttribute("aria-expanded", String(on));
+    caret.textContent = on ? "▾" : "▸";
+    caret.setAttribute("aria-label", (on ? "Hide the " : "Show the ") + rec.parts.length + " parts of " + rec.title);
+  }
+  while (li.nextElementSibling && li.nextElementSibling.classList.contains("part")) li.nextElementSibling.remove();
+  if (on) { let at = li; for (const p of buildPartRows(rec)) { at.after(p); at = p; } }
   markPlaying();
 }
 
@@ -438,7 +517,7 @@ function buildRow(rec) {
   const btn = el("button", { class: "play", type: "button" }, "▶");
   btn.addEventListener("click", () => togglePlay(rec));
   const lead = el("div", { class: "lead" });
-  if (view === "library" && selecting) {
+  if ((view === "library" || view === "inbox") && selecting) {
     const box = el("input", { type: "checkbox", class: "rowsel", "aria-label": "Select " + rec.title });
     box.checked = picked.has(rec.id);
     box.addEventListener("click", (e) => pickRow(rec.id, box.checked, e.shiftKey));
@@ -485,11 +564,29 @@ function buildRow(rec) {
     rate.append(b);
   }
   const side = el("div", { class: "side" }, edit,
-    el("a", { class: "dl", href: "api/audio/" + rec.id + "?download=1", title: "Download the original", "aria-label": "Download " + rec.title },
+    el("a", { class: "dl", href: "api/audio/" + rec.id + "?download=1", title: rec.parts.length > 1 ? "Download the first recording" : "Download the original", "aria-label": "Download " + rec.title },
       el("span", { class: "dl-full" }, "Download"), el("span", { class: "dl-short", "aria-hidden": "true" }, "↓")), rate);
-  const li = el("li", { "data-id": String(rec.id), "data-title": rec.title }, lead, info, side);
+  const li = el("li", { "data-id": String(rec.id), "data-gid": String(rec.gid), "data-title": rec.title,
+                        "data-pids": rec.parts.map((p) => p.id).join(",") }, lead, info, side);
+  if (rec.parts.length > 1) {
+    const open = isOpen(rec);
+    const caret = el("button", { class: "caret", type: "button", "aria-expanded": String(open),
+      "aria-label": (open ? "Hide the " : "Show the ") + rec.parts.length + " parts of " + rec.title }, open ? "▾" : "▸");
+    caret.addEventListener("click", () => toggleParts(rec, li));
+    const t = info.querySelector(".title");
+    t.classList.add("has-parts");                       // the badge stays visible when a long title is cut short
+    t.replaceChildren(caret, el("span", { class: "tt" }, rec.title), el("span", { class: "chip parts", title: rec.parts.length + " recordings in this idea" }, String(rec.parts.length), el("span", { class: "p-w" }, " parts")));
+  }
+  if (rec.unresolved) {                                   // tempo or key the recordings disagreed on, waiting for a choice
+    const what = Object.keys(rec.unresolved).map((k) => (k === "bpm" ? "tempo" : "key")).join(" & ");
+    info.querySelector(".title").append(el("span", { class: "chip pending", title: "The recordings disagree on " + what + ". Open Edit to pick one." },
+      "⚠", el("span", { class: "p-w" }, " pick " + what)));
+  }
   if (picked.has(rec.id)) li.classList.add("picked");
-  if (rec.id === selectedId) { li.classList.add("selected"); li.setAttribute("aria-current", "true"); }
+  if (rec.id === selectedId) {
+    li.classList.add(selectedPart === null ? "selected" : "sel-parent");
+    if (selectedPart === null) li.setAttribute("aria-current", "true");
+  }
   if (openEditId === rec.id) li.append(buildForm(rec));
   return li;
 }
@@ -500,7 +597,7 @@ function buildTrashRow(rec) {
   restore.addEventListener("click", async () => {
     restore.disabled = true;
     try {
-      const r = await api("recordings/" + rec.id + "/restore", { method: "POST" });
+      const r = await api("groups/" + rec.gid + "/restore", { method: "POST" });
       if (loggedOut(r)) return;
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
@@ -512,7 +609,8 @@ function buildTrashRow(rec) {
       notify("Restored to the " + (rec.status === "inbox" ? "Inbox" : "Library") + ".");
     } catch (e) { notify(NETWORK_ERROR); restore.disabled = false; }
   });
-  const meta = el("div", { class: "meta when" }, "Deleted " + fmtDay(rec.deleted_at) + " · " + fmtSize(rec.size));
+  const meta = el("div", { class: "meta when" }, "Deleted " + fmtDay(rec.deleted_at) + " · " + fmtSize(rec.size) +
+    (rec.parts.length > 1 ? " · " + rec.parts.length + " parts" : ""));
   const info = el("div", { class: "info" }, el("div", { class: "title" }, rec.title), meta);
   if (rec.tags.length) {
     const tags = el("div", { class: "tags" });
@@ -596,6 +694,25 @@ function buildForm(rec) {
   });
   form.append(el("div", { class: "field" }, el("label", { for: "f-bpm-" + id }, "BPM (optional)"),
                  el("div", { class: "bpm" }, bpm, tap)));
+  const waived = new Set();                                    // tempo / key left empty on purpose: stop asking
+  // The recordings of a new group can disagree; both answers are kept here until one is picked (or waived).
+  const pendingNote = (kind, text, choices, none, apply) => {
+    const box = el("div", { class: "pending-note" }, el("p", { class: "meta" }, text));
+    for (const c of choices) {
+      const b = el("button", { type: "button" }, c.label);
+      b.addEventListener("click", () => { apply(c); waived.delete(kind); box.hidden = true; });
+      box.append(b);
+    }
+    const n = el("button", { type: "button", class: "link" }, none);
+    n.addEventListener("click", () => { apply(null); waived.add(kind); box.hidden = true; });
+    box.append(n);
+    form.append(box);
+  };
+  if (rec.unresolved && rec.unresolved.bpm) {
+    pendingNote("bpm", "These recordings had different tempos. Pick the one for the whole idea:",
+      rec.unresolved.bpm.map((c) => ({ label: c.value + " BPM (" + c.from.join(", ") + ")", value: c.value })), "No tempo",
+      (c) => { bpm.value = c ? String(c.value) : ""; });
+  }
 
   // key
   const root = el("select", { id: "f-root-" + id });
@@ -606,6 +723,11 @@ function buildForm(rec) {
   mode.append(el("option", { value: "" }, "—"), el("option", { value: "major" }, "major"), el("option", { value: "minor" }, "minor"));
   mode.value = rec.key_mode || "";
   form.append(el("div", { class: "keyrow" }, field("Key", root, "f-root-" + id), field("Major / minor", mode, "f-mode-" + id)));
+  if (rec.unresolved && rec.unresolved.key) {
+    pendingNote("key", "These recordings had different keys. Pick the one for the whole idea:",
+      rec.unresolved.key.map((c) => ({ label: [c.key_root, c.key_mode].filter(Boolean).join(" ") + " (" + c.from.join(", ") + ")", value: c })), "No key",
+      (c) => { root.value = c ? c.value.key_root || "" : ""; mode.value = c ? c.value.key_mode || "" : ""; });
+  }
 
   // date recorded: blank means "same as the date uploaded"
   const initialDate = dateIsSet(rec) ? dayKey(rec.recorded_at) : "";
@@ -618,6 +740,44 @@ function buildForm(rec) {
   form.append(field("Notes", notes, "f-notes-" + id));
 
   const err = el("p", { class: "error", role: "alert", hidden: "" });
+  // an idea made of several recordings: name and order the parts, take one out, or break the idea up
+  const partRows = [];
+  if (rec.parts.length > 1) {
+    const list = el("ul", { class: "parts-list" });
+    const armedBtns = new Map();
+    const arm = (btn, ask, run) => btn.addEventListener("click", async () => {
+      if (!armedBtns.has(btn)) {                                 // first press asks, a second within 4 s does it
+        const was = btn.textContent;
+        btn.textContent = ask;
+        armedBtns.set(btn, setTimeout(() => { armedBtns.delete(btn); btn.textContent = was; }, 4000));
+        return;
+      }
+      clearTimeout(armedBtns.get(btn)); armedBtns.delete(btn);
+      btn.disabled = true;
+      let r;
+      try { r = await run(); } catch (e) { err.textContent = NETWORK_ERROR; err.hidden = false; btn.disabled = false; return; }
+      if (loggedOut(r)) return;
+      if (!r.ok) { err.textContent = (await r.json().catch(() => ({}))).error || "Could not do that (error " + r.status + ")."; err.hidden = false; btn.disabled = false; return; }
+      openEditId = null;
+      await loadList();
+      notify(ask.includes("break") ? "Broke the idea up into separate recordings." : "Took the recording out into its own idea.");
+    });
+    for (const p of rec.parts) {
+      const input = el("input", { type: "text", maxlength: "200", value: p.title, "aria-label": "Name of this part" });
+      const up = el("button", { type: "button", "aria-label": "Move this part up", title: "Move up" }, "↑");
+      const down = el("button", { type: "button", "aria-label": "Move this part down", title: "Move down" }, "↓");
+      const out = el("button", { type: "button", class: "link", title: "Make this recording its own idea again" }, "Take out");
+      const li = el("li", { "data-part": String(p.id) }, input, up, down, out);
+      up.addEventListener("click", () => { if (li.previousElementSibling) li.parentNode.insertBefore(li, li.previousElementSibling); });
+      down.addEventListener("click", () => { if (li.nextElementSibling) li.parentNode.insertBefore(li.nextElementSibling, li); });
+      arm(out, "Press again to take out", () => api("groups/" + rec.gid + "/parts/" + p.id, { method: "DELETE" }));
+      partRows.push([p.id, input, li]);
+      list.append(li);
+    }
+    const ungroup = el("button", { type: "button", class: "link danger" }, "Break up this idea");
+    arm(ungroup, "Press again to break up", () => api("groups/" + rec.gid + "/ungroup", { method: "POST" }));
+    form.append(el("fieldset", {}, el("legend", {}, "Parts (" + rec.parts.length + ")"), list, ungroup));
+  }
   // "Save" keeps the recording where it is (so a half-filled form can be saved in the Inbox); in the Inbox a second
   // button saves and moves it to the Library. Enter in a field is a plain Save.
   const save = el("button", { type: "submit", class: "primary" }, "Save");
@@ -642,7 +802,7 @@ function buildForm(rec) {
     }
     clearTimeout(armed); armed = null;
     try {
-      const r = await api("recordings/" + id, { method: "DELETE" });
+      const r = await api("groups/" + rec.gid, { method: "DELETE" });
       if (loggedOut(r)) return;
       if (!r.ok) { err.textContent = "Could not delete (error " + r.status + ")."; err.hidden = false; del.textContent = "Delete"; return; }
     } catch (e) { err.textContent = NETWORK_ERROR; err.hidden = false; del.textContent = "Delete"; return; }
@@ -671,8 +831,16 @@ function buildForm(rec) {
       rating: mark,
       used_in: mark === "check" ? (usedIn.value.trim() || null) : null,
     };
+    if (waived.size) payload.resolved = [...waived];
     if (dateChanged) payload.recorded_at = dateInput.value ? localNoon(dateInput.value) : null;   // null = use the upload date
-    const r = await sendJson("recordings/" + id, "PATCH", payload);
+    if (partRows.length) {                                      // part names, in the order shown
+      const byId = new Map(partRows.map(([pid, input]) => [pid, input]));
+      payload.parts = [...form.querySelectorAll(".parts-list > li")].map((li) => {
+        const pid = Number(li.dataset.part);
+        return { id: pid, title: byId.get(pid).value.trim() || "Part" };
+      });
+    }
+    const r = await sendJson("groups/" + rec.gid, "PATCH", payload);
     if (loggedOut(r)) return;
     if (!r.ok) {
       const body = await r.json().catch(() => ({}));
@@ -698,10 +866,21 @@ function libraryQuery() {
   if (filters.bpm_max !== null) p.set("bpm_max", filters.bpm_max);
   if (filters.key_root) p.set("key_root", filters.key_root);
   if (filters.key_mode) p.set("key_mode", filters.key_mode);
+  if (filters.unresolved) p.set("unresolved", "1");
   // "All" leaves out the ones marked ✗ (no longer interesting); pick ✗ to see them
   p.set("rating", filters.rating === "all" ? "heart,check,none" : filters.rating);
   return p.toString();
 }
+
+// The server sends ideas (groups). Until the page shows several parts, an idea is shown through its first
+// recording: `id` is that recording's number (used for audio and the per-recording endpoints), `gid` the idea's.
+const gidOf = new Map();
+function asRec(g) {
+  const p = g.parts[0];
+  gidOf.set(p.id, g.id);
+  return { ...g, gid: g.id, id: p.id, codec: p.codec, play_status: g.parts.some((x) => x.play_status === "pending") ? "pending" : g.parts.some((x) => x.play_status === "failed") ? "failed" : p.play_status, orig_filename: p.orig_filename, mime: p.mime, parts: g.parts };
+}
+const asRecs = (body) => body.groups.map(asRec);
 
 async function loadList() {
   clearTimeout(pollTimer);
@@ -709,7 +888,7 @@ async function loadList() {
   let inbox, lib, tags, trash, forgotten;
   try {
     [inbox, lib, tags, trash, forgotten] = await Promise.all([
-      api("recordings?status=inbox&sort=recorded&order=desc"), api("recordings?" + libraryQuery()), api("tags"),
+      api("groups?status=inbox&sort=recorded&order=desc"), api("groups?" + libraryQuery()), api("tags"),
       view === "trash" ? api("trash") : Promise.resolve(null),
       view === "resurface" ? api("resurface?days=" + resurfaceDays) : Promise.resolve(null)]);
   } catch (e) {
@@ -720,13 +899,14 @@ async function loadList() {
   if (!inbox.ok || !lib.ok) { notify("Could not load your recordings (error " + (lib.ok ? inbox.status : lib.status) + ")."); return; }
   const [inboxBody, libBody] = await Promise.all([inbox.json(), lib.json()]);
   if (seq !== loadSeq) return;                // a newer load is already on its way; this answer is stale
-  inboxRecs = inboxBody.recordings;
-  libRecs = libBody.recordings;
+  inboxRecs = asRecs(inboxBody);
+  libRecs = asRecs(libBody);
   libTotal = libBody.total;
+  libNeeds = libBody.needs || 0;
   libRatings = libBody.ratings;
   trashCount = inboxBody.trashed;
-  if (trash && trash.ok) trashRecs = (await trash.json()).recordings;
-  if (forgotten && forgotten.ok) { const body = await forgotten.json(); resurfaceRecs = body.recordings; resurfaceHearts = body.hearts; }
+  if (trash && trash.ok) trashRecs = asRecs(await trash.json());
+  if (forgotten && forgotten.ok) { const body = await forgotten.json(); resurfaceRecs = asRecs(body); resurfaceHearts = body.hearts; }
   if (tags.ok) allTags = (await tags.json()).tags;
   if (openEditId !== null) updateTabs();     // never rebuild the list under a form someone is typing in
   else render();
@@ -904,7 +1084,11 @@ for (const ev of ["pause", "ended", "error"]) {
   player.addEventListener(ev, () => { $("#pb-play").textContent = "▶"; $("#pb-play").setAttribute("aria-label", "Play"); updateTime(); drawWave(); });
 }
 player.addEventListener("ended", () => {          // a section that runs to the very end still repeats
-  if (loopOn && loopA !== null && loopB !== null) { player.currentTime = loopA; player.play().catch(() => {}); }
+  if (loopOn && loopA !== null && loopB !== null) { player.currentTime = loopA; player.play().catch(() => {}); return; }
+  if (current && current.rec) {                    // an idea with several recordings plays on to the next one
+    const parts = current.rec.parts, i = parts.findIndex((p) => p.id === current.id);
+    if (i >= 0 && i < parts.length - 1) startPlay(current.rec, parts[i + 1]);
+  }
 });
 player.addEventListener("timeupdate", () => {
   enforceLoop(); updateTime();
@@ -1073,7 +1257,9 @@ function updateFilterUI() {
   $("#f-sort").value = filters.sort;
   $("#f-preview").checked = autoPreview;
   $("#f-clear").disabled = !filtersActive();
-  const n = [filters.q.trim(), filters.tags.length, bpmActive(), filters.key_root, filters.key_mode,
+  $("#f-unresolved").checked = filters.unresolved;
+  $("#f-unresolved-label").textContent = "Needs a tempo or key choice · " + libNeeds;
+  const n = [filters.unresolved, filters.q.trim(), filters.tags.length, bpmActive(), filters.key_root, filters.key_mode,
              filters.rating !== "all"].filter(Boolean).length;
   syncBpmUI();
   const counts = { all: libTotal - libRatings.x, heart: libRatings.heart, check: libRatings.check, x: libRatings.x, none: libRatings.none };
@@ -1084,7 +1270,7 @@ function updateFilterUI() {
   }
   $("#filters-toggle").textContent = n ? "Filters (" + n + " active)" : "Filters";
   const hiddenX = filters.rating === "all" ? libRatings.x : 0;     // ✗ ones that "All" leaves out
-  const otherFilters = Boolean(filters.q.trim() || filters.tags.length || bpmActive() || filters.key_root || filters.key_mode);
+  const otherFilters = Boolean(filters.unresolved || filters.q.trim() || filters.tags.length || bpmActive() || filters.key_root || filters.key_mode);
   $("#f-count").textContent = libTotal === 0 ? ""
     : otherFilters || filters.rating !== "all" ? libRecs.length + " of " + libTotal + " recordings"
     : libRecs.length + (libRecs.length === 1 ? " recording" : " recordings") + (hiddenX ? " (" + hiddenX + " marked ✗ hidden)" : "");
@@ -1135,6 +1321,7 @@ function bpmInput(which) {
 bpmMin.addEventListener("input", () => bpmInput("min"));
 bpmMax.addEventListener("input", () => bpmInput("max"));
 $("#f-root").addEventListener("change", (e) => { filters.key_root = e.target.value; filtersChanged(0); });
+$("#f-unresolved").addEventListener("change", (e) => { filters.unresolved = e.target.checked; filtersChanged(0); });
 $("#f-mode").addEventListener("change", (e) => { filters.key_mode = e.target.value; filtersChanged(0); });
 $("#f-sort").addEventListener("change", (e) => {
   filters.sort = e.target.value;
@@ -1149,7 +1336,7 @@ $("#f-order").addEventListener("click", () => {
 });
 $("#f-preview").addEventListener("change", (e) => { autoPreview = e.target.checked; stored.set("preview", autoPreview ? "1" : "0"); });
 $("#f-clear").addEventListener("click", () => {
-  Object.assign(filters, { q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "", rating: "all" });
+  Object.assign(filters, { unresolved: false, q: "", tags: [], match: "all", bpm_min: null, bpm_max: null, key_root: "", key_mode: "", rating: "all" });
   $("#f-q").value = ""; $("#f-root").value = ""; $("#f-mode").value = "";
   $("#f-match-all").checked = true;
   filtersChanged(0);
@@ -1174,13 +1361,13 @@ $("#surprise").addEventListener("click", async () => {
     if (!pool.length && resurfaceHearts) {                    // all hearted ideas were played lately: draw from every one
       const r = await api("resurface?days=0");
       if (loggedOut(r)) return;
-      if (r.ok) { pool = (await r.json()).recordings; anyHeart = true; }
+      if (r.ok) { pool = asRecs(await r.json()); anyHeart = true; }
     }
     if (!pool.length) { notify("Nothing hearted yet. Heart (♥) some ideas in the Library first."); return; }
-    const choices = pool.length > 1 ? pool.filter((r) => r.id !== playingId) : pool;     // not the one already playing
+    const choices = pool.length > 1 ? pool.filter((r) => !r.parts.some((p) => p.id === playingId)) : pool;     // not the one already playing
     const rec = choices[Math.floor(Math.random() * choices.length)];
     setSelected(rec.id);
-    startPlay(rec);
+    startPlay(rec, rec.parts[0]);
     notify("Playing \u201c" + rec.title + "\u201d" + (rec.last_played_at ? ", last played " + ago(rec.last_played_at) : ", which you have never played") +
            (anyHeart ? " (every hearted idea was played lately, so this is any \u2665)." : "."));
   } catch (e) { notify(NETWORK_ERROR); }
@@ -1231,14 +1418,15 @@ function fitAllTags() { for (const box of document.querySelectorAll("#list .tags
 new ResizeObserver(scheduleFitTags).observe($("#results"));
 
 // ---- Select mode and bulk actions (Library) ---------------------------------------------------------------
+const selectableRecs = () => (view === "inbox" ? inboxRecs : libRecs);
 function pickRow(id, on, range) {
   if (range && lastPicked !== null) {                                       // shift-click: everything between the two ticks
-    const ids = libRecs.map((r) => r.id), a = ids.indexOf(lastPicked), b = ids.indexOf(id);
+    const ids = selectableRecs().map((r) => r.id), a = ids.indexOf(lastPicked), b = ids.indexOf(id);
     if (a >= 0 && b >= 0) for (const i of ids.slice(Math.min(a, b), Math.max(a, b) + 1)) { if (on) picked.add(i); else picked.delete(i); }
   } else if (on) picked.add(id); else picked.delete(id);
   lastPicked = id;
   for (const li of document.querySelectorAll("#list > li")) {
-    const yes = picked.has(Number(li.dataset.id));
+    const yes = picked.has(Number(li.classList.contains("part") ? li.dataset.owner : li.dataset.id));
     li.classList.toggle("picked", yes);
     const box = li.querySelector(".rowsel");
     if (box) box.checked = yes;
@@ -1248,12 +1436,23 @@ function pickRow(id, on, range) {
 function updateBulkBar() {
   const n = picked.size, all = $("#bulk-all");
   $("#bulk-count").textContent = n + " selected";
-  all.checked = n > 0 && n === libRecs.length;
-  all.indeterminate = n > 0 && n < libRecs.length;
-  const held = new Set(libRecs.filter((r) => picked.has(r.id)).flatMap((r) => r.tags));
+  const pool = selectableRecs();
+  all.checked = n > 0 && n === pool.length;
+  all.indeterminate = n > 0 && n < pool.length;
+  const held = new Set(pool.filter((r) => picked.has(r.id)).flatMap((r) => r.tags));
   fillSelect($("#bulk-add"), "Add tag…", allTags);
   fillSelect($("#bulk-remove"), "Remove tag…", allTags.filter((t) => held.has(t)));       // only tags the selection has
   for (const id of ["#bulk-add", "#bulk-remove", "#bulk-mark", "#bulk-inbox", "#bulk-trash"]) $(id).disabled = n === 0;
+  $("#bulk-group").disabled = n < 2;
+  // groups of two or more recordings the selection could be added to (not ones that are themselves selected)
+  const targets = [...inboxRecs, ...libRecs].filter((r) => r.parts.length > 1 && !picked.has(r.id));
+  const want = ["", ...targets.map((r) => r.gid + "\t" + r.title)].join("\n");
+  const addTo = $("#bulk-addto");
+  if (addTo.dataset.opts !== want) {
+    addTo.dataset.opts = want;
+    addTo.replaceChildren(el("option", { value: "" }, "Add to group…"), ...targets.map((r) => el("option", { value: String(r.gid) }, r.title)));
+  }
+  addTo.disabled = n === 0 || !targets.length;
   if (!n) disarmTrash();
 }
 function fillSelect(select, placeholder, names) {
@@ -1265,11 +1464,11 @@ $("#select-toggle").addEventListener("click", () => { selecting = !selecting; if
 $("#bulk-done").addEventListener("click", () => { selecting = false; picked.clear(); lastPicked = null; render(); });
 $("#bulk-all").addEventListener("change", (e) => {
   picked.clear();
-  if (e.target.checked) for (const r of libRecs) picked.add(r.id);
+  if (e.target.checked) for (const r of selectableRecs()) picked.add(r.id);
   render();
 });
 async function bulk(changes, done) {
-  const ids = [...picked];
+  const ids = [...picked].map((id) => gidOf.get(id) ?? id);
   if (!ids.length) return;
   let r;
   try { r = await sendJson("bulk", "POST", { ids, changes }); } catch (e) { notify(NETWORK_ERROR); return; }
@@ -1279,6 +1478,37 @@ async function bulk(changes, done) {
   await loadList();
   notify(done(ids.length));
 }
+const gidsPicked = () => [...picked].map((id) => gidOf.get(id) ?? id);
+$("#bulk-addto").addEventListener("change", async (e) => {
+  const target = e.target.value;
+  e.target.value = "";
+  if (!target || picked.size < 1) return;
+  const ids = gidsPicked();
+  let r;
+  try { r = await sendJson("groups/" + target + "/parts", "POST", { ids }); } catch (err) { notify(NETWORK_ERROR); return; }
+  if (loggedOut(r)) return;
+  if (!r.ok) { notify((await r.json().catch(() => ({}))).error || "Could not add them (error " + r.status + ")."); return; }
+  const body = await r.json();
+  picked.clear(); lastPicked = null; openEditId = null;
+  await loadList();
+  notify("Added " + nRecordings(ids.length) + " to “" + body.group.title + "”.");
+});
+// Group… is one click: the recordings are combined at once, and anything they disagree on (tempo, key) is kept
+// to be picked later in Edit. A group goes to the Inbox if any of its recordings is there.
+$("#bulk-group").addEventListener("click", async () => {
+  const ids = gidsPicked();
+  if (ids.length < 2) return;
+  $("#bulk-group").disabled = true;
+  let r;
+  try { r = await sendJson("groups", "POST", { ids }); } catch (e) { notify(NETWORK_ERROR); updateBulkBar(); return; }
+  if (loggedOut(r)) return;
+  if (!r.ok) { notify((await r.json().catch(() => ({}))).error || "Could not group them (error " + r.status + ")."); updateBulkBar(); return; }
+  const made = (await r.json()).group;
+  picked.clear(); lastPicked = null; openEditId = null;
+  await loadList();
+  const open = made.unresolved ? Object.keys(made.unresolved).map((k) => (k === "bpm" ? "tempo" : "key")).join(" and ") : "";
+  notify("Grouped " + nRecordings(ids.length) + " as “" + made.title + "”." + (open ? " They disagree on " + open + "; pick one in Edit when you are ready." : ""));
+});
 const nRecordings = (n) => n + (n === 1 ? " recording" : " recordings");
 for (const [id, key, verb] of [["#bulk-add", "add_tags", "Added tag"], ["#bulk-remove", "remove_tags", "Removed tag"]]) {
   $(id).addEventListener("change", (e) => {
@@ -1309,23 +1539,36 @@ $("#bulk-trash").addEventListener("click", () => {
 $("#random").addEventListener("click", () => {
   const pool = view === "inbox" ? inboxRecs : libRecs;
   if (!pool.length) { notify("Nothing to pick from: the list is empty."); return; }
-  const choices = pool.length > 1 ? pool.filter((r) => r.id !== playingId) : pool;     // never the one already playing
+  const choices = pool.length > 1 ? pool.filter((r) => !r.parts.some((p) => p.id === playingId)) : pool;     // never the idea already playing
   const rec = choices[Math.floor(Math.random() * choices.length)];
+  closeAutoOpenedExcept(rec);
   setSelected(rec.id);
-  startPlay(rec);
+  startPlay(rec, rec.parts[0]);
   notify("Playing “" + rec.title + "”" + (view === "library" && filtersActive() ? " (picked from the filtered list)." : "."));
 });
 
 // ---- Themes: "standard" or "minimal" (static/theme.js applies the saved one before the first paint) ----------------
-function applyTheme(minimal) {
-  if (minimal) document.documentElement.dataset.theme = "minimal"; else delete document.documentElement.dataset.theme;
-  stored.set("theme", minimal ? "minimal" : "standard");
-  $("#theme-toggle").textContent = minimal ? "Switch to the standard theme" : "Switch to the minimal theme";
+// Two separate choices: the style ("standard" or "minimal": the shapes and amount of decoration) and the colours ("auto" follows
+// the device, or "light" / "dark" always). More styles and colour sets can be added next to these.
+const STYLES = ["standard", "minimal"], COLORS = ["auto", "light", "dark"];
+function applyTheme(name) {
+  if (name === "minimal") document.documentElement.dataset.theme = "minimal"; else { delete document.documentElement.dataset.theme; name = "standard"; }
+  stored.set("theme", name);
+  for (const t of STYLES) $("#theme-" + t).setAttribute("aria-pressed", String(t === name));
   colorCache = null;                                                     // the waveform picks its colours up from the theme
   drawWave();
 }
-$("#theme-toggle").addEventListener("click", () => applyTheme(document.documentElement.dataset.theme !== "minimal"));
-if (document.documentElement.dataset.theme === "minimal") $("#theme-toggle").textContent = "Switch to the standard theme";
+function applyColors(name) {
+  if (name === "light" || name === "dark") document.documentElement.dataset.colors = name; else { delete document.documentElement.dataset.colors; name = "auto"; }
+  stored.set("colors", name);
+  for (const c of COLORS) $("#colors-" + c).setAttribute("aria-pressed", String(c === name));
+  colorCache = null;
+  drawWave();
+}
+for (const t of STYLES) $("#theme-" + t).addEventListener("click", () => applyTheme(t));
+for (const c of COLORS) $("#colors-" + c).addEventListener("click", () => applyColors(c));
+for (const t of STYLES) $("#theme-" + t).setAttribute("aria-pressed", String((document.documentElement.dataset.theme || "standard") === t));
+for (const c of COLORS) $("#colors-" + c).setAttribute("aria-pressed", String((document.documentElement.dataset.colors || "auto") === c));
 
 // ---- The header menu ---------------------------------------------------------------------------------------
 const menuBtn = $("#menu-btn"), menu = $("#menu");
@@ -1339,10 +1582,10 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !menu.hi
 const MARKS = [["heart", "♥", "Interesting"], ["check", "✓", "Used in a song"], ["x", "✗", "No longer interesting"]];
 
 async function setMark(rec, value) {
-  const r = await sendJson("recordings/" + rec.id, "PATCH", { rating: value });
+  const r = await sendJson("groups/" + rec.gid, "PATCH", { rating: value });
   if (loggedOut(r)) return;
   if (!r.ok) { notify("Could not save that mark (error " + r.status + ")."); return; }
-  const saved = (await r.json()).recording;
+  const saved = (await r.json()).group;
   rec.rating = saved.rating; rec.used_in = saved.used_in;
   for (const li of document.querySelectorAll('#list > li[data-id="' + rec.id + '"] .side .ratebtn')) {
     li.setAttribute("aria-pressed", String(li.dataset.rating === rec.rating));     // update in place: keeps any open form
@@ -1414,6 +1657,9 @@ function renderTriage() {
   $("#triage-pos").textContent = (triage.index + 1) + " of " + triage.queue.length;
   card.append(el("h4", {}, rec.title),
     el("div", { class: "meta" }, whenText(rec) + (rec.duration_s ? " · " + fmtTime(rec.duration_s) : "")));
+  if (rec.parts && rec.parts.length > 1) {                     // an idea of several recordings: they play one after the other
+    card.append(el("div", { class: "meta triage-parts" }, rec.parts.length + " parts, played in order: " + rec.parts.map((p) => p.title).join(" · ")));
+  }
 
   const tagBox = el("div", { class: "tagbox", role: "group", "aria-label": "Instruments and ideas (keys 1 to 9)" });
   allTags.forEach((t, i) => {
@@ -1464,7 +1710,7 @@ async function saveCard(data) {
   const session = triage;
   let r;
   try {
-    r = await sendJson("recordings/" + id, "PATCH", { tags: data.tags, rating: data.rating, notes: data.notes, status: "tagged",
+    r = await sendJson("groups/" + (recById(id) || { gid: id }).gid, "PATCH", { tags: data.tags, rating: data.rating, notes: data.notes, status: "tagged",
                                                       used_in: data.rating === "check" ? (data.used_in || null) : null });
   } catch (e) {
     err.textContent = NETWORK_ERROR;
@@ -1479,9 +1725,9 @@ async function saveCard(data) {
     err.hidden = false;
     return;
   }
-  const saved = (await r.json()).recording;
+  const saved = (await r.json()).group;
   if (session !== triage) return;
-  triage.recs.set(id, saved);
+  triage.recs.set(id, asRec(saved));
   triage.drafts.delete(id);
   triage.savedIds.add(id);
   triage.index++;
@@ -1546,10 +1792,55 @@ document.addEventListener("keydown", (e) => {
 const listEl = $("#list");
 const recById = (id) => [...inboxRecs, ...libRecs, ...resurfaceRecs].find((r) => r.id === id);
 
-function previewIfWanted(id) {
-  setSelected(id);
+// An idea opened by arrowing closes when the highlight moves to another idea.
+function closeAutoOpenedExcept(keep) {
+  for (const gid of [...autoOpened]) {
+    if (keep && keep.gid === gid) continue;
+    autoOpened.delete(gid);
+    const rec = [...inboxRecs, ...libRecs, ...resurfaceRecs].find((r) => r.gid === gid);
+    const li = rec && rowFor(rec);
+    if (li) showParts(rec, li, false);
+  }
+}
+
+function previewIfWanted(id, part) {
   const rec = recById(id);
-  if (autoPreview && rec) startPlay(rec);
+  closeAutoOpenedExcept(rec);
+  setSelected(id, part ? part.id : null);
+  if (autoPreview && rec) startPlay(rec, part || (rec.parts.length > 1 ? rec.parts[0] : undefined));
+}
+
+const shownRecs = () => (view === "library" ? libRecs : view === "resurface" ? resurfaceRecs : view === "inbox" ? inboxRecs : []);
+
+// What the arrow keys visit: one stop for an idea of one recording and for each part of an open idea. A closed idea is
+// entered through its first part (going down) or its last (going up), which opens it.
+function stopsOf(rec) {
+  if (rec.parts.length < 2) return [{ rec, part: null }];
+  if (isOpen(rec)) return rec.parts.map((part) => ({ rec, part }));
+  return [{ rec, part: null, closed: true }];
+}
+
+function moveCursor(dir) {
+  const flat = shownRecs().flatMap(stopsOf);
+  if (!flat.length) return;
+  let target;
+  const at = flat.findIndex((st) => st.rec.id === selectedId && (st.part ? st.part.id === selectedPart : selectedPart === null));
+  if (at >= 0) target = at + dir;
+  else {
+    const first = flat.findIndex((st) => st.rec.id === selectedId);          // the idea's own row is highlighted: its parts are next
+    target = first < 0 ? 0 : dir > 0 ? first : first - 1;
+  }
+  target = Math.min(flat.length - 1, Math.max(0, target));
+  const st = flat[target];
+  let part = st.part;
+  if (st.closed) {                                                           // arrive on a closed idea: open it, enter by its first or last part
+    autoOpened.add(st.rec.gid);
+    closeAutoOpenedExcept(st.rec);
+    const li = rowFor(st.rec);
+    if (li) showParts(st.rec, li, true);
+    part = dir > 0 ? st.rec.parts[0] : st.rec.parts[st.rec.parts.length - 1];
+  }
+  previewIfWanted(st.rec.id, part);
 }
 
 listEl.addEventListener("click", (e) => {
@@ -1557,19 +1848,24 @@ listEl.addEventListener("click", (e) => {
   const li = e.target.closest("#list > li");
   if (!li) return;
   listEl.focus({ preventScroll: true });
+  if (li.classList.contains("part")) {                                 // a recording inside an idea
+    const owner = [...inboxRecs, ...libRecs, ...resurfaceRecs].find((r) => r.gid === Number(li.dataset.gid));
+    if (owner) previewIfWanted(owner.id, owner.parts.find((p) => p.id === Number(li.dataset.part)));
+    return;
+  }
+  const rec = recById(Number(li.dataset.id));
+  if (rec && rec.parts.length > 1 && isOpen(rec)) { closeAutoOpenedExcept(rec); setSelected(rec.id); if (autoPreview) startPlay(rec, rec.parts[0]); return; }
   previewIfWanted(Number(li.dataset.id));
 });
 
 listEl.addEventListener("keydown", (e) => {
   if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
   if (e.target.closest("form, input, textarea, select")) return;
-  const rows = [...listEl.children];
+  const rows = shownRecs();
   if (!rows.length) return;
-  const at = rows.findIndex((li) => Number(li.dataset.id) === selectedId);
   if (e.key === "ArrowDown" || e.key === "ArrowUp") {
     e.preventDefault();
-    const next = at < 0 ? 0 : Math.min(rows.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)));
-    previewIfWanted(Number(rows[next].dataset.id));
+    moveCursor(e.key === "ArrowDown" ? 1 : -1);
   } else if ((e.key === "h" || e.key === "c" || e.key === "x") && selectedId !== null) {
     e.preventDefault();                                                  // h = ♥, c = ✓, x = ✗; again to remove the mark
     const rec = recById(selectedId);
@@ -1577,8 +1873,8 @@ listEl.addEventListener("keydown", (e) => {
     if (rec) setMark(rec, rec.rating === key ? null : key);
   } else if (e.key === " " && !e.target.closest("button, a")) {      // on a button, Space already means "press it"
     e.preventDefault();
-    const rec = recById(selectedId !== null ? selectedId : Number(rows[0].dataset.id));
-    if (rec) togglePlay(rec);
+    const rec = recById(selectedId !== null ? selectedId : rows[0].id);
+    if (rec) togglePlay(rec, selectedPart !== null ? rec.parts.find((p) => p.id === selectedPart) : undefined);
   }
 });
 
@@ -1597,12 +1893,12 @@ function uploadOne(file, row) {
     xhr.upload.addEventListener("progress", (e) => {
       if (e.lengthComputable) { bar.max = e.total; bar.value = e.loaded; }
     });
-    const done = (text, cls) => { state.textContent = text; state.className = "state " + cls; bar.hidden = true; resolve(); };
+    const done = (text, cls, gid) => { state.textContent = text; state.className = "state " + cls; bar.hidden = true; resolve(gid || null); };
     xhr.addEventListener("load", () => {
       let body = {};
       try { body = JSON.parse(xhr.responseText); } catch (e) { /* non-JSON error page */ }
-      if (xhr.status === 201) done("Uploaded", "ok");
-      else if (xhr.status === 200 && body.duplicate) done("Already have it", "ok");
+      if (xhr.status === 201) done("Uploaded", "ok", body.group_id);
+      else if (xhr.status === 200 && body.duplicate) done("Already have it", "ok", body.group_id);
       else if (xhr.status === 401) done("Logged out. Log in again.", "bad");
       else done(body.error || "Failed (" + xhr.status + ")", "bad");
     });
@@ -1621,9 +1917,20 @@ async function handleFiles(files) {
     queue.prepend(row);
     return [file, row];
   });
+  const oneIdea = $("#as-one").checked && rows.length > 1;
+  const made = [];
   for (const [file, row] of rows) {   // one at a time keeps memory and the 1 GB server calm
     row.querySelector(".state").textContent = "Uploading";
-    await uploadOne(file, row);
+    const gid = await uploadOne(file, row);
+    if (gid && !made.includes(gid)) made.push(gid);
+  }
+  $("#as-one").checked = false;
+  if (oneIdea && made.length > 1) {                // "as one idea": the details start from what the uploads say (nothing yet)
+    try {
+      const r = await sendJson("groups", "POST", { ids: made, status: "inbox" });
+      if (loggedOut(r)) return;
+      notify(r.ok ? "Uploaded " + made.length + " recordings as one idea. It is in the Inbox." : "Uploaded, but could not group them. Select them in the Inbox and press Group….");
+    } catch (e) { notify("Uploaded, but could not group them. Select them in the Inbox and press Group…."); }
   }
   await loadList();
 }

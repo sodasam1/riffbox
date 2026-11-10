@@ -107,7 +107,7 @@ async function waitUp() {
     await page.click("#tab-library");
     await page.waitForSelector("#list > li");
     assert.ok(await row("Doomed").count());
-    const back = (await (await ctx.request.get(BASE + "api/recordings?status=tagged")).json()).recordings.find((r) => r.title === "Doomed");
+    const back = (await (await ctx.request.get(BASE + "api/groups?status=tagged")).json()).groups.find((r) => r.title === "Doomed");
     assert.deepStrictEqual([back.tags, back.notes], [["bass"], "keep my notes"]);
     assert.ok(await page.isHidden("#tab-trash"));
     console.log("ok  restore brings it back with its tags and notes");

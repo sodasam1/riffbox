@@ -16,12 +16,12 @@ from .intake import (
 )
 
 SORTS = {
-    "recorded": "r.recorded_at",
-    "uploaded": "r.uploaded_at",
-    "title": "ulower(r.title)",
-    "bpm": "r.bpm",
-    "length": "r.duration_s",
-    "played": "r.last_played_at",
+    "recorded": "g.recorded_at",
+    "uploaded": "g.uploaded_at",
+    "title": "ulower(g.title)",
+    "bpm": "g.bpm",
+    "length": "g.length_s",
+    "played": "g.last_played_at",
 }
 DEFAULT_SORT = "uploaded"          # newest upload first, unless the page asks for something else
 DEFAULT_ORDER = {"recorded": "desc", "uploaded": "desc", "title": "asc", "bpm": "desc",
@@ -96,6 +96,8 @@ def parse_filters(args):
             raise Invalid(f"{field} must be one of {', '.join(allowed)}")
         f[field] = value
 
+    f["unresolved"] = (args.get("unresolved") or "") in ("1", "true")     # ideas whose recordings disagreed on tempo or key
+
     sort = args.get("sort", DEFAULT_SORT)
     if sort not in SORTS:
         raise Invalid(f"sort must be one of {', '.join(SORTS)}")
@@ -112,59 +114,62 @@ def _like(term):
 
 
 def build_query(f):
-    """Returns (sql, params) for the recordings that match the parsed filters `f`."""
-    where, params = ["r.deleted_at IS NULL"], []
+    """Returns (sql, params) for the ideas (groups) that match the parsed filters `f`. Every detail searched or sorted on is
+    the group's own; text search also looks at the parts' titles (any part)."""
+    where, params = ["g.deleted_at IS NULL"], []
 
     if f["status"]:
-        where.append("r.status = ?")
+        where.append("g.status = ?")
         params.append(f["status"])
+    if f.get("unresolved"):
+        where.append("g.unresolved IS NOT NULL")
 
-    for term in f["terms"]:          # every word must appear in the title, the notes or a tag name
-        where.append("(ulower(r.title) LIKE ? ESCAPE '\\' OR ulower(r.notes) LIKE ? ESCAPE '\\'"
-                     " OR EXISTS (SELECT 1 FROM recording_tags t WHERE t.recording_id = r.id"
-                     " AND t.tag LIKE ? ESCAPE '\\'))")
-        params += [_like(term)] * 3
+    for term in f["terms"]:          # every word must appear in the title, the notes, a tag name or a part's title
+        where.append("(ulower(g.title) LIKE ? ESCAPE '\\' OR ulower(g.notes) LIKE ? ESCAPE '\\'"
+                     " OR EXISTS (SELECT 1 FROM group_tags t WHERE t.group_id = g.id AND t.tag LIKE ? ESCAPE '\\')"
+                     " OR EXISTS (SELECT 1 FROM recordings p WHERE p.group_id = g.id AND ulower(p.title) LIKE ? ESCAPE '\\'))")
+        params += [_like(term)] * 4
 
     if f["tags"]:
         marks = ",".join("?" * len(f["tags"]))
         if f["match"] == "all":
-            where.append(f"(SELECT COUNT(DISTINCT t.tag) FROM recording_tags t WHERE t.recording_id = r.id"
+            where.append(f"(SELECT COUNT(DISTINCT t.tag) FROM group_tags t WHERE t.group_id = g.id"
                          f" AND t.tag IN ({marks})) = ?")
             params += [*f["tags"], len(f["tags"])]
         else:
-            where.append(f"EXISTS (SELECT 1 FROM recording_tags t WHERE t.recording_id = r.id"
+            where.append(f"EXISTS (SELECT 1 FROM group_tags t WHERE t.group_id = g.id"
                          f" AND t.tag IN ({marks}))")
             params += f["tags"]
 
     if f["tempos"]:
-        where.append(f"r.tempo IN ({','.join('?' * len(f['tempos']))})")
+        where.append(f"g.tempo IN ({','.join('?' * len(f['tempos']))})")
         params += f["tempos"]
     if f["ratings"]:
         real = [m for m in f["ratings"] if m != "none"]
         clauses = []
         if real:
-            clauses.append(f"r.rating IN ({','.join('?' * len(real))})")
+            clauses.append(f"g.rating IN ({','.join('?' * len(real))})")
             params += real
         if "none" in f["ratings"]:
-            clauses.append("r.rating IS NULL")
+            clauses.append("g.rating IS NULL")
         where.append("(" + " OR ".join(clauses) + ")")
     if f["bpm_min"] is not None:
-        where.append("r.bpm >= ?")                # a missing BPM (NULL) fails the comparison, so it is excluded
+        where.append("g.bpm >= ?")                # a missing BPM (NULL) fails the comparison, so it is excluded
         params.append(f["bpm_min"])
     if f["bpm_max"] is not None:
-        where.append("r.bpm <= ?")
+        where.append("g.bpm <= ?")
         params.append(f["bpm_max"])
     for field in ("key_root", "key_mode"):
         if f[field]:
-            where.append(f"r.{field} = ?")
+            where.append(f"g.{field} = ?")
             params.append(f[field])
 
     direction = "DESC" if f["order"] == "desc" else "ASC"
     column = SORTS[f["sort"]]
     order = f"{column} {direction}"
     if f["sort"] in ("bpm", "length"):
-        order = f"{column} IS NULL, {order}"     # recordings with no BPM / unknown length always go last
+        order = f"{column} IS NULL, {order}"     # ideas with no BPM / unknown length always go last
     # "played" needs no special case: never-played (empty) sorts first oldest-first and last newest-first,
     # which is what "longest ago first" and "most recent first" mean.
-    sql = f"SELECT r.* FROM recordings r WHERE {' AND '.join(where)} ORDER BY {order}, r.id {direction}"
+    sql = f"SELECT g.* FROM idea_groups g WHERE {' AND '.join(where)} ORDER BY {order}, g.id {direction}"
     return sql, params

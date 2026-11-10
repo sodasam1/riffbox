@@ -188,3 +188,24 @@ A Library recording still has Save and Move back to Inbox. No server change was 
 never moved anything. The notice says which happened ("Saved. Still in the Inbox." / "Saved. Moved to Library."). Triage mode is
 unchanged (it still saves and moves; a skipped card's typing is kept only until you leave triage). Tests: `test_inbox_edit.py`,
 `tests/e2e/inboxedit.cjs`; `phase4.cjs` was updated to click Save and move to Library where it expects a move.
+
+## Groups, stages 1 to 4 (merged to `main` after a review; not deployed)
+One idea made of several recordings: spec and staged plan in `docs/PLAN-groups.md`, short manual checks per stage in
+`docs/CHECKLIST-groups.md`. Built: every recording belongs to an idea (`idea_groups`, `group_tags`, `recordings.group_id` and
+`position`; additive repeatable migration; single ideas are also written to the old columns so rolling back stays lossless
+while no multi-recording group exists); `/api/groups` endpoints with the older recording endpoints kept as aliases; one-click
+**Group…** from Select mode (Inbox and Library) with clashing tempo/key kept and flagged (`unresolved`) to be picked later in
+Edit, plus a Library filter for them; Add to group, a Parts list (rename, reorder, take out, break up), upload several files as
+one idea; expandable rows and part playback; arrow keys through parts (auto-open and close, hand-opened stays open); Random,
+Select and triage for groups; a restore tool (`deploy/restore.py`); Cozy/Compact on the Inbox; Style and Colors theme choices.
+Review before the merge: a randomised workout (`test_group_invariants.py`, 25 seeds x 70 steps, checking the database after every
+step) found one real bug (a recording taken out of a group, or an idea broken up, kept an out-of-date Inbox/Library status in
+its own copy, which an older version of the app would have shown wrongly after a rollback); fixed. A migration rehearsal on a
+60-recording database made by the old code (Inbox, Library, Trash, marks, tags, dates, plays) showed identical lists before and
+after, and, after edits, bulk changes, trash, restore, an upload, and grouping then breaking up, the old code read the same
+lists as the new. Restore tool: a file name taken from a database is now refused unless it is a plain name.
+**Measured cost (lab, 4x CPU, 300 recordings):** the Library list grew from 118 KB to 186 KB (7.5 KB compressed) because each
+idea carries its parts, and the throttled page load's LCP moved from about 2.1 s to about 2.8 s (the 2.5 s line); the server's
+list time is 9 ms. The planned compression and caching work (`docs/PLAN-performance-ux-sustainability.md`, items B1.1 and B1.2)
+removes most of that; it is not done yet. **Known gaps:** the export and the readable indexes do not carry a group's own
+details yet (stage 5); Resurface does not treat groups specially yet (stage 5).

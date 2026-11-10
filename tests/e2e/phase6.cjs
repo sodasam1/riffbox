@@ -180,7 +180,7 @@ async function waitUp() {
     console.log("ok  Shift+drag selects a loop section; Loop alone repeats the whole recording");
 
     // --- "played" is only counted for a real listen, not for skipping past
-    const lastPlayed = async (title) => (await (await ctx.request.get(BASE + "api/recordings?status=tagged")).json()).recordings.find((r) => r.title === title).last_played_at;
+    const lastPlayed = async (title) => (await (await ctx.request.get(BASE + "api/groups?status=tagged")).json()).groups.find((r) => r.title === title).last_played_at;
     assert.strictEqual(await lastPlayed("Short idea"), null, "premise: Short idea has not been listened to");
     await page.locator("#list > li", { hasText: "Short idea" }).locator(".play").click();   // audition for under a second...
     await page.waitForTimeout(600);

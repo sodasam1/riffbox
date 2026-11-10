@@ -3,7 +3,7 @@ import io
 
 import pytest
 
-from conftest import PASS, TOKEN, make_wav
+from conftest import resync, PASS, TOKEN, make_wav
 from riffbox.intake import Invalid, normalize_tag, parse_instant, validate_patch
 
 SEEDED = ["bass", "drums", "keys", "guitar", "harmony", "vocal", "melody", "rhythmic idea", "full song"]
@@ -77,7 +77,7 @@ def c(client):
 
 
 def ids(resp):
-    return [r["id"] for r in resp.get_json()["recordings"]]
+    return [r["id"] for r in resp.get_json()["groups"]]
 
 
 def test_seeded_tags_in_order(c):
@@ -107,7 +107,7 @@ def test_tag_count_is_capped(c, app):
 
 def test_new_upload_starts_in_inbox_with_no_tags(c, client):
     rid = upload(client)
-    rec = c.get("/api/recordings").get_json()["recordings"][0]
+    rec = c.get("/api/groups").get_json()["groups"][0]
     assert (rec["id"], rec["status"], rec["tags"]) == (rid, "inbox", [])
 
 
@@ -122,9 +122,9 @@ def test_patch_full_round_trip_and_leaves_inbox(c, client):
     assert rec["tags"] == ["bass", "rhythmic idea"]                       # global tag order, not request order
     assert (rec["tempo"], rec["bpm"], rec["key_root"], rec["key_mode"]) == ("fast", 118, "D", "minor")
     assert rec["notes"] == "hummed over Dm"
-    assert c.get("/api/recordings").get_json()["recordings"][0] == rec     # list agrees with PATCH answer
-    assert ids(c.get("/api/recordings?status=inbox")) == []
-    assert ids(c.get("/api/recordings?status=tagged")) == [rid]
+    assert c.get("/api/groups").get_json()["groups"][0] == rec     # list agrees with PATCH answer
+    assert ids(c.get("/api/groups?status=inbox")) == []
+    assert ids(c.get("/api/groups?status=tagged")) == [rid]
 
 
 def test_saving_an_empty_form_is_allowed(c, client):
@@ -159,7 +159,7 @@ def test_can_move_back_to_inbox(c, client):
     rid = upload(client)
     c.patch(f"/api/recordings/{rid}", json={"status": "tagged"})
     c.patch(f"/api/recordings/{rid}", json={"status": "inbox"})
-    assert ids(c.get("/api/recordings?status=inbox")) == [rid]
+    assert ids(c.get("/api/groups?status=inbox")) == [rid]
 
 
 def test_failed_patch_changes_nothing(c, client):
@@ -167,7 +167,7 @@ def test_failed_patch_changes_nothing(c, client):
     c.patch(f"/api/recordings/{rid}", json={"tempo": "slow", "tags": ["keys"]})
     r = c.patch(f"/api/recordings/{rid}", json={"tempo": "fast", "tags": ["nonexistent"]})
     assert r.status_code == 400 and "nonexistent" in r.get_json()["error"]
-    rec = c.get("/api/recordings").get_json()["recordings"][0]
+    rec = c.get("/api/groups").get_json()["groups"][0]
     assert (rec["tempo"], rec["tags"]) == ("slow", ["keys"])               # all-or-nothing
 
 
@@ -181,7 +181,7 @@ def test_patch_error_cases(c, client):
 
 
 def test_list_status_filter_validates(c):
-    assert c.get("/api/recordings?status=nonsense").status_code == 400
+    assert c.get("/api/groups?status=nonsense").status_code == 400
 
 
 def test_auth_required_and_token_is_add_only(client):
@@ -199,6 +199,7 @@ def test_deleted_recordings_are_not_editable(c, client, app):
     rid = upload(client)
     with sqlite3.connect(app.config["DB_PATH"]) as conn:
         conn.execute("UPDATE recordings SET deleted_at = '2026-01-01T00:00:00Z' WHERE id = ?", (rid,))
+    resync(app.config["DB_PATH"])
     assert c.patch(f"/api/recordings/{rid}", json={"notes": "x"}).status_code == 404
 
 
@@ -206,7 +207,7 @@ def test_tags_survive_per_recording_independently(c, client):
     a, b = upload(client, 1), upload(client, 2)
     c.patch(f"/api/recordings/{a}", json={"tags": ["bass"]})
     c.patch(f"/api/recordings/{b}", json={"tags": ["drums", "bass"]})
-    by_id = {r["id"]: r["tags"] for r in c.get("/api/recordings").get_json()["recordings"]}
+    by_id = {r["id"]: r["tags"] for r in c.get("/api/groups").get_json()["groups"]}
     assert by_id == {a: ["bass"], b: ["bass", "drums"]}
 
 
@@ -239,17 +240,17 @@ def test_recorded_at_in_a_patch_body():
 
 def test_upload_fills_both_dates_with_the_upload_time(c, client):
     upload(client)
-    rec = c.get("/api/recordings").get_json()["recordings"][0]
+    rec = c.get("/api/groups").get_json()["groups"][0]
     assert rec["recorded_at"] == rec["uploaded_at"] and rec["uploaded_at"].endswith("Z")
 
 
 def test_entering_a_date_recorded_stores_both_and_clearing_goes_back(c, client):
     rid = upload(client)
-    first = c.get("/api/recordings").get_json()["recordings"][0]
+    first = c.get("/api/groups").get_json()["groups"][0]
     rec = c.patch(f"/api/recordings/{rid}", json={"recorded_at": "2025-12-25T12:00:00Z"}).get_json()["recording"]
     assert rec["recorded_at"] == "2025-12-25T12:00:00Z"
     assert rec["uploaded_at"] == first["uploaded_at"]               # the upload date is kept separately, untouched
-    again = c.get("/api/recordings").get_json()["recordings"][0]
+    again = c.get("/api/groups").get_json()["groups"][0]
     assert (again["recorded_at"], again["uploaded_at"]) == ("2025-12-25T12:00:00Z", first["uploaded_at"])
     for blank in ("", None):
         c.patch(f"/api/recordings/{rid}", json={"recorded_at": "2025-12-25T12:00:00Z"})
@@ -263,7 +264,7 @@ def test_a_bad_date_recorded_is_rejected_and_nothing_else_changes(c, client, val
     c.patch(f"/api/recordings/{rid}", json={"recorded_at": "2025-12-25T12:00:00Z", "notes": "n"})
     r = c.patch(f"/api/recordings/{rid}", json={"recorded_at": value, "notes": "changed"})
     assert r.status_code == 400
-    rec = c.get("/api/recordings").get_json()["recordings"][0]
+    rec = c.get("/api/groups").get_json()["groups"][0]
     assert (rec["recorded_at"], rec["notes"]) == ("2025-12-25T12:00:00Z", "n")
 
 
@@ -277,7 +278,7 @@ def test_recorded_sort_follows_the_date_recorded(c, client):
     b = up(2, "2026-03-01T10:00:00Z")
     up(3, "2026-01-01T10:00:00Z")
     def order(**q):
-        return [x["title"] for x in c.get("/api/recordings", query_string=q).get_json()["recordings"]]
+        return [x["title"] for x in c.get("/api/groups", query_string=q).get_json()["groups"]]
     assert order(sort="recorded") == ["t1", "t2", "t3"]
     c.patch(f"/api/recordings/{b}", json={"recorded_at": "2026-03-20T12:00:00Z"})     # the owner says b is the newest
     assert order(sort="recorded") == ["t2", "t1", "t3"]
@@ -302,7 +303,7 @@ def test_rating_and_used_in_rules():
 
 def test_a_new_recording_has_no_mark(c, client):
     upload(client)
-    rec = c.get("/api/recordings").get_json()["recordings"][0]
+    rec = c.get("/api/groups").get_json()["groups"][0]
     assert (rec["rating"], rec["used_in"]) == (None, None)
 
 
@@ -310,7 +311,7 @@ def test_marking_round_trip(c, client):
     rid = upload(client)
     for mark in ("heart", "check", "x"):
         assert c.patch(f"/api/recordings/{rid}", json={"rating": mark}).get_json()["recording"]["rating"] == mark
-    assert c.get("/api/recordings").get_json()["recordings"][0]["rating"] == "x"
+    assert c.get("/api/groups").get_json()["groups"][0]["rating"] == "x"
     assert c.patch(f"/api/recordings/{rid}", json={"rating": None}).get_json()["recording"]["rating"] is None
 
 
@@ -324,7 +325,7 @@ def test_used_in_belongs_to_a_check(c, client):
     c.patch(f"/api/recordings/{rid}", json={"rating": "heart"})
     r = c.patch(f"/api/recordings/{rid}", json={"used_in": "Song C", "notes": "changed"})
     assert r.status_code == 400 and "only applies" in r.get_json()["error"]
-    assert c.get("/api/recordings").get_json()["recordings"][0]["notes"] == ""
+    assert c.get("/api/groups").get_json()["groups"][0]["notes"] == ""
 
 
 def test_moving_away_from_check_clears_the_song_name(c, client):

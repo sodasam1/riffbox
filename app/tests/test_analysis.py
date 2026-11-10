@@ -8,7 +8,7 @@ import subprocess
 
 import pytest
 
-from conftest import PASS, TOKEN
+from conftest import resync, PASS, TOKEN
 from riffbox import create_app
 from riffbox.media import PEAK_BINS, analyze_audio, summarize_pcm
 
@@ -154,7 +154,7 @@ def test_upload_is_measured_in_the_background(make_app, tmp_path):
     body = c.get(f"/api/recordings/{rid}/analysis").get_json()
     assert 5.9 <= body["duration_s"] <= 6.1
     assert len(body["peaks"]) == 200 and body["peaks"][10] >= 200 and body["peaks"][190] <= 5
-    rec = c.get("/api/recordings").get_json()["recordings"][0]
+    rec = c.get("/api/groups").get_json()["groups"][0]
     assert rec["duration_s"] == body["duration_s"]
     assert "peaks" not in rec                                       # the list never carries the waveform
 
@@ -166,8 +166,8 @@ def test_alac_is_both_converted_and_measured(make_app, tmp_path):
     upload(c, tone_then_silence(tmp_path, "m.m4a", ("-c:a", "alac")).read_bytes(), "m.m4a")
     settle(app)
     login(c)
-    rec = c.get("/api/recordings").get_json()["recordings"][0]
-    assert rec["play_status"] == "ready" and 5.9 <= rec["duration_s"] <= 6.1
+    rec = c.get("/api/groups").get_json()["groups"][0]
+    assert rec["parts"][0]["play_status"] == "ready" and 5.9 <= rec["duration_s"] <= 6.1
 
 
 @needs_ffmpeg
@@ -237,10 +237,10 @@ def test_played_marker(make_app):
     assert c.post(f"/api/recordings/{rid}/played").status_code == 401
     assert c.post(f"/api/recordings/{rid}/played", headers={"Authorization": f"Bearer {TOKEN}"}).status_code == 401
     login(c)
-    assert c.get("/api/recordings").get_json()["recordings"][0]["last_played_at"] is None
+    assert c.get("/api/groups").get_json()["groups"][0]["last_played_at"] is None
     r = c.post(f"/api/recordings/{rid}/played")
     assert r.status_code == 200 and r.get_json()["last_played_at"].endswith("Z")
-    assert c.get("/api/recordings").get_json()["recordings"][0]["last_played_at"] == r.get_json()["last_played_at"]
+    assert c.get("/api/groups").get_json()["groups"][0]["last_played_at"] == r.get_json()["last_played_at"]
     assert c.post("/api/recordings/9999/played").status_code == 404
 
 
@@ -255,12 +255,13 @@ def sortable(make_app):
                                     "c": (None, "2026-03-09T00:00:00Z"), "d": (120.0, None)}.items():
             conn.execute("UPDATE recordings SET title=?, duration_s=?, last_played_at=? WHERE id=?",
                          (name, dur, played, ids[name]))
+    resync(app.config["DB_PATH"])
     login(c)
 
     def titles(**q):
-        r = c.get("/api/recordings", query_string=q)
+        r = c.get("/api/groups", query_string=q)
         assert r.status_code == 200, r.get_json()
-        return [x["title"] for x in r.get_json()["recordings"]]
+        return [x["title"] for x in r.get_json()["groups"]]
     return titles
 
 

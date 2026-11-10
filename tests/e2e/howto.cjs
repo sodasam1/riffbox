@@ -67,7 +67,7 @@ async function waitUp() {
     assert.ok(await page.isHidden("#main-view"));
     assert.strictEqual(new URL(page.url()).hash, "#how");
     const headings = (await page.locator("#how-body h2").allTextContents()).map((s) => s.trim());
-    assert.deepStrictEqual(headings, ["Planned features", "Roadmap and progress", "Context",
+    assert.deepStrictEqual(headings, ["Quickstart", "Planned features", "Roadmap and progress", "Context",
       "What the guide and ti.sh already gave us", "Architecture", "Data model", "Keeping your data portable"]);
     const text = await page.locator("#how-body").innerText();
     for (const s of ["OpenBSD 7.9", "FreeFileSync", "SQLite", "Phase", "recorded_at"]) assert.ok(text.includes(s), "page mentions " + s);

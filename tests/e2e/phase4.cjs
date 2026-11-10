@@ -211,7 +211,7 @@ async function waitUp() {
     await page.locator("#list > li", { hasText: "temporary name" }).locator("button.edit-btn").click();
     await page.locator("#list form.edit input[id^=f-title-]").fill("   ");
     await page.locator("#list form.edit button[type=submit]").click();
-    const apiRows = async () => (await (await ctx.request.get(BASE + "api/recordings?status=tagged")).json()).recordings;
+    const apiRows = async () => (await (await ctx.request.get(BASE + "api/groups?status=tagged")).json()).groups;
     const plainRec = (await apiRows()).find((r) => r.notes === "" && r.tags.length === 0);   // the one saved with an empty form
     const uploadedAt = plainRec.uploaded_at;
     assert.strictEqual(plainRec.recorded_at, uploadedAt, "premise: its date recorded is its upload date");

@@ -78,8 +78,8 @@ const LONG = "Averyveryveryverylongtitlewithoutanyspacesatalleveryletterrunstoge
     assert.strictEqual(await theme(), "standard");
     const std = await look();
     await page.click("#menu-btn");
-    assert.strictEqual((await page.textContent("#theme-toggle")).trim(), "Switch to the minimal theme");
-    await page.click("#theme-toggle");
+    assert.strictEqual(await page.getAttribute("#theme-standard", "aria-pressed"), "true");
+    await page.click("#theme-minimal");
     assert.ok(await page.isHidden("#menu"), "choosing it closes the menu");
     assert.strictEqual(await theme(), "minimal");
     assert.strictEqual(await page.evaluate(() => localStorage.getItem("riffbox.theme")), "minimal");
@@ -98,7 +98,7 @@ const LONG = "Averyveryveryverylongtitlewithoutanyspacesatalleveryletterrunstoge
     assert.strictEqual(await theme(), "minimal", "the saved theme is applied from the <head>, before first paint");
     await page.waitForSelector("#app:not([hidden])");
     await page.click("#menu-btn");
-    assert.strictEqual((await page.textContent("#theme-toggle")).trim(), "Switch to the standard theme");
+    assert.strictEqual(await page.getAttribute("#theme-minimal", "aria-pressed"), "true");
     await page.keyboard.press("Escape");
     console.log("ok  the choice is remembered, applied before first paint, and the menu says how to switch back");
 
@@ -146,7 +146,7 @@ const LONG = "Averyveryveryverylongtitlewithoutanyspacesatalleveryletterrunstoge
 
     // ---- and back
     await page.emulateMedia({ colorScheme: "light" });
-    await page.click("#menu-btn"); await page.click("#theme-toggle");
+    await page.click("#menu-btn"); await page.click("#theme-standard");
     assert.strictEqual(await theme(), "standard");
     assert.strictEqual(await page.evaluate(() => localStorage.getItem("riffbox.theme")), "standard");
     const back = await look();
@@ -154,6 +154,60 @@ const LONG = "Averyveryveryverylongtitlewithoutanyspacesatalleveryletterrunstoge
     await page.goto(BASE, { waitUntil: "domcontentloaded" });
     assert.strictEqual(await theme(), "standard", "and it stays standard after a reload");
     console.log("ok  switching back restores the standard look exactly, and that is remembered too");
+
+    // ---- colours are a separate choice from the style
+    const colors = () => page.evaluate(() => document.documentElement.dataset.colors || "auto");
+    const paint = () => page.evaluate(() => ({ bg: getComputedStyle(document.body).backgroundColor, scheme: getComputedStyle(document.documentElement).colorScheme,
+      chip: getComputedStyle(document.querySelector(".chip.tag")).borderTopWidth, tab: getComputedStyle(document.querySelector('#views button[aria-pressed="true"]')).boxShadow,
+      vars: Object.fromEntries(["bg", "panel", "text", "muted", "accent", "accent-text", "err", "warn"].map((n) => [n, getComputedStyle(document.documentElement).getPropertyValue("--" + n).trim()])) }));
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.click("#menu-btn");
+    assert.strictEqual(await page.getAttribute("#colors-auto", "aria-pressed"), "true");
+    await page.click("#colors-dark");
+    await page.click("#tab-library"); await page.waitForSelector("#list > li .chip.tag");
+    assert.strictEqual(await colors(), "dark"); assert.strictEqual(await theme(), "standard", "colours do not change the style");
+    assert.strictEqual(await page.evaluate(() => localStorage.getItem("riffbox.colors")), "dark");
+    let d = await paint();
+    assert.strictEqual(d.bg, "rgb(21, 21, 23)", "dark colours even though the device is set to light");
+    assert.strictEqual(d.scheme, "dark"); assert.strictEqual(d.tab, "none"); assert.notStrictEqual(d.chip, "0px");         // still the standard shapes
+    for (const [fg, bg] of [["text", "bg"], ["muted", "bg"], ["muted", "panel"], ["accent", "bg"], ["accent-text", "accent"], ["err", "bg"], ["err", "panel"], ["warn", "bg"]]) {
+      const rr = ratio(d.vars[fg], d.vars[bg]);
+      assert.ok(rr >= 4.5, `standard/dark: ${fg} on ${bg} has contrast ${rr.toFixed(2)}`);
+    }
+    // the other style, dark: minimal shapes with the minimal dark palette
+    await page.click("#menu-btn"); await page.click("#theme-minimal");
+    d = await paint();
+    assert.strictEqual(d.bg, "rgb(16, 16, 16)"); assert.strictEqual(d.chip, "0px"); assert.strictEqual(await colors(), "dark");
+    for (const [fg, bg] of [["text", "bg"], ["muted", "bg"], ["muted", "panel"], ["accent", "bg"], ["err", "bg"], ["warn", "bg"]]) {
+      assert.ok(ratio(d.vars[fg], d.vars[bg]) >= 4.5, `minimal/dark: ${fg} on ${bg}`);
+    }
+    // forced light on a device set to dark, in both styles
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.click("#menu-btn"); await page.click("#colors-light");
+    d = await paint(); assert.strictEqual(d.bg, "rgb(255, 255, 255)"); assert.strictEqual(d.chip, "0px");
+    await page.click("#menu-btn"); await page.click("#theme-standard");
+    d = await paint(); assert.strictEqual(d.bg, "rgb(255, 255, 255)"); assert.notStrictEqual(d.chip, "0px");
+    // auto follows the device again
+    await page.click("#menu-btn"); await page.click("#colors-auto");
+    assert.strictEqual(await colors(), "auto");
+    d = await paint(); assert.strictEqual(d.bg, "rgb(21, 21, 23)", "auto + a dark device is dark");
+    await page.emulateMedia({ colorScheme: "light" });
+    d = await paint(); assert.strictEqual(d.bg, "rgb(255, 255, 255)", "auto + a light device is light");
+    // both choices are remembered and applied before first paint
+    await page.click("#menu-btn"); await page.click("#theme-minimal"); await page.click("#menu-btn"); await page.click("#colors-dark");
+    for (const w of [320, 390, 1280]) {
+      await page.setViewportSize({ width: w, height: 800 }); await page.waitForTimeout(120);
+      assert.ok((await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) <= 1, `minimal dark overflows at ${w}px`);
+    }
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(BASE, { waitUntil: "domcontentloaded" });
+    assert.strictEqual(await theme(), "minimal"); assert.strictEqual(await colors(), "dark", "both are applied from the <head> after a reload");
+    await page.waitForSelector("#app:not([hidden])");
+    await page.click("#menu-btn");
+    assert.strictEqual(await page.getAttribute("#colors-dark", "aria-pressed"), "true"); assert.strictEqual(await page.getAttribute("#theme-minimal", "aria-pressed"), "true");
+    await page.click("#theme-standard"); await page.click("#menu-btn"); await page.click("#colors-auto");
+    console.log("ok  Style (standard, minimal) and Colors (auto, light, dark) are separate choices that combine, are remembered, and keep contrast at 4.5:1");
 
     assert.deepStrictEqual(problems, [], "browser errors: " + problems.join(" | "));
     console.log("ok  no unexpected console or page errors");
