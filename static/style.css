@@ -468,3 +468,5 @@ html[data-theme="minimal"] #list .title .chip.parts { border: 0; padding: 0; bac
 #list.compact .chip.pending .p-w { display: none; }
 form.edit .pending-note { margin: 0 0 .7rem; padding: .5rem .6rem; border: 1px dashed var(--line); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
 form.edit .pending-note p { flex: 1 0 100%; margin: 0; }
+#list li.sel-parent { background: var(--panel); }
+html[data-theme="minimal"] #list li.sel-parent { background: none; }

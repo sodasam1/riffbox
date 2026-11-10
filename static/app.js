@@ -235,18 +235,22 @@ function trackFor(rec, part) {
 }
 
 function togglePlay(rec, part) {
-  setSelected(rec.id);
+  setSelected(rec.id, part ? part.id : null);
   part = part || (rec.parts || []).find((p) => p.id === playingId) || (rec.parts || [])[0] || rec;
   if (playingId === part.id && !player.error && !player.paused) { player.pause(); return; }
   startPlay(rec, part);
 }
 
 // Highlight a row (the one the arrow keys move from, and Space plays).
-function setSelected(id) {
+function setSelected(id, partId = null) {
   selectedId = id;
+  selectedPart = partId;
   for (const li of document.querySelectorAll("#list > li")) {
-    const on = Number(li.dataset.id) === id;
+    const isPart = li.classList.contains("part");
+    const own = !isPart && Number(li.dataset.id) === id;
+    const on = isPart ? partId !== null && Number(li.dataset.part) === partId : own && partId === null;
     li.classList.toggle("selected", on);
+    li.classList.toggle("sel-parent", own && partId !== null);       // the idea whose part is highlighted
     if (on) { li.setAttribute("aria-current", "true"); li.scrollIntoView({ block: "nearest" }); }
     else li.removeAttribute("aria-current");
   }
@@ -303,6 +307,7 @@ let libRatings = { heart: 0, check: 0, x: 0, none: 0 };   // how many Library re
 let allTags = [];
 let openEditId = null;         // at most one edit form open at a time
 let selectedId = null;         // the highlighted row; arrow keys move it, Space plays it
+let selectedPart = null;       // the recording highlighted inside an open idea (null: the idea's own row)
 let selecting = false;         // "Select" mode (Inbox and Library): checkboxes and the bulk-action bar
 const picked = new Set();      // ids ticked in Select mode
 let lastPicked = null;         // for shift-click ranges
@@ -361,6 +366,7 @@ function setView(next) {
   if (triage) exitTriage();
   view = next;
   selecting = false; picked.clear();
+  autoOpened.clear(); selectedPart = null;
   openEditId = null;
   notify("");
   render();
@@ -445,44 +451,64 @@ function render() {
   $("#bulk-inbox").hidden = view === "inbox";                    // already there
   if (canSelect && selecting) updateBulkBar();
   playStatus = new Map([...inboxRecs, ...libRecs, ...resurfaceRecs].flatMap((rec) => rec.parts.map((p) => [p.id, p.play_status])));
-  if (selectedId !== null && !shown.some((r) => r.id === selectedId)) selectedId = null;   // filtered out
+  if (selectedId !== null && !shown.some((r) => r.id === selectedId)) { selectedId = null; selectedPart = null; }   // filtered out
   for (const rec of shown) {
     if (view === "trash") ul.append(buildTrashRow(rec));
-    else ul.append(buildRow(rec), ...(openParts.has(rec.gid) ? buildPartRows(rec) : []));
+    else ul.append(buildRow(rec), ...(isOpen(rec) ? buildPartRows(rec) : []));
   }
   applyDensity();
   markPlaying();
 }
 
-const openParts = new Set();     // ideas whose parts are shown (opened by hand with the caret)
+const openParts = new Set();     // ideas whose parts are shown because you opened them (with the caret): they stay open
+const autoOpened = new Set();    // ideas opened by arrowing onto them: they close again when you move off them
+const isOpen = (rec) => openParts.has(rec.gid) || autoOpened.has(rec.gid);
+const rowFor = (rec) => document.querySelector('#list > li[data-id="' + rec.id + '"]');
 
 // The rows for the recordings inside an idea, shown under it when it is open.
 function buildPartRows(rec) {
   return rec.parts.map((p, i) => {
     const btn = el("button", { class: "play", type: "button" }, "▶");
     btn.addEventListener("click", () => togglePlay(rec, p));
+    const lead = el("div", { class: "lead" });
+    if ((view === "library" || view === "inbox") && selecting) {       // ticking a part ticks the whole idea
+      const box = el("input", { type: "checkbox", class: "rowsel", "aria-label": "Select " + rec.title });
+      box.checked = picked.has(rec.id);
+      box.addEventListener("click", (e) => pickRow(rec.id, box.checked, e.shiftKey));
+      lead.append(box);
+    }
+    lead.append(btn);
     const info = el("div", { class: "info" }, el("div", { class: "title" }, p.title),
       el("div", { class: "meta when" }, (p.duration_s ? fmtTime(p.duration_s) + " · " : "") + fmtSize(p.size)),
       el("span", { class: "c-len", title: fmtSize(p.size) }, p.duration_s ? fmtTime(p.duration_s) : ""));
     const side = el("div", { class: "side" }, el("a", { class: "dl", href: "api/audio/" + p.id + "?download=1", title: "Download the original",
       "aria-label": "Download " + p.title }, el("span", { class: "dl-full" }, "Download"), el("span", { class: "dl-short", "aria-hidden": "true" }, "↓")));
-    return el("li", { class: "part", "data-part": String(p.id), "data-gid": String(rec.gid), "data-pids": String(p.id), "data-title": p.title,
-                      "aria-label": "Part " + (i + 1) + " of " + rec.parts.length + ": " + p.title }, el("div", { class: "lead" }, btn), info, side);
+    const li = el("li", { class: "part", "data-part": String(p.id), "data-gid": String(rec.gid), "data-owner": String(rec.id), "data-pids": String(p.id),
+                          "data-title": p.title, "aria-label": "Part " + (i + 1) + " of " + rec.parts.length + ": " + p.title }, lead, info, side);
+    if (picked.has(rec.id)) li.classList.add("picked");
+    if (p.id === selectedPart) { li.classList.add("selected"); li.setAttribute("aria-current", "true"); }
+    return li;
   });
 }
 
-function toggleParts(rec, li, caret) {
-  const on = !openParts.has(rec.gid);
+// By hand (the caret): opening keeps it open, closing closes it; either way the "opened by arrowing" mark is cleared.
+function toggleParts(rec, li) {
+  const on = !isOpen(rec);
+  autoOpened.delete(rec.gid);
   if (on) openParts.add(rec.gid); else openParts.delete(rec.gid);
-  caret.setAttribute("aria-expanded", String(on));
-  caret.textContent = on ? "▾" : "▸";
-  caret.setAttribute("aria-label", (on ? "Hide the " : "Show the ") + rec.parts.length + " parts of " + rec.title);
-  if (on) {
-    let at = li;
-    for (const p of buildPartRows(rec)) { at.after(p); at = p; }
-  } else {
-    while (li.nextElementSibling && li.nextElementSibling.classList.contains("part")) li.nextElementSibling.remove();
+  showParts(rec, li, on);
+}
+
+// Show or hide an idea's part rows in place (no rebuild of the list) and keep the caret in step.
+function showParts(rec, li, on) {
+  const caret = li.querySelector(".caret");
+  if (caret) {
+    caret.setAttribute("aria-expanded", String(on));
+    caret.textContent = on ? "▾" : "▸";
+    caret.setAttribute("aria-label", (on ? "Hide the " : "Show the ") + rec.parts.length + " parts of " + rec.title);
   }
+  while (li.nextElementSibling && li.nextElementSibling.classList.contains("part")) li.nextElementSibling.remove();
+  if (on) { let at = li; for (const p of buildPartRows(rec)) { at.after(p); at = p; } }
   markPlaying();
 }
 
@@ -542,10 +568,10 @@ function buildRow(rec) {
   const li = el("li", { "data-id": String(rec.id), "data-gid": String(rec.gid), "data-title": rec.title,
                         "data-pids": rec.parts.map((p) => p.id).join(",") }, lead, info, side);
   if (rec.parts.length > 1) {
-    const open = openParts.has(rec.gid);
+    const open = isOpen(rec);
     const caret = el("button", { class: "caret", type: "button", "aria-expanded": String(open),
       "aria-label": (open ? "Hide the " : "Show the ") + rec.parts.length + " parts of " + rec.title }, open ? "▾" : "▸");
-    caret.addEventListener("click", () => toggleParts(rec, li, caret));
+    caret.addEventListener("click", () => toggleParts(rec, li));
     const t = info.querySelector(".title");
     t.classList.add("has-parts");                       // the badge stays visible when a long title is cut short
     t.replaceChildren(caret, el("span", { class: "tt" }, rec.title), el("span", { class: "chip parts", title: rec.parts.length + " recordings in this idea" }, String(rec.parts.length), el("span", { class: "p-w" }, " parts")));
@@ -556,7 +582,10 @@ function buildRow(rec) {
       "⚠", el("span", { class: "p-w" }, " pick " + what)));
   }
   if (picked.has(rec.id)) li.classList.add("picked");
-  if (rec.id === selectedId) { li.classList.add("selected"); li.setAttribute("aria-current", "true"); }
+  if (rec.id === selectedId) {
+    li.classList.add(selectedPart === null ? "selected" : "sel-parent");
+    if (selectedPart === null) li.setAttribute("aria-current", "true");
+  }
   if (openEditId === rec.id) li.append(buildForm(rec));
   return li;
 }
@@ -1334,10 +1363,10 @@ $("#surprise").addEventListener("click", async () => {
       if (r.ok) { pool = asRecs(await r.json()); anyHeart = true; }
     }
     if (!pool.length) { notify("Nothing hearted yet. Heart (♥) some ideas in the Library first."); return; }
-    const choices = pool.length > 1 ? pool.filter((r) => r.id !== playingId) : pool;     // not the one already playing
+    const choices = pool.length > 1 ? pool.filter((r) => !r.parts.some((p) => p.id === playingId)) : pool;     // not the one already playing
     const rec = choices[Math.floor(Math.random() * choices.length)];
     setSelected(rec.id);
-    startPlay(rec);
+    startPlay(rec, rec.parts[0]);
     notify("Playing \u201c" + rec.title + "\u201d" + (rec.last_played_at ? ", last played " + ago(rec.last_played_at) : ", which you have never played") +
            (anyHeart ? " (every hearted idea was played lately, so this is any \u2665)." : "."));
   } catch (e) { notify(NETWORK_ERROR); }
@@ -1396,7 +1425,7 @@ function pickRow(id, on, range) {
   } else if (on) picked.add(id); else picked.delete(id);
   lastPicked = id;
   for (const li of document.querySelectorAll("#list > li")) {
-    const yes = picked.has(Number(li.dataset.id));
+    const yes = picked.has(Number(li.classList.contains("part") ? li.dataset.owner : li.dataset.id));
     li.classList.toggle("picked", yes);
     const box = li.querySelector(".rowsel");
     if (box) box.checked = yes;
@@ -1509,10 +1538,11 @@ $("#bulk-trash").addEventListener("click", () => {
 $("#random").addEventListener("click", () => {
   const pool = view === "inbox" ? inboxRecs : libRecs;
   if (!pool.length) { notify("Nothing to pick from: the list is empty."); return; }
-  const choices = pool.length > 1 ? pool.filter((r) => r.id !== playingId) : pool;     // never the one already playing
+  const choices = pool.length > 1 ? pool.filter((r) => !r.parts.some((p) => p.id === playingId)) : pool;     // never the idea already playing
   const rec = choices[Math.floor(Math.random() * choices.length)];
+  closeAutoOpenedExcept(rec);
   setSelected(rec.id);
-  startPlay(rec);
+  startPlay(rec, rec.parts[0]);
   notify("Playing “" + rec.title + "”" + (view === "library" && filtersActive() ? " (picked from the filtered list)." : "."));
 });
 
@@ -1614,6 +1644,9 @@ function renderTriage() {
   $("#triage-pos").textContent = (triage.index + 1) + " of " + triage.queue.length;
   card.append(el("h4", {}, rec.title),
     el("div", { class: "meta" }, whenText(rec) + (rec.duration_s ? " · " + fmtTime(rec.duration_s) : "")));
+  if (rec.parts && rec.parts.length > 1) {                     // an idea of several recordings: they play one after the other
+    card.append(el("div", { class: "meta triage-parts" }, rec.parts.length + " parts, played in order: " + rec.parts.map((p) => p.title).join(" · ")));
+  }
 
   const tagBox = el("div", { class: "tagbox", role: "group", "aria-label": "Instruments and ideas (keys 1 to 9)" });
   allTags.forEach((t, i) => {
@@ -1746,10 +1779,55 @@ document.addEventListener("keydown", (e) => {
 const listEl = $("#list");
 const recById = (id) => [...inboxRecs, ...libRecs, ...resurfaceRecs].find((r) => r.id === id);
 
-function previewIfWanted(id) {
-  setSelected(id);
+// An idea opened by arrowing closes when the highlight moves to another idea.
+function closeAutoOpenedExcept(keep) {
+  for (const gid of [...autoOpened]) {
+    if (keep && keep.gid === gid) continue;
+    autoOpened.delete(gid);
+    const rec = [...inboxRecs, ...libRecs, ...resurfaceRecs].find((r) => r.gid === gid);
+    const li = rec && rowFor(rec);
+    if (li) showParts(rec, li, false);
+  }
+}
+
+function previewIfWanted(id, part) {
   const rec = recById(id);
-  if (autoPreview && rec) startPlay(rec);
+  closeAutoOpenedExcept(rec);
+  setSelected(id, part ? part.id : null);
+  if (autoPreview && rec) startPlay(rec, part || (rec.parts.length > 1 ? rec.parts[0] : undefined));
+}
+
+const shownRecs = () => (view === "library" ? libRecs : view === "resurface" ? resurfaceRecs : view === "inbox" ? inboxRecs : []);
+
+// What the arrow keys visit: one stop for an idea of one recording and for each part of an open idea. A closed idea is
+// entered through its first part (going down) or its last (going up), which opens it.
+function stopsOf(rec) {
+  if (rec.parts.length < 2) return [{ rec, part: null }];
+  if (isOpen(rec)) return rec.parts.map((part) => ({ rec, part }));
+  return [{ rec, part: null, closed: true }];
+}
+
+function moveCursor(dir) {
+  const flat = shownRecs().flatMap(stopsOf);
+  if (!flat.length) return;
+  let target;
+  const at = flat.findIndex((st) => st.rec.id === selectedId && (st.part ? st.part.id === selectedPart : selectedPart === null));
+  if (at >= 0) target = at + dir;
+  else {
+    const first = flat.findIndex((st) => st.rec.id === selectedId);          // the idea's own row is highlighted: its parts are next
+    target = first < 0 ? 0 : dir > 0 ? first : first - 1;
+  }
+  target = Math.min(flat.length - 1, Math.max(0, target));
+  const st = flat[target];
+  let part = st.part;
+  if (st.closed) {                                                           // arrive on a closed idea: open it, enter by its first or last part
+    autoOpened.add(st.rec.gid);
+    closeAutoOpenedExcept(st.rec);
+    const li = rowFor(st.rec);
+    if (li) showParts(st.rec, li, true);
+    part = dir > 0 ? st.rec.parts[0] : st.rec.parts[st.rec.parts.length - 1];
+  }
+  previewIfWanted(st.rec.id, part);
 }
 
 listEl.addEventListener("click", (e) => {
@@ -1759,22 +1837,22 @@ listEl.addEventListener("click", (e) => {
   listEl.focus({ preventScroll: true });
   if (li.classList.contains("part")) {                                 // a recording inside an idea
     const owner = [...inboxRecs, ...libRecs, ...resurfaceRecs].find((r) => r.gid === Number(li.dataset.gid));
-    if (owner) { setSelected(owner.id); if (autoPreview) startPlay(owner, owner.parts.find((p) => p.id === Number(li.dataset.part))); }
+    if (owner) previewIfWanted(owner.id, owner.parts.find((p) => p.id === Number(li.dataset.part)));
     return;
   }
+  const rec = recById(Number(li.dataset.id));
+  if (rec && rec.parts.length > 1 && isOpen(rec)) { closeAutoOpenedExcept(rec); setSelected(rec.id); if (autoPreview) startPlay(rec, rec.parts[0]); return; }
   previewIfWanted(Number(li.dataset.id));
 });
 
 listEl.addEventListener("keydown", (e) => {
   if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
   if (e.target.closest("form, input, textarea, select")) return;
-  const rows = [...listEl.children].filter((li) => !li.classList.contains("part"));
+  const rows = shownRecs();
   if (!rows.length) return;
-  const at = rows.findIndex((li) => Number(li.dataset.id) === selectedId);
   if (e.key === "ArrowDown" || e.key === "ArrowUp") {
     e.preventDefault();
-    const next = at < 0 ? 0 : Math.min(rows.length - 1, Math.max(0, at + (e.key === "ArrowDown" ? 1 : -1)));
-    previewIfWanted(Number(rows[next].dataset.id));
+    moveCursor(e.key === "ArrowDown" ? 1 : -1);
   } else if ((e.key === "h" || e.key === "c" || e.key === "x") && selectedId !== null) {
     e.preventDefault();                                                  // h = ♥, c = ✓, x = ✗; again to remove the mark
     const rec = recById(selectedId);
@@ -1782,8 +1860,8 @@ listEl.addEventListener("keydown", (e) => {
     if (rec) setMark(rec, rec.rating === key ? null : key);
   } else if (e.key === " " && !e.target.closest("button, a")) {      // on a button, Space already means "press it"
     e.preventDefault();
-    const rec = recById(selectedId !== null ? selectedId : Number(rows[0].dataset.id));
-    if (rec) togglePlay(rec);
+    const rec = recById(selectedId !== null ? selectedId : rows[0].id);
+    if (rec) togglePlay(rec, selectedPart !== null ? rec.parts.find((p) => p.id === selectedPart) : undefined);
   }
 });
 
