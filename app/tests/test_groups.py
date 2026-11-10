@@ -268,3 +268,41 @@ def test_an_existing_library_gets_one_group_per_recording_and_nothing_changes(tm
     assert check.execute("SELECT COUNT(*) FROM idea_groups").fetchone()[0] == 4          # one per recording, the trashed one included
     assert check.execute("SELECT COUNT(*) FROM recordings WHERE group_id IS NULL").fetchone()[0] == 0
     assert check.execute("SELECT title, bpm FROM recordings WHERE id = 2").fetchone() == ("Tagged hearted", 90)    # the old columns are untouched
+
+
+def test_grouping_in_one_step_keeps_clashing_tempos_and_keys_to_be_picked_later(trio):
+    c, made = trio
+    ids = [g for _r, g in made.values()]
+    r = c.post("/api/groups", json={"ids": ids})                       # nothing but the ideas: no dialog, no choices
+    assert r.status_code == 201
+    g = r.get_json()["group"]
+    assert g["bpm"] is None and sorted(x["value"] for x in g["unresolved"]["bpm"]) == [96, 120]
+    assert "key" not in g["unresolved"]                                  # only one of them had a key: nothing to settle
+    assert g["status"] == "tagged"                                       # stays where the ideas already were (any in the Inbox would pull it there)
+    # picking one clears the flag; the other answer is gone with it
+    p = c.patch(f"/api/groups/{g['id']}", json={"bpm": 96}).get_json()["group"]
+    assert p["bpm"] == 96 and p["unresolved"] is None
+
+
+def test_a_flag_can_be_waived_and_a_clash_is_not_invented_when_values_are_given(trio):
+    c, made = trio
+    ids = [g for _r, g in made.values()]
+    g = c.post("/api/groups", json={"ids": ids, "bpm": 100}).get_json()["group"]      # chosen up front: nothing to settle
+    assert g["bpm"] == 100 and g["unresolved"] is None
+    c.post(f"/api/groups/{g['id']}/ungroup")
+    ids2 = [x["id"] for x in listing(c)]
+    h = c.post("/api/groups", json={"ids": ids2}).get_json()["group"]
+    assert h["unresolved"]
+    w = c.patch(f"/api/groups/{h['id']}", json={"resolved": ["bpm", "key"]}).get_json()["group"]    # "leave it empty"
+    assert w["bpm"] is None and w["unresolved"] is None
+    assert c.patch(f"/api/groups/{h['id']}", json={"resolved": ["nope"]}).status_code == 400
+
+
+def test_taking_parts_out_until_one_is_left_drops_the_flag(trio):
+    c, made = trio
+    ids = [g for _r, g in made.values()]
+    g = c.post("/api/groups", json={"ids": ids[:2]}).get_json()["group"]
+    assert g["unresolved"]
+    rec = g["parts"][0]["id"]
+    after = c.delete(f"/api/groups/{g['id']}/parts/{rec}").get_json()["group"]
+    assert after["unresolved"] is None

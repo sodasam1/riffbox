@@ -41,27 +41,30 @@ checked on your server and in the tests; anything unverified is marked as such.<
 <ul>
   <li><strong>Select</strong> (Inbox and Library): tick rows (shift-click for a range) to add or remove a tag, set a mark,
     move to the Inbox or the Trash for many at once, all or nothing.</li>
-  <li><strong>Cozy / Compact</strong> rows (Library) and a <strong>standard / minimal theme</strong> (Menu), each remembered on
+  <li><strong>Cozy / Compact</strong> rows (Inbox and Library, one setting for both) and a <strong>standard / minimal theme</strong> (Menu), each remembered on
     that device. The player bar can be collapsed to one row.</li>
   <li><strong>Tap tempo</strong> in the edit form; keys <code>1</code>&ndash;<code>9</code> toggle tags in triage.</li>
 </ul>
 
 <h3>Groups: one idea made of several recordings</h3>
 <p>For recordings that make little sense alone (keys, drums and a vocal memo of the same idea). In the Inbox or Library press
-<em>Select</em>, tick two or more and press <em>Group&hellip;</em>; or tick <em>Upload several files as one idea</em> before
+<em>Select</em>, tick two or more and press <em>Group&hellip;</em> (one click, no questions); or tick <em>Upload several files as one idea</em> before
 uploading. A group looks like one row with a caret and a parts badge; the caret shows the recordings inside. Things that behave
 in ways you might not expect:</p>
 <ul>
   <li><strong>The details belong to the group.</strong> Tags, marks, tempo, key and notes are set on the idea, not on each part.
-    Making a group combines the parts' tags and notes and takes the strongest mark; where the parts disagree on tempo or key,
-    the dialog asks you to pick one (or none), so a group never holds two answers.</li>
+    Grouping combines the parts' tags and notes and takes the strongest mark, and the idea is named after its earliest part.
+    It goes to the Inbox if any part was there, otherwise it stays where the parts were.</li>
+  <li><strong>Clashing tempo or key is kept, not decided.</strong> If the parts disagree (say 120 and 96 BPM) the idea starts with no
+    tempo and shows a dashed <em>&#9888; pick tempo</em> tag (just &#9888; in Compact). Open <em>Edit</em>: the choices are listed above
+    the BPM box; press one, or <em>No tempo</em> to stop asking, then Save. Typing a tempo yourself also settles it. Keys work the
+    same way. Nothing else is blocked while it waits.</li>
   <li><strong>The parts keep a private copy</strong> of what they had when they joined. <em>Take out</em> and <em>Break up this
     idea</em> (in the edit form, each asks for a second press) give each recording back that old copy. Anything you changed on
     the group afterwards stays with the group, it is not copied to the parts.</li>
   <li><strong>Dates and size:</strong> the idea shows the <em>earliest</em> recorded date and the <em>latest</em> upload date;
     its length is its <em>longest</em> part and its size the total. Each part keeps its own dates.</li>
-  <li><strong>Inbox or Library:</strong> grouping ideas from both lists asks where the new idea should go (the Inbox is
-    suggested). Saving a group to the Library moves the whole idea.</li>
+  <li><strong>Inbox or Library:</strong> saving a group to the Library (or moving it back) moves the whole idea.</li>
   <li><strong>Names:</strong> the title in the edit form is the idea's; each part's own name is edited under <em>Parts</em>, where
     you can also reorder them. Search finds an idea by any part's name.</li>
   <li><strong>Playing:</strong> the idea's &#9654; plays the part you were on, else the first, and playback moves on to the next

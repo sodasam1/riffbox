@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS idea_groups (
   rating            TEXT CHECK (rating IN ('heart','check','x')),
   used_in           TEXT,
   recorded_override TEXT,                  -- a date recorded set by hand; NULL = the earliest part
+  unresolved        TEXT,                  -- JSON: tempos/keys the parts disagreed on when grouped, until the owner picks one
   deleted_at        TEXT,
   -- derived from the parts by groups.refresh()
   recorded_at       TEXT NOT NULL,         -- override, else the earliest part

@@ -526,6 +526,9 @@ def create_app(config=None):
             return bad_request("send a JSON object")
         body = dict(body)
         labels = body.pop("parts", None)
+        resolved = body.pop("resolved", [])
+        if not isinstance(resolved, list) or any(r not in ("bpm", "key") for r in resolved):
+            return bad_request("resolved must be a list of 'bpm' and/or 'key'")
         if part_title_for is not None and row["part_count"] > 1 and "title" in body:
             title = body.pop("title")
             if not isinstance(title, str) or not title.strip() or len(title.strip()) > MAX_TITLE:
@@ -551,7 +554,7 @@ def create_app(config=None):
             cols["used_in"] = None
         if cols.get("used_in") and rating_after != "check":
             return bad_request("'used in' only applies to an idea marked ✓")
-        failed = guarded(lambda conn: groups.update(conn, gid, cols, tag_list, recorded, labels))
+        failed = guarded(lambda conn: groups.update(conn, gid, cols, tag_list, recorded, labels, resolved))
         return failed
 
     @bp.patch("/api/groups/<int:gid>")
@@ -608,7 +611,12 @@ def create_app(config=None):
         cols.setdefault("title", start["title"])
         if cols.get("used_in") and cols.get("rating") != "check":
             return bad_request("'used in' only applies to an idea marked ✓")
-        made = guarded(lambda conn: groups.combine(conn, ids, cols, tag_list))
+        unresolved = {}                      # tempos or keys the recordings disagree on are kept, to be picked later in Edit
+        if "bpm" not in given and start["conflicts"]["bpm"]:
+            unresolved["bpm"] = start["conflicts"]["bpm"]
+        if "key_root" not in given and "key_mode" not in given and start["conflicts"]["key"]:
+            unresolved["key"] = start["conflicts"]["key"]
+        made = guarded(lambda conn: groups.combine(conn, ids, cols, tag_list, unresolved or None))
         return made if isinstance(made, tuple) else (jsonify(group=one_group(made)), 201)
 
     @bp.post("/api/groups/<int:gid>/parts")

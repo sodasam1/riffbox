@@ -442,13 +442,6 @@ html[data-theme="minimal"] #pick { padding: 0; text-decoration: underline; min-h
 
 /* ---- groups: Select in the Inbox, the grouping dialog, parts in the edit form ---- */
 .as-one { display: inline-flex; align-items: center; gap: 5px; margin-left: .6rem; }
-#group-dialog { max-width: min(30rem, calc(100vw - 32px)); width: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--text); padding: 16px 18px; }
-#group-dialog::backdrop { background: rgba(0, 0, 0, .45); }
-#group-dialog h3 { margin: 0 0 .6rem; }
-#group-dialog fieldset { border: 0; padding: 0; margin: 0 0 .7rem; }
-#group-dialog legend { font-weight: 600; padding: 0; margin-bottom: .2rem; }
-#group-dialog .choice { display: flex; align-items: center; gap: 6px; margin: .15rem 0; }
-#group-dialog .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: .8rem; }
 .chip.parts { background: none; }
 form.edit .parts-list { list-style: none; margin: 0 0 .7rem; padding: 0; display: grid; gap: 6px; }
 form.edit .parts-list li { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; border: 0; padding: 0; background: none; }
@@ -470,3 +463,8 @@ html[data-theme="minimal"] #list .title .chip.parts { border: 0; padding: 0; bac
 #list .title.has-parts .tt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #list .title.has-parts .chip.parts, #list .title.has-parts .caret { flex: none; }
 #list.compact .title.has-parts .p-w { display: none; }
+#list .chip.pending { margin-left: .4rem; flex: none; border-style: dashed; color: var(--accent); font-weight: 400; }
+#list .title:not(.has-parts) .chip.pending { display: inline-block; }
+#list.compact .chip.pending .p-w { display: none; }
+form.edit .pending-note { margin: 0 0 .7rem; padding: .5rem .6rem; border: 1px dashed var(--line); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
+form.edit .pending-note p { flex: 1 0 100%; margin: 0; }

@@ -11,7 +11,9 @@ Run on a restored copy of your real data first, then on the live site. Each stag
 - [ ] Rollback: start `main` on the migrated copy; it opens and shows your latest edits.
 
 ## Stage 2: making and changing groups
-- [ ] Inbox: Select, tick 2–3 recordings, Group…. The dialog asks which tempo (and key) if they differ; the new idea shows "N parts" and lands where you chose.
+- [ ] Inbox: Select, tick 2–3 recordings, Group… (one click, no dialog). The idea shows "N parts" and lands in the Inbox if any part was there.
+- [ ] Group two with different BPMs: the row shows ⚠ pick tempo; Edit lists both; picking one (or No tempo) and saving clears it. Same for keys.
+- [ ] Cozy / Compact shows on the Inbox as well as the Library, and the choice applies to both.
 - [ ] Select mode still behaves as before in the Library (tags, marks, Move to Inbox, Trash, Select all, shift-click).
 - [ ] Edit a grouped idea: rename and reorder parts, Save; Take out one part; Break up this idea. Every recording is still there afterwards.
 - [ ] Upload two files with "Upload several files as one idea" ticked: one idea with two parts in the Inbox; a normal multi-upload without the tick still makes separate ideas.

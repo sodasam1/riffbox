@@ -64,54 +64,66 @@ async function waitUp() {
     assert.ok(await page.isEnabled("#bulk-group"));
     console.log("ok  Select mode works in the Inbox; Group… needs at least two");
 
-    // the dialog: the two tempos disagree, so it asks; the keys agree (only one has a key), so it does not
+    // one click: no dialog. The tempos disagree (120 vs 96), so both are kept to be picked later; the key is filled in
     await page.click("#bulk-group");
-    await page.waitForSelector("#group-dialog[open]");
-    assert.strictEqual(await page.locator('#group-dialog input[name="bpm"]').count(), 3);
-    assert.ok(await page.isVisible("#g-root"), "key is a plain field when the keys do not conflict");
-    assert.strictEqual(await page.inputValue("#g-root"), "A");
-    await page.check('#group-dialog input[name="bpm"] >> nth=1');
-    await page.fill("#g-title", "Verse idea");
-    await page.click("#group-dialog button.primary");
-    await page.waitForFunction(() => !document.querySelector("#group-dialog").open);
-    assert.match(await notice(), /Grouped 3 recordings as “Verse idea”/);
-    let g = (await api("?status=inbox")).find((x) => x.title === "Verse idea");
-    assert.ok(g && g.parts.length === 3 && g.bpm === 96 && g.key_root === "A" && g.status === "inbox");
-    assert.match(await rowOf("Verse idea").locator(".chip.parts").textContent(), /3 parts/);
-    console.log("ok  grouping asks which tempo, fills in the key, makes one idea with 3 parts in the Inbox");
+    await page.waitForFunction(() => /Grouped 3 recordings as/.test(document.querySelector("#notice").textContent));
+    assert.match(await notice(), /disagree on tempo; pick one in Edit/);
+    assert.ok(await page.locator("dialog").count() === 0, "there is no dialog any more");
+    let g = (await api("?status=inbox")).find((x) => x.parts.length === 3);
+    assert.ok(g && g.bpm === null && g.key_root === "A" && g.status === "inbox");
+    assert.deepStrictEqual(g.unresolved.bpm.map((c) => c.value), [120, 96]);
+    assert.ok(!g.unresolved.key);
+    const gid = g.id;
+    await page.waitForSelector(`#list > li[data-gid="${gid}"] .chip.pending`);
+    assert.match(await page.locator(`#list > li[data-gid="${gid}"] .chip.pending`).textContent(), /pick tempo/);
+    console.log("ok  Group… is one click; a tempo clash is kept, flagged on the row, and the rest is filled in");
+
+    // resolve it later in Edit by picking one of the two
+    await page.click("#bulk-done");
+    await page.locator(`#list > li[data-gid="${gid}"] button.edit-btn`).click();
+    assert.strictEqual(await page.locator("#list form.edit .pending-note button").count(), 3);
+    await page.locator("#list form.edit .pending-note button", { hasText: "96 BPM" }).click();
+    assert.strictEqual(await page.inputValue("#list form.edit input[type=number]"), "96");
+    await page.locator("#list form.edit button", { hasText: /^Save$/ }).click();
+    await page.waitForFunction(() => !document.querySelector("#list form.edit"));
+    g = (await api("?status=inbox")).find((x) => x.id === gid);
+    assert.ok(g.bpm === 96 && g.unresolved === null);
+    assert.strictEqual(await page.locator(`#list > li[data-gid="${gid}"] .chip.pending`).count(), 0);
+    await page.click("#select-toggle");
+    console.log("ok  picking a tempo in Edit settles it and clears the flag");
 
     // add another recording to that group
     await page.click("#select-toggle");     // Select mode was left by the reload? make sure it is on
     if (!(await page.isVisible("#bulkbar"))) await page.click("#select-toggle");
     await rowOf("D").locator(".rowsel").check();
-    await page.selectOption("#bulk-addto", { label: "Verse idea" });
+    await page.selectOption("#bulk-addto", { value: String(gid) });
     await page.waitForFunction(() => /Added 1 recording to/.test(document.querySelector("#notice").textContent));
-    g = (await api("?status=inbox")).find((x) => x.title === "Verse idea");
+    g = (await api("?status=inbox")).find((x) => x.id === gid);
     assert.strictEqual(g.parts.length, 4);
     console.log("ok  Add to group… adds the selected recording as another part");
 
     // the edit form lists the parts: rename, reorder, save
     if (await page.isVisible("#bulkbar")) await page.click("#bulk-done");
-    await rowOf("Verse idea").locator("button.edit-btn").click();
+    await page.locator(`#list > li[data-gid="${gid}"]`).locator("button.edit-btn").click();
     const items = page.locator("#list form.edit .parts-list > li");
     assert.strictEqual(await items.count(), 4);
     await items.nth(0).locator("input").fill("Keys");
     await items.nth(1).locator('button[aria-label="Move this part up"]').click();
     await page.locator("#list form.edit button", { hasText: /^Save$/ }).click();
     await page.waitForFunction(() => !document.querySelector("#list form.edit"));
-    g = (await api("?status=inbox")).find((x) => x.title === "Verse idea");
+    g = (await api("?status=inbox")).find((x) => x.id === gid);
     assert.deepStrictEqual(g.parts.map((p) => p.title), ["B", "Keys", "C", "D"]);
     console.log("ok  parts can be renamed and reordered from the edit form");
 
     // take one part out (two presses), then break the rest up (two presses)
-    await rowOf("Verse idea").locator("button.edit-btn").click();
+    await page.locator(`#list > li[data-gid="${gid}"]`).locator("button.edit-btn").click();
     const out = page.locator("#list form.edit .parts-list > li").nth(3).locator("button.link");
     await out.click(); await out.click();
     await page.waitForFunction(() => /Took the recording out/.test(document.querySelector("#notice").textContent));
-    g = (await api("?status=inbox")).find((x) => x.title === "Verse idea");
+    g = (await api("?status=inbox")).find((x) => x.id === gid);
     assert.strictEqual(g.parts.length, 3);
     assert.ok(await rowOf("D").count() === 1, "the part became its own idea again");
-    await rowOf("Verse idea").locator("button.edit-btn").click();
+    await page.locator(`#list > li[data-gid="${gid}"]`).locator("button.edit-btn").click();
     const brk = page.locator("#list form.edit fieldset > button.link.danger");
     await brk.click(); await brk.click();
     await page.waitForFunction(() => /Broke the idea up/.test(document.querySelector("#notice").textContent));

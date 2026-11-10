@@ -111,7 +111,7 @@ instead of the browser.
 | After 8 | Minimal theme with a switch in the Menu | Done; tested; awaiting the owner's look |
 | After 8 | Stable tabs; edit in the Inbox; restore tool | Built and merged to `main` |
 | Groups 1 | Data layer, migration, page reads groups; no visible change | Built and tested on branch `groups`; **owner rehearsal and deploy pending** |
-| Groups 2 | Making and changing groups: Select mode in the Inbox, Group… and Add to group…, tempo/key dialog, upload as one idea, Parts list in the edit form, group trash and restore | Built and tested on branch `groups`; a grouped row plays and downloads its first part until stage 3 |
+| Groups 2 | Making and changing groups: Select mode in the Inbox, one-click Group… (clashing tempo/key kept and flagged to resolve later in Edit), Add to group…, upload as one idea, Parts list in the edit form, group trash and restore | Built and tested on branch `groups`; a grouped row plays and downloads its first part until stage 3 |
 | Groups 3 | Looks: expandable rows with caret and parts badge, Compact and minimal theme, player "part n of m", auto-advance | Built and tested on branch `groups` |
 | Groups 4 | Keyboard: auto-open and collapse (manual-open stays open), arrows across parts, Random, triage with parts, select-all | Planned |
 | Groups 5 | Resurface with whole groups, search over part titles (server done), group-aware export and restore tests, docs, migration runbook | Planned |

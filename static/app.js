@@ -370,16 +370,16 @@ $("#tab-library").addEventListener("click", () => setView("library"));
 $("#tab-resurface").addEventListener("click", () => setView("resurface"));
 $("#tab-trash").addEventListener("click", () => setView("trash"));
 
-// Library row size: cozy (the full row) or compact (one slim line, to see more at once). Remembered on this device.
+// Row size for the Inbox and the Library: cozy (the full row) or compact (one slim line, to see more at once). One setting for
+// both, remembered on this device.
 function applyDensity() {
-  const compact = view === "library" && density === "compact";
+  const compact = (view === "library" || view === "inbox") && density === "compact";
   $("#list").classList.toggle("compact", compact);
   $("#results").classList.toggle("compact", compact);
   $("#dens-cozy").setAttribute("aria-pressed", String(density === "cozy"));
   $("#dens-compact").setAttribute("aria-pressed", String(density === "compact"));
   // On desktop a control that does not apply to the tab stays as an invisible placeholder, so nothing else moves.
   $("#library-tools").classList.toggle("slot-off", view !== "library" && view !== "inbox");
-  $("#density").classList.toggle("slot-off", view !== "library");
   $("#random").classList.toggle("slot-off", !(view === "library" || view === "inbox") || triage !== null);     // draws from the list on screen
   scheduleFitTags();
 }
@@ -549,6 +549,11 @@ function buildRow(rec) {
     t.classList.add("has-parts");                       // the badge stays visible when a long title is cut short
     t.replaceChildren(caret, el("span", { class: "tt" }, rec.title), el("span", { class: "chip parts", title: rec.parts.length + " recordings in this idea" }, String(rec.parts.length), el("span", { class: "p-w" }, " parts")));
   }
+  if (rec.unresolved) {                                   // tempo or key the recordings disagreed on, waiting for a choice
+    const what = Object.keys(rec.unresolved).map((k) => (k === "bpm" ? "tempo" : "key")).join(" & ");
+    info.querySelector(".title").append(el("span", { class: "chip pending", title: "The recordings disagree on " + what + ". Open Edit to pick one." },
+      "⚠", el("span", { class: "p-w" }, " pick " + what)));
+  }
   if (picked.has(rec.id)) li.classList.add("picked");
   if (rec.id === selectedId) { li.classList.add("selected"); li.setAttribute("aria-current", "true"); }
   if (openEditId === rec.id) li.append(buildForm(rec));
@@ -658,6 +663,25 @@ function buildForm(rec) {
   });
   form.append(el("div", { class: "field" }, el("label", { for: "f-bpm-" + id }, "BPM (optional)"),
                  el("div", { class: "bpm" }, bpm, tap)));
+  const waived = new Set();                                    // tempo / key left empty on purpose: stop asking
+  // The recordings of a new group can disagree; both answers are kept here until one is picked (or waived).
+  const pendingNote = (kind, text, choices, none, apply) => {
+    const box = el("div", { class: "pending-note" }, el("p", { class: "meta" }, text));
+    for (const c of choices) {
+      const b = el("button", { type: "button" }, c.label);
+      b.addEventListener("click", () => { apply(c); waived.delete(kind); box.hidden = true; });
+      box.append(b);
+    }
+    const n = el("button", { type: "button", class: "link" }, none);
+    n.addEventListener("click", () => { apply(null); waived.add(kind); box.hidden = true; });
+    box.append(n);
+    form.append(box);
+  };
+  if (rec.unresolved && rec.unresolved.bpm) {
+    pendingNote("bpm", "These recordings had different tempos. Pick the one for the whole idea:",
+      rec.unresolved.bpm.map((c) => ({ label: c.value + " BPM (" + c.from.join(", ") + ")", value: c.value })), "No tempo",
+      (c) => { bpm.value = c ? String(c.value) : ""; });
+  }
 
   // key
   const root = el("select", { id: "f-root-" + id });
@@ -668,6 +692,11 @@ function buildForm(rec) {
   mode.append(el("option", { value: "" }, "—"), el("option", { value: "major" }, "major"), el("option", { value: "minor" }, "minor"));
   mode.value = rec.key_mode || "";
   form.append(el("div", { class: "keyrow" }, field("Key", root, "f-root-" + id), field("Major / minor", mode, "f-mode-" + id)));
+  if (rec.unresolved && rec.unresolved.key) {
+    pendingNote("key", "These recordings had different keys. Pick the one for the whole idea:",
+      rec.unresolved.key.map((c) => ({ label: [c.key_root, c.key_mode].filter(Boolean).join(" ") + " (" + c.from.join(", ") + ")", value: c })), "No key",
+      (c) => { root.value = c ? c.value.key_root || "" : ""; mode.value = c ? c.value.key_mode || "" : ""; });
+  }
 
   // date recorded: blank means "same as the date uploaded"
   const initialDate = dateIsSet(rec) ? dayKey(rec.recorded_at) : "";
@@ -771,6 +800,7 @@ function buildForm(rec) {
       rating: mark,
       used_in: mark === "check" ? (usedIn.value.trim() || null) : null,
     };
+    if (waived.size) payload.resolved = [...waived];
     if (dateChanged) payload.recorded_at = dateInput.value ? localNoon(dateInput.value) : null;   // null = use the upload date
     if (partRows.length) {                                      // part names, in the order shown
       const byId = new Map(partRows.map(([pid, input]) => [pid, input]));
@@ -1427,77 +1457,22 @@ $("#bulk-addto").addEventListener("change", async (e) => {
   await loadList();
   notify("Added " + nRecordings(ids.length) + " to “" + body.group.title + "”.");
 });
-$("#bulk-group").addEventListener("click", () => openGroupDialog(gidsPicked()));
-
-// The grouping dialog: starts from what the recordings already say; where they disagree (tempo, key) you choose.
-async function openGroupDialog(ids, afterMade) {
+// Group… is one click: the recordings are combined at once, and anything they disagree on (tempo, key) is kept
+// to be picked later in Edit. A group goes to the Inbox if any of its recordings is there.
+$("#bulk-group").addEventListener("click", async () => {
+  const ids = gidsPicked();
+  if (ids.length < 2) return;
+  $("#bulk-group").disabled = true;
   let r;
-  try { r = await sendJson("groups/suggest", "POST", { ids }); } catch (e) { notify(NETWORK_ERROR); return; }
+  try { r = await sendJson("groups", "POST", { ids }); } catch (e) { notify(NETWORK_ERROR); updateBulkBar(); return; }
   if (loggedOut(r)) return;
-  if (!r.ok) { notify((await r.json().catch(() => ({}))).error || "Could not start grouping (error " + r.status + ")."); return; }
-  const sug = await r.json();
-  const dlg = $("#group-dialog");
-  const form = el("form", { method: "dialog", novalidate: "" });
-  const title = el("input", { id: "g-title", type: "text", maxlength: "200", value: sug.title });
-  const err = el("p", { class: "error", role: "alert", hidden: "" });
-  form.append(el("h3", { id: "group-dialog-h" }, "Group " + ids.length + " recordings as one idea"), field("Title", title, "g-title"));
-  // choices for a detail the recordings disagree on; `values` is [{label, value}], plus "none"
-  const choice = (legendText, name, values, hint) => {
-    const fs = el("fieldset", {}, el("legend", {}, legendText));
-    fs.append(el("p", { class: "meta" }, hint));
-    values.forEach((v, i) => {
-      const rid = "g-" + name + "-" + i;
-      const rb = el("input", { type: "radio", name, id: rid, value: String(i) });
-      if (i === 0) rb.checked = true;
-      fs.append(el("div", { class: "choice" }, rb, el("label", { for: rid }, v.label)));
-    });
-    form.append(fs);
-    return () => values[Number(form.querySelector('input[name="' + name + '"]:checked').value)].value;
-  };
-  let getBpm, getKey;
-  if (sug.conflicts.bpm.length) {
-    getBpm = choice("Tempo", "bpm", [...sug.conflicts.bpm.map((c) => ({ label: c.value + " BPM (" + c.from.join(", ") + ")", value: c.value })),
-      { label: "No tempo", value: null }], "These recordings have different tempos. Pick the one for the whole idea.");
-  } else {
-    const bpm = el("input", { id: "g-bpm", type: "number", min: "20", max: "400", inputmode: "numeric", value: sug.bpm == null ? "" : String(sug.bpm) });
-    form.append(field("BPM (optional)", bpm, "g-bpm"));
-    getBpm = () => (bpm.value.trim() === "" ? null : Number(bpm.value));
-  }
-  if (sug.conflicts.key.length) {
-    getKey = choice("Key", "key", [...sug.conflicts.key.map((c) => ({ label: [c.key_root, c.key_mode].filter(Boolean).join(" ") + " (" + c.from.join(", ") + ")", value: c })),
-      { label: "No key", value: { key_root: null, key_mode: null } }], "These recordings have different keys. Pick the one for the whole idea.");
-  } else {
-    const root = el("select", { id: "g-root" }, el("option", { value: "" }, "—"), ...KEY_ROOTS.map((k) => el("option", { value: k }, k)));
-    const mode = el("select", { id: "g-mode" }, el("option", { value: "" }, "—"), el("option", { value: "major" }, "major"), el("option", { value: "minor" }, "minor"));
-    root.value = sug.key_root || ""; mode.value = sug.key_mode || "";
-    form.append(el("div", { class: "keyrow" }, field("Key", root, "g-root"), field("Major / minor", mode, "g-mode")));
-    getKey = () => ({ key_root: root.value || null, key_mode: mode.value || null });
-  }
-  const where = choice("Put it in", "status", [{ label: "Inbox", value: "inbox" }, { label: "Library", value: "tagged" }],
-    "Tags, notes and marks are combined from the recordings (" + (sug.tags.length ? sug.tags.join(", ") : "no tags yet") + "). You can edit them afterwards.");
-  if (sug.status === "tagged") form.querySelector('input[name="status"][value="1"]').checked = true;
-  const ok = el("button", { type: "submit", class: "primary" }, "Make group");
-  const cancel = el("button", { type: "button" }, "Cancel");
-  cancel.addEventListener("click", () => dlg.close());
-  form.append(err, el("div", { class: "actions" }, ok, cancel));
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    ok.disabled = true;
-    const body = { ids, title: title.value.trim() || sug.title, bpm: getBpm(), ...getKey(), status: where() };
-    let res;
-    try { res = await sendJson("groups", "POST", body); } catch (x) { err.textContent = NETWORK_ERROR; err.hidden = false; ok.disabled = false; return; }
-    if (loggedOut(res)) return;
-    if (!res.ok) { err.textContent = (await res.json().catch(() => ({}))).error || "Could not group them (error " + res.status + ")."; err.hidden = false; ok.disabled = false; return; }
-    const made = (await res.json()).group;
-    dlg.close();
-    picked.clear(); lastPicked = null; openEditId = null;
-    await loadList();
-    notify("Grouped " + nRecordings(ids.length) + " as “" + made.title + "”.");
-  });
-  dlg.replaceChildren(form);
-  dlg.showModal();
-  title.focus();
-}
+  if (!r.ok) { notify((await r.json().catch(() => ({}))).error || "Could not group them (error " + r.status + ")."); updateBulkBar(); return; }
+  const made = (await r.json()).group;
+  picked.clear(); lastPicked = null; openEditId = null;
+  await loadList();
+  const open = made.unresolved ? Object.keys(made.unresolved).map((k) => (k === "bpm" ? "tempo" : "key")).join(" and ") : "";
+  notify("Grouped " + nRecordings(ids.length) + " as “" + made.title + "”." + (open ? " They disagree on " + open + "; pick one in Edit when you are ready." : ""));
+});
 const nRecordings = (n) => n + (n === 1 ? " recording" : " recordings");
 for (const [id, key, verb] of [["#bulk-add", "add_tags", "Added tag"], ["#bulk-remove", "remove_tags", "Removed tag"]]) {
   $(id).addEventListener("change", (e) => {

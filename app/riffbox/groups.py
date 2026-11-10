@@ -12,6 +12,7 @@ A group's dates and sizes are derived from its parts and stored on the group by 
 simple: recorded = the earliest part (unless the owner set a date by hand), uploaded = the latest part, length = the longest
 part, size = the sum, last played = the most recent play of any part.
 """
+import json
 import sqlite3
 
 GROUP_FIELDS = ("title", "tempo", "bpm", "key_root", "key_mode", "notes", "status", "rating", "used_in")
@@ -32,6 +33,8 @@ def migrate(conn):
         conn.execute("ALTER TABLE recordings ADD COLUMN group_id INTEGER REFERENCES idea_groups(id)")
     if "position" not in have:
         conn.execute("ALTER TABLE recordings ADD COLUMN position INTEGER NOT NULL DEFAULT 0")
+    if "unresolved" not in {r[1] for r in conn.execute("PRAGMA table_info(idea_groups)")}:
+        conn.execute("ALTER TABLE idea_groups ADD COLUMN unresolved TEXT")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_recordings_group ON recordings(group_id)")
     backfill(conn)
     conn.commit()
@@ -135,6 +138,7 @@ def load(conn, rows):
         d["duration_s"] = r["length_s"]
         d["tags"] = tags.get(r["id"], [])
         d["parts"] = parts.get(r["id"], [])
+        d["unresolved"] = json.loads(r["unresolved"]) if r["unresolved"] else None
         if "deleted_at" in r.keys() and r["deleted_at"]:
             d["deleted_at"] = r["deleted_at"]
         out.append(d)
@@ -158,7 +162,7 @@ def set_tags(conn, gid, names):
     conn.executemany("INSERT INTO group_tags (group_id, tag) VALUES (?, ?)", [(gid, t) for t in names])
 
 
-def update(conn, gid, cols, tag_list=None, recorded=KEEP, part_labels=None):
+def update(conn, gid, cols, tag_list=None, recorded=KEEP, part_labels=None, resolved=()):
     """Change a group. `cols` holds any of GROUP_FIELDS; `tag_list` replaces the tags; `recorded` is a date set by hand (or None to
     go back to the earliest part); `part_labels` is [{id, title}, ...] naming and ordering ALL the parts."""
     if part_labels is not None:
@@ -167,6 +171,15 @@ def update(conn, gid, cols, tag_list=None, recorded=KEEP, part_labels=None):
             raise Conflict("the parts list must name every part of the group, once each")
         for i, p in enumerate(part_labels):
             conn.execute("UPDATE recordings SET title = ?, position = ? WHERE id = ?", (p["title"], i, p["id"]))
+    done = set(resolved)                                  # tempo / key choices the owner has now made (or waived)
+    if cols.get("bpm") is not None:
+        done.add("bpm")
+    if cols.get("key_root") or cols.get("key_mode"):
+        done.add("key")
+    if done:
+        row = conn.execute("SELECT unresolved FROM idea_groups WHERE id = ?", (gid,)).fetchone()
+        left = {k: v for k, v in (json.loads(row[0]) if row and row[0] else {}).items() if k not in done}
+        conn.execute("UPDATE idea_groups SET unresolved = ? WHERE id = ?", (json.dumps(left) if left else None, gid))
     if cols:
         conn.execute("UPDATE idea_groups SET " + ", ".join(f"{c} = ?" for c in cols) + " WHERE id = ?", [*cols.values(), gid])
     if tag_list is not None:
@@ -243,7 +256,7 @@ def _move_parts(conn, source_gids, target, start):
     conn.execute(f"DELETE FROM idea_groups WHERE id IN ({_marks(source_gids)})", list(source_gids))
 
 
-def combine(conn, gids, fields, tag_list):
+def combine(conn, gids, fields, tag_list, unresolved=None):
     """Make ONE new group out of the given ideas (singles and/or groups). `fields` holds the details of the new group."""
     gids = list(dict.fromkeys(gids))
     if len(gids) < 2:
@@ -251,10 +264,10 @@ def combine(conn, gids, fields, tag_list):
     if any(get(conn, g) is None for g in gids):
         raise Conflict("some of these ideas no longer exist; reload the page")
     row = {f: fields.get(f) for f in GROUP_FIELDS}
-    cur = conn.execute("INSERT INTO idea_groups (title, bpm, key_root, key_mode, notes, status, rating, used_in, recorded_at, uploaded_at)"
-                       " VALUES (?,?,?,?,?,?,?,?, '', '')",
+    cur = conn.execute("INSERT INTO idea_groups (title, bpm, key_root, key_mode, notes, status, rating, used_in, unresolved, recorded_at, uploaded_at)"
+                       " VALUES (?,?,?,?,?,?,?,?,?, '', '')",
                        (row["title"], row["bpm"], row["key_root"], row["key_mode"], row["notes"] or "", row["status"] or "inbox",
-                        row["rating"], row["used_in"]))
+                        row["rating"], row["used_in"], json.dumps(unresolved) if unresolved else None))
     new = cur.lastrowid
     set_tags(conn, new, tag_list)
     _move_parts(conn, gids, new, 0)
@@ -308,6 +321,8 @@ def remove_part(conn, gid, rec_id):
         raise Conflict("a group needs at least two parts to take one out")
     new = _split_out(conn, rec_id, g["status"])
     _renumber(conn, gid)
+    if g["part_count"] == 2:                               # one part left: nothing left to disagree
+        conn.execute("UPDATE idea_groups SET unresolved = NULL WHERE id = ?", (gid,))
     return new
 
 

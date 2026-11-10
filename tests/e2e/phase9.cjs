@@ -130,12 +130,12 @@ async function waitUp(base) {
     assert.ok(over <= 1, "an open form in compact mode widens the page");
     await page.click("#list form.edit button:has-text('Cancel')");
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.click("#tab-inbox"); assert.ok(await page.isHidden("#density"), "the switch is only for the Library");
+    await page.click("#tab-inbox"); assert.ok(await page.isVisible("#density"), "the switch also shows in the Inbox");
     await page.click("#tab-resurface"); assert.ok(await page.isHidden("#density"));
     await page.click("#tab-library");
     await page.click("#dens-cozy");
     assert.ok(!(await page.evaluate(() => document.querySelector("#list").classList.contains("compact"))));
-    console.log("ok  the switch is remembered, shows only in the Library, and an edit form opens inside a compact row");
+    console.log("ok  the switch is remembered, shows in the Inbox and the Library, and an edit form opens inside a compact row");
 
     // ---- Resurface
     await page.click("#tab-resurface");

@@ -106,6 +106,19 @@ async function waitUp() {
     await row.locator(".caret").click();
     assert.strictEqual(await parts.count(), 3);
 
+    // row size is one setting for the Inbox and the Library
+    await page.click("#tab-inbox");
+    assert.ok(await page.isVisible("#dens-compact"), "row size control shows in the Inbox");
+    await page.click("#dens-compact");
+    assert.ok(await page.evaluate(() => document.querySelector("#list").classList.contains("compact")));
+    await page.click("#tab-library");
+    assert.ok(await page.evaluate(() => document.querySelector("#list").classList.contains("compact") && document.querySelector("#dens-compact").getAttribute("aria-pressed") === "true"), "the same size applies in the Library");
+    await page.click("#dens-cozy");
+    await page.click("#tab-inbox");
+    assert.ok(await page.evaluate(() => !document.querySelector("#list").classList.contains("compact")), "and back to Cozy in the Inbox");
+    await page.click("#tab-library");
+    console.log("ok  Cozy / Compact is one setting, shown and applied in both the Inbox and the Library");
+
     // layout: cozy, compact, minimal, phone width, with parts open
     for (const [w, dens, theme] of [[1280, "compact", "standard"], [390, "cozy", "standard"], [390, "compact", "standard"], [1280, "cozy", "minimal"], [390, "compact", "minimal"]]) {
       await page.setViewportSize({ width: w, height: 900 });
