@@ -14,6 +14,11 @@ STATIC = Path(__file__).resolve().parents[2] / "static"
 GZ = {"Accept-Encoding": "gzip, deflate, br"}
 
 
+def settle(client, url=None):
+    """Wait for the server's background work on new uploads (measuring them) to finish, so two reads of a list can be compared."""
+    client.application.extensions["riffbox"].jobs.join()
+
+
 def test_accept_encoding_is_read_carefully():
     ok = webcache.accepts_gzip
     assert ok("gzip") and ok("gzip, deflate, br") and ok("deflate, gzip;q=0.5") and ok("*")
@@ -23,6 +28,7 @@ def test_accept_encoding_is_read_carefully():
 def test_lists_are_compressed_for_browsers_that_accept_gzip_and_identical_after_unpacking(authed):
     for i in range(12):
         upload(authed, make_wav(freq_seed=i), f"m{i}.wav", title=f"A fairly long title for idea number {i}")
+    settle(authed)
     plain = authed.get("/api/groups")
     zipped = authed.get("/api/groups", headers=GZ)
     assert "Content-Encoding" not in plain.headers
@@ -110,6 +116,7 @@ def test_only_plain_files_in_the_static_folder_are_served_and_the_rest_is_refuse
 
 def test_lists_can_be_revalidated_and_come_back_not_modified_until_something_changes(authed):
     upload(authed, make_wav(freq_seed=1), "a.wav", title="First")
+    settle(authed)
     first = authed.get("/api/groups?status=inbox", headers=GZ)
     assert first.status_code == 200 and first.headers["Cache-Control"] == "private, no-cache" and first.headers["ETag"].startswith('W/"')
     again = authed.get("/api/groups?status=inbox", headers={**GZ, "If-None-Match": first.headers["ETag"]})
