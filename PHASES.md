@@ -260,3 +260,15 @@ Firefox draw every row, still much faster than before because of the date-format
 recording really ended. Also found: two browser test scripts (`datapage`, `phase9`) had a name clash introduced earlier that made them fail to start, and the
 pass/fail loop used until then did not notice (it only looked for a "FAIL" line): they now run, and the loop checks exit codes.
 Short manual checks: `docs/CHECKLIST-code-upkeep.md`.
+
+## Restore inside the app (branch `in-app-restore`, independent of the other two)
+The Backup and export page has a **Restoring** section. Upload a backup folder (`db/` + `audio/`), an unzipped export or an export zip to the drop
+folder `/var/riffbox-restore` (`RIFFBOX_RESTORE_DIR`), press the button. It only works while the library is **empty**; it works out of sight first,
+copies audio without overwriting anything, and replaces the live database last, so a failure leaves the library empty and repeatable. Missing or
+damaged audio is listed, not hidden. Code: `app/riffbox/restorer.py` (`inspect_source`, `restore_into_live`, `Runner`), two routes in `__init__.py`.
+- [x] Local gate: 389 server tests (9 new in `test_restore_live.py`: backup layout, export folder, export zip, refuses a non-empty library at both the
+      API and the function, missing and damaged audio reported, nothing usable, failure leaves the library empty and retry works, login and token
+      access); mutation-checked (removing the empty-library rule fails a test); browser test `tests/e2e/restore.cjs`; `datapage.cjs` still passes.
+- [ ] Deploy gate (owner): needs `/var/riffbox-restore` to exist (the `one-file-installer` branch creates it; or `doas install -d -o YOURUSER -m 755
+      /var/riffbox-restore`). Practise on a copy first: upload a backup into it on an EMPTY test library, never on your real library (the button is off
+      when recordings exist). Not verified here: restore time on a multi-GB library, SQLite's online copy into a live WAL database on the real server.

@@ -40,7 +40,7 @@ from flask import (
 from flask.sessions import SecureCookieSessionInterface
 
 from . import backup as backups
-from . import exporter, groups, migrations, webcache
+from . import exporter, groups, migrations, restorer, webcache
 from .health import collect as collect_health
 from .intake import (
     MAX_BULK,
@@ -154,6 +154,8 @@ def create_app(config=None):
         CONVERT_TIMEOUT=900,
         # Where the "Back up now" button writes (and the nightly script, if you use it). Empty = the button is off.
         BACKUP_DIR=os.environ.get("RIFFBOX_BACKUP_DIR", ""),
+        # The drop folder the owner uploads a backup or export into; the Restore section of the Backup and export page reads it.
+        RESTORE_DIR=os.environ.get("RIFFBOX_RESTORE_DIR", "/var/riffbox-restore"),
         STATIC_DIR=os.environ.get("RIFFBOX_STATIC_DIR", str(Path(__file__).resolve().parents[2] / "static")),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
@@ -889,6 +891,27 @@ def create_app(config=None):
             return jsonify(error="backups are not set up on the server (see the page for how)"), 404
         started = backup_runner.start()
         return jsonify(started=started), (202 if started else 409)
+
+    # ---- restoring (only ever into an empty library; see restorer.py) ---------------------------------------------
+    restore_runner = (restorer.Runner(app.config["RESTORE_DIR"], data_dir, connect, lambda c: migrations.run(c), scratch, after=backfill)
+                      if app.config["RESTORE_DIR"] else None)
+
+    @bp.get("/api/restore")
+    @require_auth()
+    def restore_status():
+        if not restore_runner or not Path(app.config["RESTORE_DIR"]).is_dir():
+            return jsonify(available=False, folder=app.config["RESTORE_DIR"])
+        resp = jsonify(available=True, **restore_runner.status())
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
+
+    @bp.post("/api/restore")
+    @require_auth()
+    def restore_now():
+        if not restore_runner:
+            return jsonify(error="restoring is not set up on the server"), 404
+        started, why = restore_runner.start()
+        return (jsonify(started=True), 202) if started else (jsonify(started=False, error=why), 409)
 
     @bp.get("/api/groups/<int:gid>/download")
     @require_auth()

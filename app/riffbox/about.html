@@ -456,5 +456,8 @@ standard for exactly this purpose).</p>
 copy of every original audio file (copied once, never deleted). The <em>Backup and export</em> page shows the last
 backup, whether every audio file is covered, and has a <em>Back up now</em> button; <code>deploy/backup.py</code> does
 the same from the command line or a nightly schedule. Setup, the schedule and the restore drill are in
-<code>deploy/PHASE8.md</code>. There is deliberately no restore button. To rebuild a data folder from an export (zip or folder), run <code>deploy/restore.py</code>:
-it maps each file back by the number in its name, checks every checksum and reports anything missing or damaged.</p>
+<code>deploy/PHASE8.md</code>. The same page has a <em>Restoring</em> section: upload a backup folder, an unzipped export or an export zip to
+<code>/var/riffbox-restore</code> on the server and press <em>Restore from this folder</em>. It only works while the library is
+<strong>empty</strong>, so it can never replace recordings you have, and nothing in the folder is changed. To practise on your own computer, or to
+rebuild a data folder from an export without the app, run <code>deploy/restore.py</code>: it maps each file back by the number in its name,
+checks every checksum and reports anything missing or damaged.</p>
