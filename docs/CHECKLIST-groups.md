@@ -41,7 +41,7 @@ Run on a restored copy of your real data first, then on the live site. Each stag
 - [ ] Resurface: a hearted group shows once with all its parts open; Surprise me plays it from part 1; arrows walk the parts.
 - [ ] Library search for a word that is only in a part's name finds the idea and the row says "Matches part: …".
 - [ ] Export a library with a group: one `[idea N].md` note plus one audio file per part; `index.html` plays every part; a single idea's files are named as before.
-- [ ] `deploy/restore.py` on that export rebuilds the library with the group intact (see `deploy/GROUPS.md`, the rehearsal).
+- [ ] `deploy/restore.py` on that export rebuilds the library with the group intact (see `archive/deploy/GROUPS.md`, the rehearsal).
 
 ## Group download as a zip
 - [ ] The Download button on a grouped idea's row gives a zip of every part (a folder named after the idea, files numbered `01`, `02`, …); the Download on a part's own line still gives that one original; a single idea's Download is unchanged.

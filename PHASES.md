@@ -13,7 +13,7 @@ Do not start a phase until the previous gate is ticked.
       upload 201, re-upload deduped, no token 401, `Range: bytes=0-99` returns 206 with
       correct `Content-Range` and identical bytes (tested with a real AAC `.m4a`).
 - [x] **Phase 2** First deploy. Gates A (runs on loopback), B (public HTTPS), C (50 MB upload) passed on the real server
-      (reported by owner; steps 1-11 of `deploy/PHASE2.md` completed).
+      (reported by owner; steps 1-11 of `archive/deploy/PHASE2.md` completed).
 - [x] **Phase 3** Minimal UI: login, uploader, list, player.
       - [x] Local gate: `pytest` 42 passed; `node tests/e2e/phase3.cjs` (Chromium, served under `/ideas`):
             login, upload + duplicate detection, play/pause, download, logout, login lockout, no unexpected console errors.
@@ -22,7 +22,7 @@ Do not start a phase until the previous gate is ticked.
       - [x] Local gate: `pytest` 56 passed (MP4 parser on synthetic and real files, lossless round trip,
             failure fallback, migration of a pre-3.5 database, backfill after installing ffmpeg later);
             browser test: ALAC upload plays in Chromium via FLAC, Download returns the original bytes.
-      - [x] Deploy gate: ffmpeg installed per `deploy/PHASE3_5.md`; the existing ALAC memo plays in Chrome (reported by owner).
+      - [x] Deploy gate: ffmpeg installed per `archive/deploy/PHASE3_5.md`; the existing ALAC memo plays in Chrome (reported by owner).
 - [x] **Phase 4** Inbox + intake form (deploy gate: owner reports it working well). Follow-up fixes shipped: automatic
       names use local time; player bar spacing; the private "How this works" page (`app/riffbox/about.html`,
       checked by `tests/e2e/howto.cjs` and `app/tests/test_about.py`). Later changes (owner requests, on `phase-6`):
@@ -190,7 +190,7 @@ unchanged (it still saves and moves; a skipped card's typing is kept only until 
 `tests/e2e/inboxedit.cjs`; `phase4.cjs` was updated to click Save and move to Library where it expects a move.
 
 ## Groups, stages 1 to 4 (merged to `main` after a review; not deployed)
-One idea made of several recordings: spec and staged plan in `docs/PLAN-groups.md`, short manual checks per stage in
+One idea made of several recordings: spec and staged plan in `archive/docs/PLAN-groups.md`, short manual checks per stage in
 `docs/CHECKLIST-groups.md`. Built: every recording belongs to an idea (`idea_groups`, `group_tags`, `recordings.group_id` and
 `position`; additive repeatable migration; single ideas are also written to the old columns so rolling back stays lossless
 while no multi-recording group exists); `/api/groups` endpoints with the older recording endpoints kept as aliases; one-click
@@ -217,7 +217,7 @@ one note (`<date> <title> [idea N].md` with the idea's details, its parts and an
 file per part (`<date> <title> - part 2 <label> [recording id].<ext>`); `index.csv` keeps one row per recording and gains
 `idea_id`, `idea_parts`, `part`, `part_title`; `index.html` groups the parts; a single idea exports exactly as before, and a
 database from before groups still exports. The restore tool round-trips an export with groups (`test_export_groups.py`). First
-deploy runbook with the migration rehearsal and rollback drill: `deploy/GROUPS.md`. Tests: `groups5.cjs`, `test_export_groups.py`.
+deploy runbook with the migration rehearsal and rollback drill: `archive/deploy/GROUPS.md`. Tests: `groups5.cjs`, `test_export_groups.py`.
 
 ## Status update (after the groups deploy)
 Groups are deployed and work (a quick check on iPhone Safari and Chrome; the restore of an export was not tried). The Phase 8 deploy
@@ -292,3 +292,8 @@ damaged audio is listed, not hidden. Code: `app/riffbox/restorer.py` (`inspect_s
 - [ ] Deploy gate (owner): needs `/var/riffbox-restore` to exist (the `one-file-installer` branch creates it; or `doas install -d -o YOURUSER -m 755
       /var/riffbox-restore`). Practise on a copy first: upload a backup into it on an EMPTY test library, never on your real library (the button is off
       when recordings exist). Not verified here: restore time on a multi-GB library, SQLite's online copy into a live WAL database on the real server.
+
+## Archive of finished work (branch `archive-old-files`: built on top of the other three, so merge it LAST)
+Five finished-work documents moved (not deleted) into `archive/`, with an index and the reason for each: `archive/README.md`. References updated.
+- [x] Local gate: the three feature branches combined plus this move: 402 server tests, 17 installer checks and the browser restore test pass.
+- [ ] Owner: look at `archive/README.md` and say if anything should come back out.

@@ -19,7 +19,7 @@ certificates, DNS or firewall, because Riffbox never changes them.
 | 7c | Nightly backup job (only if you added it) | root's crontab (`doas crontab -l`, the line that runs `backup.py`) | phase 8 | **Yes** (the crontab may hold other jobs) |
 | 7d | Export folder (only if you ran `export.py` on the server) | `/tmp/riffbox-export` or the folder you named | phase 8 | No |
 | 8 | Python packages (Flask, waitress and their helpers) | `/usr/local` via `pkg_add` | step 2 | Possibly some helpers (see below) |
-| 8b | `ffmpeg` and its libraries (only if you did `deploy/PHASE3_5.md`) | `/usr/local` via `pkg_add` | phase 3.5 | Possibly some libraries (see below) |
+| 8b | `ffmpeg` and its libraries (only if you did `archive/deploy/PHASE3_5.md`) | `/usr/local` via `pkg_add` | phase 3.5 | Possibly some libraries (see below) |
 | 9 | Upload leftovers in your home directory | `~/riffbox-incoming`, `~/install-riffbox.sh`, `~/riffbox.tgz` | step 5 | No |
 
 Later features may add more (a digest e-mail, if built). This file is updated whenever that happens.

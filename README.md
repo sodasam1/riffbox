@@ -9,11 +9,11 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
 | For | Read |
 |---|---|
 | What is built and how far each phase got | `PHASES.md` |
-| The current plan, principles and open items | `docs/PLAN.md` (the original plan is kept in `docs/archive/`) |
+| The current plan, principles and open items | `docs/PLAN.md` (the original plan is kept in `archive/`) |
 | Speed, interface and upkeep work planned for later | `docs/PLAN-performance-ux-sustainability.md` |
-| Putting it on the server, routine deploys, rebuilding | `deploy/INSTALL.md` (one file, `deploy/install.sh`; `PHASE2.md` and `PHASE3_5.md` are history) |
+| Putting it on the server, routine deploys, rebuilding | `deploy/INSTALL.md` (one file, `deploy/install.sh`; the old first-deploy runbooks are in `archive/`) |
 | Backups, the restore drill, exports | `deploy/PHASE8.md` |
-| First deploy of groups (migration rehearsal, rollback) | `deploy/GROUPS.md` |
+| First deploy of groups (migration rehearsal, rollback) | `archive/deploy/GROUPS.md` |
 | Uploading from the iPhone | `deploy/SHORTCUT.md` |
 | Removing everything Riffbox added to the server | `deploy/UNINSTALL.md` |
 | A plain-language tour, inside the app | the **How this works** page (Menu), served only to a logged-in session |
@@ -28,7 +28,7 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
   Select, tick, **Group…** (one click; a tempo or key the parts disagree on is kept and flagged to pick later), or upload
   several files as one idea. The idea shows as one row that opens to its parts; its tags, tempo, key, notes and marks belong to
   the group, and arrow keys, playback, Random, Resurface, search and the export all understand it. Details and quirks: the
-  Quickstart on the **How this works** page; first deploy: `deploy/GROUPS.md`.
+  Quickstart on the **How this works** page; first deploy: `archive/deploy/GROUPS.md`.
 - **Find and listen:** a Library with search, tag, BPM, key and mark filters; a table with click-to-sort headings, Cozy or
   Compact rows, Select mode with bulk actions, **Random**, and **Resurface** (hearted ideas you have not played lately).
   A player with a waveform, scrubbing, speed, A-B loop and Download. Style (standard or minimal) and colours (auto, light or dark) are separate choices in the Menu.
@@ -104,7 +104,8 @@ static/        the page: index.html, style.css, theme.js, and the scripts app.js
 tests/e2e/     browser tests (Playwright; _helpers.cjs is the shared set-up, _browser.cjs picks the engine);
                tests/perf/  measurements
 deploy/        install.sh (the one-file installer), INSTALL.md, config example, backup.py, export.py, and the runbooks above
-docs/          the plan, the later-work plan, and docs/archive/ (the original plan)
+docs/          the plan, the later-work plan, AUTH.md (how login works and scales)
+archive/       finished work kept for reference, not needed on the server (see archive/README.md)
 ```
 
 ## Security notes

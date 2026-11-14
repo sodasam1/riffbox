@@ -1,11 +1,11 @@
 # Riffbox: current plan (updated 10 Nov 2026, groups stages 1 to 5 built)
 
-The original plan is archived, unchanged, at `docs/archive/plan-original-2026-11-08.md` in the repository. This version
+The original plan is archived, unchanged, at `archive/docs/plan-original-2026-11-08.md` in the repository. This version
 reflects what was actually built, the principles that emerged, and what comes next. Day-to-day status lives in
 `PHASES.md`; the owner-facing explanation is the app's private **How this works** page. This file is committed as
 `docs/PLAN.md`. The detailed, measured proposal for speed, interface feel and long-term upkeep (not built yet, to be done
 eventually) is `docs/PLAN-performance-ux-sustainability.md`. The design and staged plan for **groups** (one idea made of several
-recordings; stages 1 to 4 merged to `main`, stage 5 on `groups-stage5`) is `docs/PLAN-groups.md`; its short manual test lists are in
+recordings; stages 1 to 4 merged to `main`, stage 5 on `groups-stage5`) is `archive/docs/PLAN-groups.md`; its short manual test lists are in
 `docs/CHECKLIST-groups.md`.
 
 ## 1. What Riffbox is
@@ -136,7 +136,7 @@ Groups are deployed and working (checked with a quick scroll on an iPhone in Saf
   `RIFFBOX_BACKUP_DIR`, schedule the nightly job (the cron line in `deploy/PHASE8.md` is untried on the real OpenBSD), do the
   practice restore once, and copy an export or the backup folder off the server regularly. The code (`backup.py`, the *Back up now*
   button, the export, `restore.py`) is built and deployed; what is missing is the schedule and the habit.
-  `docs/PLAN-groups.md`).** The owner's model: a group is for recordings that make no sense alone but are one
+  `archive/docs/PLAN-groups.md`).** The owner's model: a group is for recordings that make no sense alone but are one
   idea (keys, drums and vocal memos). For a multi-recording idea the tags, tempo, key, notes and marks belong to the **group**;
   the parts keep their own data as a snapshot "just in case". Every recording belongs to a group internally (singles are groups
   of one and look exactly as today); the table is `idea_groups`. A group shows the earliest recorded and latest upload dates.

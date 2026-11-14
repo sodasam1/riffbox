@@ -10,4 +10,4 @@ Run these after deploying (the routine deploy; no new package, no config change)
 - [ ] **Select mode:** tick rows (shift-click a range), the count is right, Group… and the tag/mark actions still work, Done clears the ticks.
 - [ ] **Lists refresh after a change:** mark a ♥, edit a title, upload a file: the list shows it at once (the lists are re-checked every time).
 - [ ] **Live headers (optional):** `curl.exe -sI` of the page and a fingerprinted file still show gzip and the cache header (see the earlier check).
-- [ ] **Rollback still possible (optional):** on a restored copy, start the previous release on the migrated database; it opens (see `deploy/GROUPS.md`).
+- [ ] **Rollback still possible (optional):** on a restored copy, start the previous release on the migrated database; it opens (see `archive/deploy/GROUPS.md`).

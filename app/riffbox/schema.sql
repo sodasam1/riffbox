@@ -45,7 +45,7 @@ INSERT OR IGNORE INTO tags(name) VALUES
   ('bass'),('drums'),('keys'),('guitar'),('harmony'),
   ('vocal'),('melody'),('rhythmic idea'),('full song');
 
--- Groups (added with the groups feature; see docs/PLAN-groups.md). Every recording belongs to one group; a group of one
+-- Groups (added with the groups feature; see archive/docs/PLAN-groups.md). Every recording belongs to one group; a group of one
 -- recording is an ordinary single idea. The group holds the details of the idea; migrate() adds recordings.group_id and
 -- recordings.position and gives every existing recording a group of its own.
 CREATE TABLE IF NOT EXISTS idea_groups (
