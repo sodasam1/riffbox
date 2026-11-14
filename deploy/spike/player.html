@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Basic-auth iPhone spike</title>
+<style>
+  body { font: 16px/1.4 -apple-system, system-ui, sans-serif; margin: 16px; max-width: 40rem; }
+  button, a.b { font: inherit; padding: 10px 14px; margin: 4px 4px 4px 0; display: inline-block; }
+  pre { background: #eee; padding: 8px; white-space: pre-wrap; word-break: break-word; font-size: 13px; }
+  h2 { margin-top: 1.4em; font-size: 1.1em; }
+  @media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } pre { background: #222; } }
+</style>
+</head>
+<body>
+<h1>Basic-auth iPhone spike</h1>
+<p>Throwaway test page. Delete it, the test file and the httpd block when the tests are done.</p>
+
+<h2>A. Audio element (the way Riffbox plays: preload none, source set on tap)</h2>
+<audio id="player" controls preload="none"></audio>
+<div>
+  <button id="load">Set source and play</button>
+  <button id="seek">Jump to 50%</button>
+</div>
+
+<h2>B. fetch() with a Range header (the way Riffbox's play counter works)</h2>
+<button id="f">fetch test.m4a, Range 0-0</button>
+
+<h2>C. Other paths</h2>
+<a class="b" href="test.m4a">Open test.m4a directly</a>
+<a class="b" href="/spike2/ping.txt">Open /spike2/ping.txt (same realm, other folder)</a>
+
+<h2>Log</h2>
+<pre id="log"></pre>
+
+<script>
+const log = (m) => { const l = document.getElementById("log"); l.textContent += new Date().toLocaleTimeString() + "  " + m + "\n"; };
+const p = document.getElementById("player");
+["loadstart","loadedmetadata","canplay","playing","pause","waiting","stalled","seeking","seeked","ended","error","suspend","abort"]
+  .forEach((ev) => p.addEventListener(ev, () => {
+    let extra = "";
+    if (ev === "error" && p.error) extra = "  code=" + p.error.code + " (4 = source not supported / refused, 2 = network)";
+    if (ev === "loadedmetadata") extra = "  duration=" + p.duration.toFixed(1) + "s";
+    log("audio: " + ev + extra);
+  }));
+document.getElementById("load").onclick = () => { p.src = "test.m4a"; p.play().catch((e) => log("play() rejected: " + e)); };
+document.getElementById("seek").onclick = () => { if (p.duration) p.currentTime = p.duration / 2; else log("no duration yet"); };
+document.getElementById("f").onclick = async () => {
+  try {
+    const r = await fetch("test.m4a", { headers: { Range: "bytes=0-0" }, credentials: "same-origin" });
+    log("fetch: status " + r.status + ", Content-Range " + r.headers.get("Content-Range") + ", Accept-Ranges " + r.headers.get("Accept-Ranges"));
+  } catch (e) { log("fetch failed: " + e); }
+};
+log("page loaded (this itself proves the first sign-in worked)");
+</script>
+</body>
+</html>
