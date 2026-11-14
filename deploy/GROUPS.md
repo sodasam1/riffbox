@@ -36,7 +36,7 @@ only understood by the new version; break it up first). Rehearsed by the project
 step is for your real data.
 
 ## 4. Deploy
-The routine deploy in `PHASE2.md` (download the ZIP, replace the local folder, FreeFileSync, `sh ~/install-riffbox.sh`). No new
+The routine deploy in `PHASE2.md` (download the ZIP, replace the local folder, FreeFileSync, `doas sh ~/riffbox/deploy/install.sh`). No new
 package, no change to `/etc/riffbox.conf`, relayd or the rc.d script. The migration runs when the service starts (a second or
 two for a few thousand recordings).
 

@@ -68,7 +68,7 @@ Do not start a phase until the previous gate is ticked.
             only after a real listen, lengths and the two new sorts, phone layout. Loop, played-marker and
             scrubbing tests were each checked by breaking the code and watching them fail.
       - [ ] Deploy gate: routine deploy (no new package; ffmpeg is already installed and configured). After
-            `sh ~/install-riffbox.sh` the restart measures existing recordings: waveforms should appear within a
+            `doas sh ~/riffbox/deploy/install.sh` the restart measures existing recordings: waveforms should appear within a
             minute. Try the waveform, scrubbing, speed, loop and download on the phone and on the computer.
 - [ ] **Phase 7** Ratings + triage mode (branch `phase-7`; not merged to `main` until the owner asks).
       - Design: three marks (`heart`, `check`, `x`) on `recordings.rating`; `used_in` only exists while the mark is a
@@ -260,3 +260,13 @@ Firefox draw every row, still much faster than before because of the date-format
 recording really ended. Also found: two browser test scripts (`datapage`, `phase9`) had a name clash introduced earlier that made them fail to start, and the
 pass/fail loop used until then did not notice (it only looked for a "FAIL" line): they now run, and the loop checks exit codes.
 Short manual checks: `docs/CHECKLIST-code-upkeep.md`.
+
+## One-file installer (branch `one-file-installer`)
+`deploy/install.sh` replaces the manual runbook steps, `install-riffbox.sh`, `deploy.sh` and `deploy.ps1` (see `deploy/INSTALL.md`, which also
+lists every step by hand). Also: nightly backup scheduled by the installer, `/var/riffbox-restore` drop folder for the planned in-app restore,
+`ffmpeg` installed with the other packages.
+- [x] Local gate: `tests/installer/test-install.sh` (14 checks, against the real Tech Independence `relayd.conf` and the owner's live one; the
+      generated file is identical to the hand-edited live one apart from markers) and the 380 server tests.
+- [ ] Deploy gate (owner): upload `riffbox/`, `doas sh ~/riffbox/deploy/install.sh --check`, read it, then run it. Expected on the current server:
+      relayd rules detected and left alone, `riffbox.conf` kept, new folders and the backup cron line added, service restarted, PASS line.
+      Not verifiable here: `pkg_add`, `useradd`, `rcctl`, `relayd -n`, `crontab`.

@@ -11,7 +11,7 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
 | What is built and how far each phase got | `PHASES.md` |
 | The current plan, principles and open items | `docs/PLAN.md` (the original plan is kept in `docs/archive/`) |
 | Speed, interface and upkeep work planned for later | `docs/PLAN-performance-ux-sustainability.md` |
-| Putting it on the server, routine deploys | `deploy/PHASE2.md` (and `deploy/PHASE3_5.md` for `ffmpeg`) |
+| Putting it on the server, routine deploys, rebuilding | `deploy/INSTALL.md` (one file, `deploy/install.sh`; `PHASE2.md` and `PHASE3_5.md` are history) |
 | Backups, the restore drill, exports | `deploy/PHASE8.md` |
 | First deploy of groups (migration rehearsal, rollback) | `deploy/GROUPS.md` |
 | Uploading from the iPhone | `deploy/SHORTCUT.md` |
@@ -100,7 +100,7 @@ static/        the page: index.html, style.css, theme.js, and the scripts app.js
                triage.js, pages.js (How this works, Backup and export), boot.js (starts the page; loaded last)
 tests/e2e/     browser tests (Playwright; _helpers.cjs is the shared set-up, _browser.cjs picks the engine);
                tests/perf/  measurements
-deploy/        rc.d script, config example, optional deploy.sh / deploy.ps1, backup.py, export.py, and the runbooks above
+deploy/        install.sh (the one-file installer), INSTALL.md, config example, backup.py, export.py, and the runbooks above
 docs/          the plan, the later-work plan, and docs/archive/ (the original plan)
 ```
 
@@ -112,7 +112,7 @@ docs/          the plan, the later-work plan, and docs/archive/ (the original pl
 - The login cookie is signed, HTTP-only, `SameSite=Lax` and scoped to the app's path.
 - The upload token can only add recordings (and check that it works). It cannot list, download, change or export anything.
 - All recordings, exports and the How this works page need a login session; the public page files contain no data and no server details.
-- `.gitattributes` forces LF line endings so Windows checkouts don't break `deploy/rc.d/riffbox`.
+- `.gitattributes` forces LF line endings so Windows checkouts don't break `deploy/install.sh`.
 
 ## Planned features (not built yet)
 

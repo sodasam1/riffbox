@@ -60,7 +60,7 @@ on its own; this line removes the guesswork.)
 On your computer: download the new ZIP, replace your local `riffbox` folder, FreeFileSync
 (**COMPARE**, then **SYNCHRONIZE**), then on the server:
 ```sh
-sh ~/install-riffbox.sh
+doas sh ~/riffbox/deploy/install.sh
 ```
 CHECK: ends with `deployed`. The restart is what makes the server look through your existing
 recordings: it finds the ALAC ones and queues FLAC copies for them. Your existing memo is converted

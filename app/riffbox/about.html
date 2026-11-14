@@ -269,7 +269,7 @@ audio files. Everything else on your domain is still handled by httpd exactly as
 
 <h3>How a new version gets onto the server</h3>
 <p>You download the new code, FreeFileSync copies it to a staging folder in your home directory, and one
-command on the server (<code>sh ~/install-riffbox.sh</code>) copies it into place and restarts the service.
+command on the server (<code>doas sh ~/riffbox/deploy/install.sh</code>) copies it into place and restarts the service.
 That staging step exists because FreeFileSync logs in as you and cannot write to root-owned folders.</p>
 
 <h3>Why it is built this way</h3>

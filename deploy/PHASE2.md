@@ -1,3 +1,6 @@
+> **Superseded.** Installing and updating is now `deploy/INSTALL.md` (one file: `deploy/install.sh`). This runbook is kept as history
+> of how the first deploy was done by hand; `install-riffbox.sh`, `deploy.sh` and `deploy.ps1` no longer exist.
+
 # Phase 2 runbook: first deploy to your OpenBSD server
 
 Target URL: **https://sanjaysubramanian.com/ideas/**. No DNS or certificate changes are needed:
