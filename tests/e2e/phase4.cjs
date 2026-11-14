@@ -1,23 +1,9 @@
 // Phase 4 browser test (inbox + intake form). Run:  RIFFBOX_PY=/path/to/python node tests/e2e/phase4.cjs
 // Self-contained on purpose (like phase3.cjs): starts the app under /ideas and drives Chromium.
-const { chromium } = require("playwright");
-const { spawn } = require("child_process");
-const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
+const { setup } = require("./_helpers.cjs");
 
-const PORT = 8198, BASE = `http://127.0.0.1:${PORT}/ideas/`;
-const PY = process.env.RIFFBOX_PY || "python3";
-const ROOT = path.resolve(__dirname, "..", "..");
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "riffbox-e2e4-"));
+const { PORT, BASE, PY, ROOT, tmp, server, waitUp, wav, launch, assert, fs, os, path } = setup({ port: 8198, name: "4", wavSeconds: 2 });
 
-function wav(freq, seconds = 2, rate = 8000) {
-  const n = seconds * rate, buf = Buffer.alloc(44 + n * 2);
-  buf.write("RIFF", 0); buf.writeUInt32LE(36 + n * 2, 4); buf.write("WAVEfmt ", 8);
-  buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22);
-  buf.writeUInt32LE(rate, 24); buf.writeUInt32LE(rate * 2, 28); buf.writeUInt16LE(2, 32);
-  buf.writeUInt16LE(16, 34); buf.write("data", 36); buf.writeUInt32LE(n * 2, 40);
-  for (let i = 0; i < n; i++) buf.writeInt16LE(Math.round(8000 * Math.sin(2 * Math.PI * freq * i / rate)), 44 + i * 2);
-  return buf;
-}
 const files = [110, 220, 330].map((f, i) => {
   const p = path.join(tmp, `memo-${i}.wav`);
   fs.writeFileSync(p, wav(f));
@@ -34,27 +20,11 @@ const autoTitleAt = (iso) => {                     // what the page should name 
   return `Idea, ${g("month")} ${g("day")} ${g("hour")}:${g("minute")}${g("dayPeriod").toLowerCase()}`;
 };
 
-const server = spawn(PY, ["-m", "waitress", `--listen=127.0.0.1:${PORT}`, "wsgi:app"], {
-  cwd: path.join(ROOT, "app"),
-  env: { ...process.env, RIFFBOX_DATA_DIR: path.join(tmp, "data"), RIFFBOX_SECRET: "e2e", RIFFBOX_UPLOAD_TOKEN: "tok",
-         RIFFBOX_PASSPHRASE: "open sesame", RIFFBOX_INSECURE_COOKIES: "1", RIFFBOX_BASE_PATH: "/ideas",
-         RIFFBOX_STATIC_DIR: path.join(ROOT, "static"), RIFFBOX_FFMPEG: "" },
-  stdio: "inherit",
-});
-
-async function waitUp() {
-  for (let i = 0; i < 50; i++) {
-    try { if ((await fetch(BASE + "health")).ok) return; } catch (e) {}
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  throw new Error("server did not start");
-}
-
 (async () => {
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1,
                                            timezoneId: AKL, locale: "en-US" });
     const page = await ctx.newPage();
@@ -150,7 +120,7 @@ async function waitUp() {
     assert.strictEqual(await rows().count(), 2);
     const funky = page.locator("#list > li", { hasText: "Funky bass riff" });
     const show = async () => {
-      const text = await funky.innerText();
+      const text = await funky.evaluate((e) => e.textContent);      // textContent: a row just drawn may not have been laid out yet (off-screen rows are skipped until needed)
       assert.match(text, /118 BPM · D minor/);
       assert.doesNotMatch(text, /Fast|Slow|Medium/, "no tempo words are shown");
       assert.match(text, /hummed over Dm/);
@@ -247,8 +217,8 @@ async function waitUp() {
     console.log("ok  date recorded: blank = date uploaded; an entered date is stored beside it; clearing restores it");
 
     assert.deepStrictEqual(problems, [], "browser errors: " + problems.join(" | "));
-    assert.strictEqual(n401, 1, "exactly one expected 401 (logged-out session check), got " + n401);
-    assert.strictEqual(n400, 1, "exactly one expected 400 (the rejected BPM), got " + n400);
+    assert.ok(n401 === 1 || (process.env.RIFFBOX_BROWSER === "firefox" && n401 === 0), "exactly one expected 401 (logged-out session check; Firefox does not log it), got " + n401);
+    assert.ok(n400 === 1 || (process.env.RIFFBOX_BROWSER === "firefox" && n400 === 0), "exactly one expected 400 (the rejected BPM; Firefox does not log it), got " + n400);
     console.log("ok  no unexpected console or page errors");
     console.log("screenshot:", path.join(tmp, "form.png"));
   } catch (e) {

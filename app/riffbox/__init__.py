@@ -37,8 +37,10 @@ from flask import (
     session,
 )
 
+from flask.sessions import SecureCookieSessionInterface
+
 from . import backup as backups
-from . import exporter, groups, webcache
+from . import exporter, groups, migrations, webcache
 from .health import collect as collect_health
 from .intake import (
     MAX_BULK,
@@ -70,7 +72,6 @@ ALLOWED_EXT = {
 }
 FALLBACK_MIME = {".m4a": "audio/mp4", ".caf": "audio/x-caf", ".aac": "audio/aac"}
 MP4_EXT = (".m4a", ".mp4")        # containers whose audio codec we can read
-NEW_COLUMNS = ("codec", "play_status", "play_filename", "play_error")
 
 
 def disk_usage(path):
@@ -124,6 +125,19 @@ def default_title(iso):
     return f"Idea, {t.strftime('%b')} {t.day} {hour12}:{t.minute:02d}{ampm}"
 
 
+class QuietSession(SecureCookieSessionInterface):
+    """Flask's cookie session, except that an answer marked `no_cookie_vary` (the revalidated lists) does not say "Vary: Cookie"."""
+
+    def save_session(self, app, session, response):
+        super().save_session(app, session, response)
+        if getattr(response, "no_cookie_vary", False):
+            kept = [v for v in response.vary if v.lower() != "cookie"]
+            if kept:
+                response.headers["Vary"] = ", ".join(kept)
+            else:
+                response.headers.pop("Vary", None)
+
+
 def create_app(config=None):
     app = Flask(__name__, static_folder=None)
     app.config.update(
@@ -172,17 +186,9 @@ def create_app(config=None):
         conn.create_function("ulower", 1, lambda v: v.lower() if isinstance(v, str) else v, deterministic=True)
         return conn
 
-    def migrate(conn):
-        """Databases created before phase 3.5 lack the playback-copy columns: add them in place."""
-        have = {r["name"] for r in conn.execute("PRAGMA table_info(recordings)")}
-        for col in NEW_COLUMNS:
-            if col not in have:
-                conn.execute(f"ALTER TABLE recordings ADD COLUMN {col} TEXT")
-        conn.commit()
-        groups.migrate(conn)           # every recording belongs to a group (see groups.py)
-
     # Werkzeug parks big uploads in a temp file while it parses them. Keep that inside the data directory
     # (the disk with room), not the system /tmp, which may be small.
+    app.session_interface = QuietSession()
     scratch = data_dir / "tmp"
     scratch.mkdir(exist_ok=True)
     tempfile.tempdir = str(scratch)
@@ -197,7 +203,7 @@ def create_app(config=None):
     try:
         boot.execute("PRAGMA journal_mode = WAL")
         boot.executescript(SCHEMA.read_text())
-        migrate(boot)
+        migrations.run(boot, data_dir)
     finally:
         boot.close()
 
@@ -498,6 +504,17 @@ def create_app(config=None):
             conn.rollback()
             raise
 
+    def revalidated(resp):
+        """A list the browser may keep but must check every time: a fingerprint of the answer lets an unchanged list come back as a
+        tiny "not modified" instead of the whole body. (Private: it is behind the login.)"""
+        resp.set_etag(hashlib.sha256(resp.get_data()).hexdigest()[:20], weak=True)
+        resp.headers["Cache-Control"] = "private, no-cache"
+        # The login cookie is renewed on every answer, and Flask then marks the answer "Vary: Cookie", which makes every saved copy
+        # unusable (the cookie never matches the one the copy was stored under). The browser's cache is private to this one login
+        # anyway, so these answers are not marked as varying by cookie (see QuietSession).
+        resp.no_cookie_vary = True
+        return resp.make_conditional(request)
+
     @bp.get("/api/groups")
     @require_auth()      # the upload token is add-only: it must not be able to read the library
     def list_groups():
@@ -520,7 +537,7 @@ def create_app(config=None):
         needs = db().execute("SELECT COUNT(*) FROM idea_groups WHERE deleted_at IS NULL AND unresolved IS NOT NULL"
                              + (" AND status = ?" if filters["status"] else ""), [filters["status"]] if filters["status"] else []).fetchone()[0]
         trashed = db().execute("SELECT COUNT(*) FROM idea_groups WHERE deleted_at IS NOT NULL").fetchone()[0]
-        return jsonify(groups=groups.load(db(), rows), count=len(rows), total=total, ratings=counts, needs=needs, trashed=trashed)
+        return revalidated(jsonify(groups=groups.load(db(), rows), count=len(rows), total=total, ratings=counts, needs=needs, trashed=trashed))
 
     def patch_group(gid, body, part_title_for=None):
         """Validate and apply a change request to a group. `part_title_for` is the recording id a legacy request named: for a
@@ -733,7 +750,7 @@ def create_app(config=None):
     @require_auth()
     def list_trash():
         rows = db().execute("SELECT * FROM idea_groups WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC").fetchall()
-        return jsonify(groups=groups.load(db(), rows))
+        return revalidated(jsonify(groups=groups.load(db(), rows)))
 
     @bp.get("/api/resurface")
     @require_auth()
@@ -759,7 +776,7 @@ def create_app(config=None):
     @bp.get("/api/tags")
     @require_auth()
     def list_tags():
-        return jsonify(tags=[r["name"] for r in db().execute("SELECT name FROM tags ORDER BY rowid")])
+        return revalidated(jsonify(tags=[r["name"] for r in db().execute("SELECT name FROM tags ORDER BY rowid")]))
 
     @bp.post("/api/tags")
     @require_auth()

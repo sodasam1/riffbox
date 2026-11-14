@@ -4,7 +4,8 @@
 // response times and payloads, a throttled page load (4x CPU, about 1.6 Mbps, 150 ms round trip: a mid-range phone)
 // with FCP, LCP, CLS, long tasks and the request list, and interaction times (click to next paint) with 4x CPU.
 // These are LAB numbers: Core Web Vitals proper are field metrics, and a login-protected private app has no field data.
-const { chromium } = require("playwright");
+const { launch, chromiumOnly } = require("../e2e/_browser.cjs");
+chromiumOnly("measure.cjs");
 const { spawn } = require("child_process");
 const fs = require("fs"), os = require("os"), path = require("path"), zlib = require("zlib");
 
@@ -38,7 +39,7 @@ const server = spawn(PY, ["-m", "waitress", `--listen=127.0.0.1:${PORT}`, "--thr
       sizes[f] = { raw: b.length, gzip: zlib.gzipSync(b).length, brotli: zlib.brotliCompressSync(b).length };
     }
     console.log("STATIC FILES (bytes)", JSON.stringify(sizes));
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
     const tags = ["bass", "drums", "keys", "guitar", "harmony", "vocal", "melody", "rhythmic idea", "full song"];
     for (let i = 0; i < N; i++) await ctx.request.post(BASE + "api/upload", { headers: { Authorization: "Bearer tok" },

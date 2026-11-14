@@ -8,3 +8,5 @@ try {
   const c = localStorage.getItem("riffbox.colors");
   if (c === "light" || c === "dark") document.documentElement.dataset.colors = c;
 } catch (e) { /* storage blocked: standard style, device colours */ }
+// Chromium only (it has navigator.userAgentData): the long-list speed-up in style.css (content-visibility) is switched on for it.
+if (navigator.userAgentData) document.documentElement.dataset.cv = "1";

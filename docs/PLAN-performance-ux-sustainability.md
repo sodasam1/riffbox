@@ -162,7 +162,7 @@ tests (15 scripts, each copying its own setup).
 11. **Numbered database migrations** with `PRAGMA user_version`, replacing the ad hoc `ALTER TABLE` in `migrate()`.
 12. **A self-test script** (tests, an export, a restore drill) that cron can run monthly and mail only on failure.
 13. **A "yearly care" checklist** in the README: OS and Python upgrades, restore drill, export check, certificate renewal.
-14. **Pin and vendor Flask and waitress** (pure Python; keep exact copies in the repo and an install-from-that-copy path).
+14. **Pin and vendor Flask and waitress** (pure Python; keep exact copies in the repo and an install-from-that-copy path). **(vendoring dropped; the pins are done)**
     Then reconsider a standard-library-only server (see `docs/PLAN.md`): the hard part is reading file uploads, which Python
     removed from its standard library in 3.13; sending the file as a plain request body would avoid needing it.
 
@@ -174,7 +174,7 @@ tests (15 scripts, each copying its own setup).
 4. Variable-based themes (B2.6), then the `app.js` clean-up (B2.7) once the interaction work has reshaped it.
 5. The test helper and the WebKit/Firefox runs (B2.9, B3.10), the migrations and self-test (B3.11, B3.12), and the
    yearly-care checklist (B3.13).
-6. Vendoring (B3.14) at any point; it is independent of the rest.
+6. ~~Vendoring (B3.14)~~: tried and removed (see section 7). Pinning is done.
 
 Before starting: re-run `tests/perf/measure.cjs` for a fresh baseline, and keep the 308 server tests and 15 browser scripts
 green at every step. Most of these changes touch behaviour the browser tests pin down, so update those tests deliberately,
@@ -190,3 +190,33 @@ Measured with `tests/perf/measure.cjs` (300 recordings, 4x CPU, 1.6 Mbps, 150 ms
 to 55 KB**; the Library list **186 KB to 8.6 KB**; LCP **about 2.8 s (after groups) to about 1.1 s**, FCP about 0.8 s; a repeat visit loads
 the page files from the browser's cache. Server list time about 9 to 12 ms, as before. **Not done:** B1.3 (trim the list payload, ETag on
 the list), the interaction fixes (A1: opening the Library, Select mode and Select all are still 700 to 880 ms), the loading-order changes (A2).
+
+## 7. Progress, branch `speed-and-upkeep` (10 Nov 2026; built, not yet deployed)
+**A1 interactions (done).** Profiling at 4x CPU found that the biggest cost was not the number of elements but formatting dates:
+`toLocaleDateString` and `toLocaleString` were called with options for every date of every row (about 35 percent of the time of drawing the
+Library). Formatters are now made once and each answer remembered. Rows that are off screen are skipped by the browser
+(`content-visibility: auto`). Select mode, Select all and leaving Select mode now change classes and tick marks on the rows already drawn.
+Lab numbers (300 recordings, 4x CPU), before to after: opening the Library about 990 to 160-330 ms; Select mode on about 830 to 70-110 ms; Select
+all about 1,095 to 50 ms; leaving Select mode about 790 to 40-50 ms; Cozy/Compact about 240-400 to 60-130 ms (phone 390 px and desktop 1280 px). Test:
+`tests/e2e/speed.cjs` (the rows are not redrawn). **Not done:** event delegation and cloning rows from a template (not needed now), A2 (load the
+Library list only when its tab opens; the list is 8.6 KB compressed, so the gain is small), optimistic marks (a mark already takes under 30 ms).
+**B1.3 (list payload) partly done.** The lists now carry an ETag and `Cache-Control: private, no-cache`, so an unchanged list comes back as
+"not modified" with no body. This needed one more fix: Flask renews the login cookie on every answer and then adds `Vary: Cookie`, which made
+every saved copy unusable (the cookie never matched the one the copy was stored under); the revalidated lists no longer say it. Trimming unused
+fields from the list was measured as not worth it (the compressed list is 8.6 KB).
+**B3 upkeep (done).** Numbered migrations (`app/riffbox/migrations.py`, `PRAGMA user_version`; existing databases are adopted as version 2, a
+copy is kept in `before-migration/`); all eight dependencies pinned to exact versions in `app/requirements.txt`. **Vendoring (B3.14) was built, then
+removed at the owner's request: it tripled the size of the application for little benefit.** The browser tests can run in
+WebKit and Firefox (`RIFFBOX_BROWSER`, `tests/e2e/_browser.cjs`). **Not verified:** the scripts have **not been run** in WebKit or Firefox, because those
+engines could not be downloaded in the build environment (the network blocks the download host). Run them on a computer with the engines installed.
+**Still planned:** theme variables (B2.6), a smaller `app.js` (B2.7), shared test helpers (B2.9), the monthly self-test (B3.12), the yearly-care checklist (B3.13).
+
+## 8. Progress, branch `code-upkeep` (10 Nov 2026; built, not deployed)
+**B2.6 theme variables (done):** the minimal style is a block of variables plus 22 selectors (was 67 override selectors); 104 screenshots pixel-identical
+before and after. **B2.7 smaller `app.js` (done, as a split):** 2,012 to 1,382 lines in the core; `transport.js`, `triage.js`, `pages.js`, `boot.js`; a shared `ask()` for change
+requests. The files are plain scripts that share names, so there is no module system and no build step; each is cached for a year (fingerprinted). **B2.9 shared test helpers
+(done):** `tests/e2e/_helpers.cjs`. **B3.10 WebKit and Firefox runs (done, with one limit):** see `PHASES.md` (three real fixes found; four Firefox scripts that play sound need
+a machine with a sound device). **Still planned:** A2 (Library list only when its tab opens), the monthly self-test (B3.12), the yearly-care checklist (B3.13).
+Measured after this branch (300 recordings, 4x CPU, 1.6 Mbps): page load LCP about 1.1 s, FCP about 0.9 s; 12 requests (the page, three style/theme files, five scripts, the API
+calls), 59 KB on the wire (the split into five scripts costs about 4 KB and no extra waiting: the requests run in parallel and are cached for a year); Library open 158 ms, Select on 48 ms,
+Select all 38 ms, Cozy/Compact 44-70 ms in Chromium. Safari and Firefox draw every row (no off-screen skipping), about 330-430 ms to open the Library in the same lab.

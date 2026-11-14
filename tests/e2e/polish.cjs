@@ -1,39 +1,9 @@
 // Layout and polish regressions found in the second review (player bar vs long titles, the Library table at
 // 900-1120px, the date field, tap targets, scrolling past the player, text contrast). Run:
 //   RIFFBOX_PY=/path/to/python node tests/e2e/polish.cjs
-const { chromium } = require("playwright");
-const { spawn } = require("child_process");
-const fs = require("fs"), os = require("os"), path = require("path"), assert = require("assert");
+const { setup } = require("./_helpers.cjs");
 
-const PORT = 8201, BASE = `http://127.0.0.1:${PORT}/ideas/`;
-const PY = process.env.RIFFBOX_PY || "python3";
-const ROOT = path.resolve(__dirname, "..", "..");
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "riffbox-e2e-polish-"));
-
-function wav(freq, seconds = 6, rate = 8000) {
-  const n = seconds * rate, buf = Buffer.alloc(44 + n * 2);
-  buf.write("RIFF", 0); buf.writeUInt32LE(36 + n * 2, 4); buf.write("WAVEfmt ", 8);
-  buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22);
-  buf.writeUInt32LE(rate, 24); buf.writeUInt32LE(rate * 2, 28); buf.writeUInt16LE(2, 32);
-  buf.writeUInt16LE(16, 34); buf.write("data", 36); buf.writeUInt32LE(n * 2, 40);
-  for (let i = 0; i < n; i++) buf.writeInt16LE(Math.round(8000 * Math.sin(2 * Math.PI * freq * i / rate)), 44 + i * 2);
-  return buf;
-}
-
-const server = spawn(PY, ["-m", "waitress", `--listen=127.0.0.1:${PORT}`, "wsgi:app"], {
-  cwd: path.join(ROOT, "app"),
-  env: { ...process.env, RIFFBOX_DATA_DIR: path.join(tmp, "data"), RIFFBOX_SECRET: "e2e", RIFFBOX_UPLOAD_TOKEN: "tok",
-         RIFFBOX_PASSPHRASE: "open sesame", RIFFBOX_INSECURE_COOKIES: "1", RIFFBOX_BASE_PATH: "/ideas",
-         RIFFBOX_STATIC_DIR: path.join(ROOT, "static"), RIFFBOX_FFMPEG: "" },
-  stdio: "inherit",
-});
-async function waitUp() {
-  for (let i = 0; i < 50; i++) {
-    try { if ((await fetch(BASE + "health")).ok) return; } catch (e) {}
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  throw new Error("server did not start");
-}
+const { PORT, BASE, PY, ROOT, tmp, server, waitUp, wav, launch, assert, fs, os, path } = setup({ port: 8201, name: "polish", wavSeconds: 6 });
 
 const LONG = "Averyveryveryverylongtitlewithoutanyspacesatalleveryletterrunstogetherandkeepsgoingforaverylongtimeindeed1234567890";
 function lum(hex) { hex = hex.replace("#", ""); if (hex.length === 3) hex = hex.replace(/./g, "$&$&");
@@ -45,7 +15,7 @@ const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
   let browser, failed = false;
   try {
     await waitUp();
-    browser = await chromium.launch();
+    browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 390, height: 800 }, deviceScaleFactor: 1, locale: "en-US" });
     const titles = [LONG, "Second idea", "Third idea", "Fourth idea", "Fifth idea", "Sixth idea", "Seventh idea", "Eighth idea", "Ninth idea", "Tenth idea"];
     for (const [i, title] of titles.entries()) {
@@ -96,7 +66,7 @@ const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
 
     // 3. sizes never split ("94 KB" stays together)
     await page.setViewportSize({ width: 390, height: 800 });
-    assert.ok(/\d KB/.test(await page.locator("#list > li").first().innerText()), "sizes use a non-breaking space");
+    assert.ok(/\d KB/.test(await page.locator("#list > li").first().textContent()), "sizes use a non-breaking space");
 
     // 4. the edit form: date field looks like the others, BPM and Tap tempo share a line
     await page.locator("#list > li button.edit-btn").first().click();

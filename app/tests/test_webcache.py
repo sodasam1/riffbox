@@ -14,6 +14,11 @@ STATIC = Path(__file__).resolve().parents[2] / "static"
 GZ = {"Accept-Encoding": "gzip, deflate, br"}
 
 
+def settle(client, url=None):
+    """Wait for the server's background work on new uploads (measuring them) to finish, so two reads of a list can be compared."""
+    client.application.extensions["riffbox"].jobs.join()
+
+
 def test_accept_encoding_is_read_carefully():
     ok = webcache.accepts_gzip
     assert ok("gzip") and ok("gzip, deflate, br") and ok("deflate, gzip;q=0.5") and ok("*")
@@ -23,6 +28,7 @@ def test_accept_encoding_is_read_carefully():
 def test_lists_are_compressed_for_browsers_that_accept_gzip_and_identical_after_unpacking(authed):
     for i in range(12):
         upload(authed, make_wav(freq_seed=i), f"m{i}.wav", title=f"A fairly long title for idea number {i}")
+    settle(authed)
     plain = authed.get("/api/groups")
     zipped = authed.get("/api/groups", headers=GZ)
     assert "Content-Encoding" not in plain.headers
@@ -54,7 +60,7 @@ def test_errors_and_login_still_work_with_compression(client):
 def test_the_page_names_each_file_by_its_fingerprint(client):
     page = client.get("/").get_data(as_text=True)
     found = dict(re.findall(r'(?:src|href)="static/([\w.]+)\?v=([0-9a-f]{12})"', page))
-    assert set(found) == {"theme.js", "style.css", "app.js"}
+    assert set(found) == {"theme.js", "style.css", "app.js", "transport.js", "triage.js", "pages.js", "boot.js"}
     for name, v in found.items():
         assert v == webcache.PageFiles(STATIC).read(name)[2]
 
@@ -106,3 +112,32 @@ def test_only_plain_files_in_the_static_folder_are_served_and_the_rest_is_refuse
     assert client.get("/static/../riffbox/about.html").status_code == 404
     assert client.get("/static/.hidden.js").status_code == 404
     assert client.get("/static/sub/dir.js").status_code == 404
+
+
+def test_lists_can_be_revalidated_and_come_back_not_modified_until_something_changes(authed):
+    upload(authed, make_wav(freq_seed=1), "a.wav", title="First")
+    settle(authed)
+    first = authed.get("/api/groups?status=inbox", headers=GZ)
+    assert first.status_code == 200 and first.headers["Cache-Control"] == "private, no-cache" and first.headers["ETag"].startswith('W/"')
+    again = authed.get("/api/groups?status=inbox", headers={**GZ, "If-None-Match": first.headers["ETag"]})
+    assert again.status_code == 304 and again.data == b""
+    assert authed.get("/api/groups?status=inbox", headers={"If-None-Match": first.headers["ETag"]}).status_code == 304     # either encoding
+    upload(authed, make_wav(freq_seed=2), "b.wav", title="Second")                                                        # a change: a new answer
+    changed = authed.get("/api/groups?status=inbox", headers={**GZ, "If-None-Match": first.headers["ETag"]})
+    assert changed.status_code == 200 and changed.headers["ETag"] != first.headers["ETag"]
+    assert json.loads(gzip.decompress(changed.data))["count"] == 2
+    other = authed.get("/api/groups?status=tagged", headers={"If-None-Match": first.headers["ETag"]})                     # another list is not "not modified"
+    assert other.status_code == 200
+    for path in ("/api/tags", "/api/trash"):
+        r = authed.get(path)
+        assert r.headers["ETag"] and authed.get(path, headers={"If-None-Match": r.headers["ETag"]}).status_code == 304
+    assert "ETag" not in authed.get("/api/resurface").headers                                                              # that one is never kept
+
+
+def test_revalidated_lists_do_not_vary_by_cookie_but_the_login_still_renews(authed):
+    """The login cookie changes on every answer; a "Vary: Cookie" would make no saved copy ever match again."""
+    for path in ("/api/groups", "/api/tags", "/api/trash"):
+        r = authed.get(path, headers=GZ)
+        assert "Cookie" not in r.headers.get("Vary", "") and "Accept-Encoding" in r.headers.get("Vary", "")
+        assert r.headers.get("Set-Cookie", "").startswith("session=")                    # the sliding 60-day login is unchanged
+    assert "Cookie" in authed.get("/api/session").headers.get("Vary", "")                # everything else behaves as before
