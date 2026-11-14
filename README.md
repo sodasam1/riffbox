@@ -33,7 +33,8 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
   Compact rows, Select mode with bulk actions, **Random**, and **Resurface** (hearted ideas you have not played lately).
   A player with a waveform, scrubbing, speed, A-B loop and Download. Style (standard or minimal) and colours (auto, light or dark) are separate choices in the Menu.
 - **Protect:** a Trash instead of deletion, a backup script and **Back up now** button (a nightly schedule is optional and not set up by default), a **Backup and export** page, and an export to plain files
-  that needs none of this code. Originals are never changed or removed by the app.
+  that needs none of this code. A **Restoring** section on the Backup and export page puts a backup folder, an unzipped export or an export zip
+  back into an *empty* library (never over recordings you have). Originals are never changed or removed by the app.
 - **Apple Lossless (ALAC) memos:** Safari plays them, Chrome, Edge and Firefox do not. With `ffmpeg` installed the server
   also keeps a lossless FLAC play copy (Download still returns the original). `ffmpeg` also measures each recording's
   length and waveform shortly after upload. Without it everything works; there is just no waveform, length or play copy.
@@ -87,6 +88,7 @@ reads at start-up (`RIFFBOX_CONFIG` names another file). Real environment variab
 | `RIFFBOX_STATIC_DIR` | where the page files are |
 | `RIFFBOX_FFMPEG` | path to `ffmpeg`; empty switches it off (found automatically if installed) |
 | `RIFFBOX_BACKUP_DIR` | the folder behind the "Back up now" button; empty switches the button off |
+| `RIFFBOX_RESTORE_DIR` | the drop folder the Restoring section reads (default `/var/riffbox-restore`) |
 | `RIFFBOX_INSECURE_COOKIES=1` | local plain-http testing only |
 
 ## Layout

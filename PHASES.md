@@ -280,3 +280,15 @@ place (login unchanged). `docs/AUTH.md` explains it and the path to a shared log
       hash), run it, log in with your SAME passphrase; log out and in; five wrong attempts get locked out; run `SHORTCUT.md` section 6 (phone
       upload still works, wrong token refused). Run `python3 /usr/local/riffbox/deploy/hash_passphrase.py --method` and tell me what it prints.
       Not verified here: scrypt availability on OpenBSD, hash parameters vs the current OWASP sheet, iPhone behaviour.
+
+## Restore inside the app (branch `in-app-restore`, independent of the other two)
+The Backup and export page has a **Restoring** section. Upload a backup folder (`db/` + `audio/`), an unzipped export or an export zip to the drop
+folder `/var/riffbox-restore` (`RIFFBOX_RESTORE_DIR`), press the button. It only works while the library is **empty**; it works out of sight first,
+copies audio without overwriting anything, and replaces the live database last, so a failure leaves the library empty and repeatable. Missing or
+damaged audio is listed, not hidden. Code: `app/riffbox/restorer.py` (`inspect_source`, `restore_into_live`, `Runner`), two routes in `__init__.py`.
+- [x] Local gate: 389 server tests (9 new in `test_restore_live.py`: backup layout, export folder, export zip, refuses a non-empty library at both the
+      API and the function, missing and damaged audio reported, nothing usable, failure leaves the library empty and retry works, login and token
+      access); mutation-checked (removing the empty-library rule fails a test); browser test `tests/e2e/restore.cjs`; `datapage.cjs` still passes.
+- [ ] Deploy gate (owner): needs `/var/riffbox-restore` to exist (the `one-file-installer` branch creates it; or `doas install -d -o YOURUSER -m 755
+      /var/riffbox-restore`). Practise on a copy first: upload a backup into it on an EMPTY test library, never on your real library (the button is off
+      when recordings exist). Not verified here: restore time on a multi-GB library, SQLite's online copy into a live WAL database on the real server.

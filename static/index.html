@@ -79,10 +79,20 @@
     </div>
 
     <h3>Restoring</h3>
-    <p>There is deliberately no restore button: replacing the live library is the one action that cannot be undone
-      from here. To check that a backup really works, do the practice restore in <code>deploy/PHASE8.md</code>
-      (section 4) on your own computer. If the server is ever lost, the zip above also contains
-      <code>riffbox.db</code> and the audio, which is everything needed.</p>
+    <div id="restore-off" hidden>
+      <p>Restoring is not available: the drop folder <code id="restore-folder-off">/var/riffbox-restore</code> does not exist on the server.</p>
+    </div>
+    <div id="restore-on" hidden>
+      <p id="restore-state"></p>
+      <p><button type="button" id="restore-now" class="primary" disabled>Restore from this folder</button></p>
+      <p id="restore-msg" class="meta" role="status" aria-live="polite"></p>
+      <ul id="restore-report"></ul>
+      <p class="meta">Upload a backup folder (the one that holds <code>db</code> and <code>audio</code>), an unzipped export, or the export
+        zip to <code id="restore-folder">/var/riffbox-restore</code> on the server with your usual sync tool, then come back here.
+        The button only works while the library is <strong>empty</strong>, so it can never replace recordings you have. Nothing in the
+        folder is changed or deleted. Waveforms and Chrome play copies are rebuilt in the background afterwards. To practise on your own
+        computer instead, see <code>deploy/PHASE8.md</code> (section 4).</p>
+    </div>
     <p id="data-err" class="error" role="alert" hidden></p>
   </section>
 

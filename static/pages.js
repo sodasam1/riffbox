@@ -37,6 +37,36 @@ function ago(iso) {
   if (mins < 2880) return Math.round(mins / 60) + " hours ago";
   return Math.round(mins / 1440) + " days ago";
 }
+async function loadRestore() {
+  let r;
+  try { r = await api("restore"); } catch (e) { return; }
+  if (!r.ok) return;
+  const d = await r.json();
+  $("#restore-off").hidden = d.available;
+  $("#restore-on").hidden = !d.available;
+  $("#restore-folder-off").textContent = d.folder;
+  if (!d.available) return;
+  $("#restore-folder").textContent = d.folder;
+  const job = d.job, f = d.found;
+  $("#restore-state").textContent = !f ? "Nothing to restore: no backup or export found in " + d.folder + "."
+    : !d.library_empty ? "Found a " + f.layout + (f.recordings !== null ? " with " + f.recordings + " recordings" : "") + ", but this library already has recordings, so restoring is switched off."
+    : "Found a " + f.layout + (f.recordings !== null ? " with " + f.recordings + " recordings" : "") + " in " + d.folder + ". The library is empty, so you can restore it.";
+  $("#restore-now").disabled = job.running || !f || !d.library_empty;
+  $("#restore-msg").textContent = job.running ? "Restoring… this can take a few minutes for a large library. This page updates when it finishes." : job.message || "";
+  $("#restore-report").replaceChildren(...[].concat(job.missing || [], job.damaged || []).map((t) => el("li", { class: "warn" }, t)));
+  if (job.running) dataTimer = setTimeout(() => { loadRestore(); }, 2000);
+  else if (job.finished_at && job.ok !== null) loadList();
+}
+$("#restore-now").addEventListener("click", async () => {
+  if (!confirm("Restore the library from the folder on the server? This can only run while the library is empty.")) return;
+  $("#restore-now").disabled = true;
+  try {
+    const r = await api("restore", { method: "POST" });
+    if (loggedOut(r)) return;
+    if (!r.ok) { const b = await r.json().catch(() => ({})); $("#restore-msg").textContent = b.error || "Could not start the restore (error " + r.status + ")."; }
+  } catch (e) { $("#restore-msg").textContent = NETWORK_ERROR; }
+  loadRestore();
+});
 async function loadData() {
   clearTimeout(dataTimer);
   const err = $("#data-err");
@@ -47,6 +77,7 @@ async function loadData() {
   if (!r.ok) { err.textContent = "Could not load this page (error " + r.status + ")."; err.hidden = false; return; }
   const d = await r.json();
   if (location.hash !== "#data") return;                 // the user already left
+  loadRestore();
   const st = d.health, box = $("#data-status");
   box.hidden = false;
   box.className = "status-line " + st.level;
