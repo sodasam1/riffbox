@@ -270,3 +270,13 @@ lists every step by hand). Also: nightly backup scheduled by the installer, `/va
 - [ ] Deploy gate (owner): upload `riffbox/`, `doas sh ~/riffbox/deploy/install.sh --check`, read it, then run it. Expected on the current server:
       relayd rules detected and left alone, `riffbox.conf` kept, new folders and the backup cron line added, service restarted, PASS line.
       Not verifiable here: `pkg_add`, `useradd`, `rcctl`, `relayd -n`, `crontab`.
+
+## Hashed login (branch `hashed-login`, stacked on `one-file-installer`: merge that one first)
+All login code moved to `app/riffbox/auth.py`; the passphrase is stored only as a salted hash (`RIFFBOX_PASSPHRASE_HASH`; method scrypt, or PBKDF2
+if the server's Python lacks scrypt). The old plain `RIFFBOX_PASSPHRASE` still works with a log warning, and `deploy/install.sh` converts it in
+place (login unchanged). `docs/AUTH.md` explains it and the path to a shared login or a proxy.
+- [x] Local gate: 393 server tests (13 new in `test_auth_hash.py`; breaking the verifier makes 5 fail), installer tests 17 checks.
+- [ ] Deploy gate (owner): merge, upload, `doas sh ~/riffbox/deploy/install.sh --check` (should say it will replace the plain passphrase with a
+      hash), run it, log in with your SAME passphrase; log out and in; five wrong attempts get locked out; run `SHORTCUT.md` section 6 (phone
+      upload still works, wrong token refused). Run `python3 /usr/local/riffbox/deploy/hash_passphrase.py --method` and tell me what it prints.
+      Not verified here: scrypt availability on OpenBSD, hash parameters vs the current OWASP sheet, iPhone behaviour.

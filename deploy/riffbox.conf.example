@@ -7,7 +7,9 @@ RIFFBOX_STATIC_DIR=/usr/local/riffbox/static
 RIFFBOX_SECRET=CHANGE-ME
 RIFFBOX_UPLOAD_TOKEN=CHANGE-ME
 # What you type to log in to the web UI:
-RIFFBOX_PASSPHRASE=CHANGE-ME
+# A salted hash of the login passphrase, never the passphrase itself. deploy/install.sh writes this for you; by hand:
+#   printf '%s\n' 'your long passphrase' | python3 /usr/local/riffbox/deploy/hash_passphrase.py
+RIFFBOX_PASSPHRASE_HASH=CHANGE-ME
 # Optional (phase 3.5): lets the server make FLAC play copies of Apple Lossless memos.
 # RIFFBOX_FFMPEG=/usr/local/bin/ffmpeg
 # Optional (phase 8): the folder the "Backup and export" page's "Back up now" button writes to.

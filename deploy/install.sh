@@ -47,6 +47,7 @@ if [ -z "$ROOT" ]; then
 fi
 [ -f "$SRC/app/wsgi.py" ] && [ -d "$SRC/static" ] || { say "Run this from the uploaded riffbox folder (app/ and static/ not found next to deploy/)."; exit 1; }
 
+PY="${RIFFBOX_TEST_PYTHON:-$(command -v python3 2>/dev/null || echo /usr/local/bin/python3)}"
 LOGIN_USER="${DOAS_USER:-${SUDO_USER:-}}"
 if [ -z "$LOGIN_USER" ]; then printf 'Your login name on this server: '; read -r LOGIN_USER; fi
 
@@ -106,7 +107,11 @@ fi
 
 # ---- 5. /etc/riffbox.conf (secrets; never overwritten) -------------------------------------------
 step "5. Settings and secrets /etc/riffbox.conf"
-if [ -f "$CONF" ]; then say "   exists: left exactly as it is"
+if [ -f "$CONF" ]; then
+  if grep -q '^RIFFBOX_PASSPHRASE=' "$CONF"; then
+    say "   exists, with the passphrase stored as plain text: will replace that one line with a salted hash (your login stays the same; everything else is kept)"
+    if edit_ok; then "$PY" "$SRC/deploy/hash_passphrase.py" --upgrade-conf "$CONF"; CHANGED=1; fi
+  else say "   exists: left exactly as it is"; fi
 else
   say "   will create it (mode 640, root:_riffbox)"
   if edit_ok; then
@@ -120,7 +125,8 @@ else
       read -r TOK
       [ -n "$TOK" ] || { TOK=$(openssl rand -hex 32); say "   NEW token (put it in your Shortcut and password manager): $TOK"; }
     fi
-    [ -n "$PASS" ] || { say "   An empty passphrase is not allowed."; exit 1; }
+    HASH=$(printf '%s\n' "$PASS" | "$PY" "$SRC/deploy/hash_passphrase.py") || { say "   Could not hash the passphrase (needs at least 12 characters)."; exit 1; }
+    say "   passphrase stored only as a salted hash ($("$PY" "$SRC/deploy/hash_passphrase.py" --method | cut -d: -f1))"
     mkdir -p "$(dirname "$CONF")"
     ( umask 077; cat > "$CONF" <<CONFEOF
 # /etc/riffbox.conf (written by deploy/install.sh). Owner root, group _riffbox, mode 640. Real environment variables win over this file.
@@ -130,7 +136,7 @@ RIFFBOX_STATIC_DIR=/usr/local/riffbox/static
 RIFFBOX_BACKUP_DIR=/var/riffbox-backup
 RIFFBOX_SECRET=$(openssl rand -hex 32)
 RIFFBOX_UPLOAD_TOKEN=$TOK
-RIFFBOX_PASSPHRASE=$PASS
+RIFFBOX_PASSPHRASE_HASH=$HASH
 CONFEOF
     )
     run chown root:_riffbox /etc/riffbox.conf; chmod 640 "$CONF"; CHANGED=1
@@ -172,7 +178,6 @@ fi
 
 # ---- 7. nightly backup ---------------------------------------------------------------------------
 step "7. Nightly backup (03:30) of the database and audio"
-PY=$(command -v python3 2>/dev/null || echo /usr/local/bin/python3)
 JOB="30 3 * * * $PY /usr/local/riffbox/deploy/backup.py /var/riffbox /var/riffbox-backup > /dev/null; chown -R _riffbox:_riffbox /var/riffbox-backup # riffbox-backup"
 if [ -z "$ROOT" ]; then
   crontab -l 2>/dev/null | grep -v '# riffbox-backup' > "$TMP" || true

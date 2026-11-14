@@ -7,7 +7,8 @@ W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 fail=0
 ok()  { echo "PASS: $*"; }
 bad() { echo "FAIL: $*"; fail=1; }
-export DOAS_USER=me RIFFBOX_INSTALL_PASSPHRASE=test-pass RIFFBOX_INSTALL_TOKEN=tok123
+export DOAS_USER=me RIFFBOX_INSTALL_PASSPHRASE='a long test passphrase' RIFFBOX_INSTALL_TOKEN=tok123
+: "${RIFFBOX_TEST_PYTHON:=python3}"; export RIFFBOX_TEST_PYTHON
 
 # --- a fresh Tech Independence server -------------------------------------------------------------
 R="$W/fresh"; mkdir -p "$R/etc"; cp "$FIX/relayd.pristine.conf" "$R/etc/relayd.conf"; cp "$R/etc/relayd.conf" "$R/orig"
@@ -23,13 +24,16 @@ awk '/path "\/ideas\/\*"/{a=NR} /quick header "Host"/&&!h{h=NR} END{exit !(a&&h&
 [ -f "$R/etc/relayd.conf.pre-riffbox" ] && cmp -s "$R/etc/relayd.conf.pre-riffbox" "$R/orig" && ok "fresh: backup equals original" || bad "fresh: backup"
 grep -q '^RIFFBOX_UPLOAD_TOKEN=tok123$' "$R/etc/riffbox.conf" && ok "fresh: existing phone token reused" || bad "fresh: token"
 [ "$(stat -c %a "$R/etc/riffbox.conf")" = 640 ] && ok "fresh: riffbox.conf mode 640" || bad "fresh: conf mode"
+grep -q '^RIFFBOX_PASSPHRASE_HASH=' "$R/etc/riffbox.conf" && ! grep -q 'long test passphrase\|^RIFFBOX_PASSPHRASE=' "$R/etc/riffbox.conf" && ok "fresh: passphrase stored only as a hash" || bad "fresh: hash"
 grep -qE '^RIFFBOX_SECRET=[0-9a-f]{64}$' "$R/etc/riffbox.conf" && ok "fresh: 64-hex session secret generated" || bad "fresh: secret"
 cp "$R/etc/relayd.conf" "$R/a1"; cp "$R/etc/riffbox.conf" "$R/c1"; sh "$SCR" >/dev/null
 cmp -s "$R/a1" "$R/etc/relayd.conf" && cmp -s "$R/c1" "$R/etc/riffbox.conf" && ok "fresh: second run changes nothing (secrets kept)" || bad "fresh: not idempotent"
 
 # --- your live server (Riffbox rules already in relayd.conf, written by hand) -----------------------
 L="$W/live"; mkdir -p "$L/etc"; cp "$FIX/relayd.live.conf" "$L/etc/relayd.conf"; cp "$L/etc/relayd.conf" "$L/orig"
-export RIFFBOX_TEST_ROOT="$L"; printf 'RIFFBOX_SECRET=keep\n' > "$L/etc/riffbox.conf"
+export RIFFBOX_TEST_ROOT="$L"; printf 'RIFFBOX_SECRET=keep\nRIFFBOX_PASSPHRASE=old plain pass\n' > "$L/etc/riffbox.conf"
 sh "$SCR" >/dev/null; cmp -s "$L/orig" "$L/etc/relayd.conf" && ok "live: hand-written relayd rules left untouched" || bad "live: relayd changed"
-grep -q '^RIFFBOX_SECRET=keep$' "$L/etc/riffbox.conf" && [ "$(wc -l < "$L/etc/riffbox.conf")" = 1 ] && ok "live: existing riffbox.conf never overwritten" || bad "live: conf overwritten"
+grep -q '^RIFFBOX_SECRET=keep$' "$L/etc/riffbox.conf" && ok "live: other settings in riffbox.conf kept" || bad "live: conf overwritten"
+grep -q '^RIFFBOX_PASSPHRASE_HASH=' "$L/etc/riffbox.conf" && ! grep -q 'old plain pass' "$L/etc/riffbox.conf" && ok "live: plain-text passphrase upgraded to a hash" || bad "live: not upgraded"
+cp "$L/etc/riffbox.conf" "$L/c1"; sh "$SCR" >/dev/null; cmp -s "$L/c1" "$L/etc/riffbox.conf" && ok "live: second run leaves the upgraded file alone" || bad "live: second run changed conf"
 [ "$fail" = 0 ] && echo "ALL PASSED" || { echo "SOME FAILED"; exit 1; }

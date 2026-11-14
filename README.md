@@ -79,7 +79,8 @@ reads at start-up (`RIFFBOX_CONFIG` names another file). Real environment variab
 | Variable | Meaning |
 |---|---|
 | `RIFFBOX_SECRET` | signs the login cookie; the app will not start without it |
-| `RIFFBOX_PASSPHRASE` | what you type to log in |
+| `RIFFBOX_PASSPHRASE_HASH` | a salted hash of what you type to log in (made by `deploy/install.sh`; see `docs/AUTH.md`) |
+| `RIFFBOX_PASSPHRASE` | older plain-text form of the same; still accepted with a warning, will be removed |
 | `RIFFBOX_UPLOAD_TOKEN` | lets the phone Shortcut add recordings (and nothing else) |
 | `RIFFBOX_DATA_DIR` | database and audio (default `/var/riffbox`) |
 | `RIFFBOX_BASE_PATH` | the URL prefix, e.g. `/ideas` (empty at the root) |
@@ -106,9 +107,11 @@ docs/          the plan, the later-work plan, and docs/archive/ (the original pl
 
 ## Security notes
 
-- Logins are throttled: 5 wrong passphrases per client (30 from anyone) within 15 minutes returns HTTP 429 until the
-  oldest failure ages out. The counters live in memory and reset when the service restarts. The client address comes from
-  relayd's `X-Forwarded-For`, trusted only for loopback peers. Still use a long random passphrase.
+How login works, how to add it to another app and how to scale it: `docs/AUTH.md`. In short:
+- All access control is in `app/riffbox/auth.py`. The passphrase is stored only as a salted hash (scrypt, or PBKDF2 where scrypt is unavailable).
+- Logins are throttled: 5 wrong passphrases per client (30 from anyone) within 15 minutes returns HTTP 429. The counters live in memory and
+  reset when the service restarts. The client address comes from relayd's `X-Forwarded-For`, trusted only for loopback peers.
+  Still use a long random passphrase.
 - The login cookie is signed, HTTP-only, `SameSite=Lax` and scoped to the app's path.
 - The upload token can only add recordings (and check that it works). It cannot list, download, change or export anything.
 - All recordings, exports and the How this works page need a login session; the public page files contain no data and no server details.

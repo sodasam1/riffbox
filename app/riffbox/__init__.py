@@ -5,7 +5,6 @@ passphrase/cookie login, and a bare recordings list.
 """
 import datetime as dt
 import hashlib
-import hmac
 import io
 import json
 import mimetypes
@@ -19,7 +18,6 @@ import threading
 import time
 import urllib.parse
 import uuid
-from functools import wraps
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -34,7 +32,6 @@ from flask import (
     request,
     send_file,
     send_from_directory,
-    session,
 )
 
 from flask.sessions import SecureCookieSessionInterface
@@ -60,6 +57,7 @@ from .media import (
     mp4_audio_codec,
     sniff_audio_ext,
 )
+from .auth import LOOPBACK, Auth  # noqa: F401  (LOOPBACK re-exported)
 from .throttle import (  # noqa: F401  (re-exported for the tests)
     LOGIN_GLOBAL_MAX,
     LOGIN_PER_CLIENT_MAX,
@@ -89,7 +87,6 @@ ABOUT = Path(__file__).with_name("about.html")        # the private "How this wo
 
 # Login throttling: after PER_CLIENT_MAX wrong passphrases from one client (or GLOBAL_MAX from
 # anyone) inside WINDOW seconds, logins get HTTP 429 until the oldest failure ages out.
-LOOPBACK = ("127.0.0.1", "::1")
 
 
 def _now():
@@ -143,7 +140,8 @@ def create_app(config=None):
     app.config.update(
         DATA_DIR=os.environ.get("RIFFBOX_DATA_DIR", "/var/riffbox"),
         UPLOAD_TOKEN=os.environ.get("RIFFBOX_UPLOAD_TOKEN", ""),
-        PASSPHRASE=os.environ.get("RIFFBOX_PASSPHRASE", ""),
+        PASSPHRASE=os.environ.get("RIFFBOX_PASSPHRASE", ""),            # older, plain-text setting
+        PASSPHRASE_HASH=os.environ.get("RIFFBOX_PASSPHRASE_HASH", ""),  # preferred: a salted hash, see passwords.py
         SECRET_KEY=os.environ.get("RIFFBOX_SECRET", ""),
         MAX_CONTENT_LENGTH=300 * 1024 * 1024,
         # URL prefix the app is served under, e.g. "/ideas" ("" at the root, for dev/tests).
@@ -319,69 +317,10 @@ def create_app(config=None):
         stop=lambda: (jobs.put(None), worker_thread.join(timeout=10)),
     )
 
-    # ---- auth ----------------------------------------------------------
-    def token_ok():
-        expected = app.config["UPLOAD_TOKEN"]
-        header = request.headers.get("Authorization", "")
-        if not expected or not header.startswith("Bearer "):
-            return False
-        return hmac.compare_digest(header[7:].encode(), expected.encode())
-
-    def require_auth(allow_token=False):
-        def deco(fn):
-            @wraps(fn)
-            def wrapper(*a, **kw):
-                if session.get("ok") or (allow_token and token_ok()):
-                    return fn(*a, **kw)
-                return jsonify(error="unauthorized", message="Riffbox: not allowed (wrong or missing token, or logged out)."), 401
-            return wrapper
-        return deco
-
-    # ---- login throttling (see throttle.py) ---------------------------------------------------------
-    throttle = LoginThrottle(lambda: _now())        # looked up on each use, so tests can replace _now
-
-    def client_key():
-        """Who is asking. waitress only listens on loopback, so every real connection comes from
-        relayd, which *sets* X-Forwarded-For to the true client address (any client-supplied value
-        is overwritten). Trust that header only for loopback peers."""
-        addr = request.remote_addr or "?"
-        if addr in LOOPBACK:
-            forwarded = request.headers.get("X-Forwarded-For", "")
-            last = forwarded.split(",")[-1].strip()
-            if last:
-                return last
-        return addr
-
-    @bp.post("/api/login")
-    def login():
-        key = client_key()
-        wait = throttle.wait_for(key)
-        if wait:
-            resp = jsonify(error="too many attempts", retry_after=wait)
-            resp.status_code = 429
-            resp.headers["Retry-After"] = str(wait)
-            return resp
-        body = request.get_json(silent=True) or {}
-        supplied = str(body.get("passphrase", ""))
-        expected = app.config["PASSPHRASE"]
-        if expected and hmac.compare_digest(supplied.encode(), expected.encode()):
-            throttle.succeeded(key)
-            session.clear()
-            session.permanent = True
-            session["ok"] = True
-            return jsonify(ok=True)
-        throttle.failed(key)
-        return jsonify(error="bad passphrase"), 401
-
-    @bp.get("/api/session")
-    @require_auth()
-    def session_status():
-        return jsonify(ok=True)
-
-    @bp.post("/api/logout")
-    def logout():
-        session.clear()
-        return jsonify(ok=True)
+    # ---- auth (all of it lives in auth.py) -------------------------------------------------------------
+    auth = Auth(app, lambda: _now())        # the clock is looked up on each use, so tests can replace _now
+    require_auth = auth.require
+    auth.register_routes(bp)
 
     # ---- routes --------------------------------------------------------
     @bp.get("/health")
