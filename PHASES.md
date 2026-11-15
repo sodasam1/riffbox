@@ -363,3 +363,43 @@ checked against a whitelist), no secrets committed, no CRLF, no flag mentioned i
 - [x] Local gate: 412 server tests (3 new; removing the fix makes each fail), installer checks, `restore.cjs` and `datapage.cjs`.
 - [ ] Deploy gate (owner): upload, `doas sh ~/riffbox/deploy/install.sh --app-files-only`; the Backup and export page still loads and shows the Restoring section greyed out. Fix 1 is only
       exercised on a fresh-server install, so it is first proven at the next rebuild.
+
+## Faster start-up and a shorter planned list (branch `faster-startup`)
+Speed items A2.5 and A2.6 of `docs/PLAN-performance-ux-sustainability.md` (details and honest measurements in its section 9): returning visitors start their lists together with the session
+check; the Library's ideas load when its tab opens (counts only at start). Dropped by the owner and removed from the planned lists: serving the page from `htdocs`, a standard-library-only
+server, a record-and-send Shortcut.
+- [x] Local gate: 414 server tests, all 24 browser scripts plus the new `startup.cjs`.
+- [ ] Deploy gate (owner): upload, `doas sh ~/riffbox/deploy/install.sh --app-files-only`; open the site on the phone: the Inbox shows, the Library tab label has its count, tapping Library shows the rows
+      after a very short wait (this is the trade-off: one extra request); log out and in again: the login page shows, then the Inbox.
+
+
+## Delete forever and Empty Trash (branch `empty-trash`, stacked on `faster-startup`)
+Owner request. The Trash gets two permanent actions: **Delete forever** on one idea, and **Empty Trash** for all of them, each behind a confirmation that says what is removed and that a backup
+folder keeps its own copy. This changes a long-standing promise ("originals are never removed by the app"): the README, `docs/PLAN.md` and the *How this works* page now say originals are removed only
+when the owner chooses these two actions. Rules in code: only ideas already in the Trash can be deleted for good (checked by the routes and again by `groups.purge`); emptying everything needs an explicit
+`?confirm=empty-trash`; the database change is all-or-nothing and the audio files (originals and FLAC play copies) are removed only after it commits; a file that cannot be removed is reported
+(`files_failed`) and the rows are gone either way; backups are never touched; the phone's upload token cannot use these routes. `DELETE /api/trash/<id>` and `DELETE /api/trash?confirm=empty-trash`.
+- [x] Local gate: 423 server tests (9 new in `test_purge.py`, the trashed-only rule mutation-checked at both levels), all 26 browser scripts including the new `trash.cjs`.
+- [ ] Deploy gate (owner): upload, `doas sh ~/riffbox/deploy/install.sh --app-files-only`; delete a test recording, open the Trash, press Delete forever (cancel once, then confirm), then check that it is gone;
+      press Empty Trash with one more test recording in it. Do NOT test with recordings you want to keep: there is no undo. Check `ls /var/riffbox/audio` shrinks accordingly.
+
+## Branch `interface-cleanup` (stacked on `empty-trash`)
+- [x] Slim idle player; the accent colour only on the active tab and primary buttons; collapsible filter groups that show what is set (BPM and Key start closed; a group with a filter on opens itself).
+- [x] Minimal is now the default style and sits on the left of the Menu; "Standard" is renamed "Original" (a saved "Original" choice is kept; anything else, including no choice, is Minimal).
+      The Colors row is renamed Theme (Auto / Light / Dark). A new Accent color row has seven swatches (orange, blue, teal, green, purple, pink, black/white); each has a light and a dark value, the
+      choice is remembered per device and applied before first paint, and it works in both styles. Minimal now shows the accent on its active tab underline and primary buttons (it was black).
+- [x] Found while testing the new default: Download links were 29px tall in Minimal (now 30+), and the active tab got wider than the others (bold), shifting the row; fixed by not changing weight.
+      `howto.cjs` and `phase9.cjs` check the Original geometry, so they pin that style; `theme.cjs` covers Minimal.
+- [x] Local gate: 423 server tests, all 26 browser scripts.
+- [ ] Still to do on this branch: one row-actions menu, and the two-step edit form.
+
+### Full codebase inspection (on `interface-cleanup`)
+Tools run: pyflakes, vulture (min confidence 70), bandit, radon (complexity), coverage over the 423 server tests, `node --check` on every script, a scan for JS functions never called and CSS classes never used, and TODO/debug-output search.
+- Fixed: one unused variable (`parts` in `exporter._idea_note_text`).
+- Clean: no dead functions in `static/*.js`, no unused CSS classes, no leftover `console.log`/TODO, every JS file parses. Bandit's 10 "SQL injection" hits (B608) are all f-strings that interpolate only a row of `?` placeholders or a fixed
+  `WHERE` clause; no user text reaches the SQL string. They stay as written (a bandit `# nosec` marker would only hide future real findings).
+- Left as is on purpose: the re-exported names in `__init__.py` (`LOOPBACK`, throttle constants) are used by the tests.
+- Coverage 93% overall. Lowest: `exporter.py` 73% (the multi-part note and zip writer run in a subprocess in the tests, which `coverage` does not follow, so the figure understates it), `restorer.py` 87% (error branches for unreadable files), `backup.py` 88%.
+- Complexity hot spots (radon E/D): `intake.validate_patch` (36), `groups.suggest` (34), `intake.validate_bulk` (24), `groups.update` (21). All are covered by tests; splitting them would be tidier but is a risk for no user-visible gain, so not done.
+- Size: `app.js` is 82 KB (24 KB gzipped) and is the biggest first-load cost. Possible later saving: load the Data/How pages' code and the edit form only when first needed (about 10 KB gzipped). Not done: the measured first-load gain was small last time and it adds a request.
+- Not run here: ShellCheck (not installed in this environment) on `deploy/*.sh`; it was run in earlier sessions.

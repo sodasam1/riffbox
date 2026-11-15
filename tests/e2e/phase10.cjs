@@ -47,7 +47,7 @@ const SEED = [
     assert.ok(await page.isHidden("#menu"), "the menu starts closed");
     await page.click("#menu-btn");
     assert.strictEqual(await page.getAttribute("#menu-btn", "aria-expanded"), "true");
-    assert.deepStrictEqual((await page.locator("#menu > *").allTextContents()).map((s) => s.replace(/\s+/g, "").trim()), ["Backupandexport", "Howthisworks", "StyleStandardMinimal", "ColorsAutoLightDark", "Logout"]);
+    assert.deepStrictEqual((await page.locator("#menu > *").allTextContents()).map((s) => s.replace(/\s+/g, "").trim()), ["Backupandexport", "Howthisworks", "StyleMinimalOriginal", "ThemeAutoLightDark", "Accentcolor", "Logout"]);
     await page.click("header h1");                                              // a click elsewhere closes it
     assert.ok(await page.isHidden("#menu"));
     await page.click("#menu-btn"); await page.keyboard.press("Escape");

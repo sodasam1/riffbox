@@ -117,6 +117,7 @@ const autoTitleAt = (iso) => {                     // what the page should name 
 
     // --- Library shows the details; they survive a reload
     await page.click("#tab-library");
+    await page.waitForFunction(() => document.querySelectorAll("#list > li").length === 2);      // the Library list is fetched when its tab opens
     assert.strictEqual(await rows().count(), 2);
     const funky = page.locator("#list > li", { hasText: "Funky bass riff" });
     const show = async () => {
@@ -130,6 +131,7 @@ const autoTitleAt = (iso) => {                     // what the page should name 
     await page.reload(); await page.waitForSelector("#app:not([hidden])");
     await waitTab("#tab-library", "Library (2)");
     await page.click("#tab-library");
+    await page.waitForFunction(() => document.querySelectorAll("#list > li").length === 2);      // the Library list is fetched when its tab opens
     await show();
     console.log("ok  Library shows tags, BPM, key and notes, and they persist across a reload");
 

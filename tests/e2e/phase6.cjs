@@ -122,6 +122,9 @@ const SHORT = makeAudio("short.wav", ["sine=frequency=330:duration=3"]);
     assert.strictEqual((await playerState()).rate, 2, "the speed carries over to the next recording");
     await page.reload(); await page.waitForSelector("#app:not([hidden])");
     assert.strictEqual(await page.inputValue("#pb-speed"), "2", "speed remembered after a reload");
+    await page.click("#tab-library"); await page.waitForSelector("#list > li");          // (a reload shows the Inbox first)
+    await page.locator("#list > li").first().locator(".play").click();                 // the player is slim until something is loaded
+    await page.waitForFunction(() => !document.querySelector("#player").paused);
     await page.selectOption("#pb-speed", "1");
     console.log("ok  speed 2x keeps pitch, carries to the next recording, and is remembered");
 

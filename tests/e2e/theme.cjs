@@ -36,7 +36,7 @@ const LONG = "Averyveryveryverylongtitlewithoutanyspacesatalleveryletterrunstoge
     await page.waitForSelector("#app:not([hidden])");
     await page.click("#tab-library"); await page.waitForSelector("#list > li");
     await page.locator("#list > li button.play").first().click();                               // something loaded in the player
-    const theme = () => page.evaluate(() => document.documentElement.dataset.theme || "standard");
+    const theme = () => page.evaluate(() => document.documentElement.dataset.theme || "original");
     const look = () => page.evaluate(() => {
       const cs = (s, p) => getComputedStyle(document.querySelector(s))[p], r = document.querySelector("#playerbar").getBoundingClientRect();
       return { tabShadow: cs('#views button[aria-pressed="true"]', "boxShadow"), tabBg: cs('#views button[aria-pressed="true"]', "backgroundColor"),
@@ -44,32 +44,37 @@ const LONG = "Averyveryveryverylongtitlewithoutanyspacesatalleveryletterrunstoge
                accent: getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(), text: getComputedStyle(document.documentElement).getPropertyValue("--text").trim(),
                link: cs("#data-link", "color") }; });
 
-    // ---- standard by default; the switch is in the Menu
-    assert.strictEqual(await theme(), "standard");
-    const std = await look();
-    await page.click("#menu-btn");
-    assert.strictEqual(await page.getAttribute("#theme-standard", "aria-pressed"), "true");
-    await page.click("#theme-minimal");
-    assert.ok(await page.isHidden("#menu"), "choosing it closes the menu");
+    // ---- minimal by default; the switch is in the Menu (Minimal on the left, Original on the right)
     assert.strictEqual(await theme(), "minimal");
-    assert.strictEqual(await page.evaluate(() => localStorage.getItem("riffbox.theme")), "minimal");
     const min = await look();
-    assert.notStrictEqual(min.accent, std.accent, "the ink colour changed");
-    assert.strictEqual(min.accent, min.text, "minimal uses one ink colour");
+    await page.click("#menu-btn");
+    assert.strictEqual(await page.getAttribute("#theme-minimal", "aria-pressed"), "true");
+    assert.strictEqual(await page.$eval("#theme-minimal", (b) => b.nextElementSibling.id), "theme-original", "Minimal is the left slot");
+    assert.strictEqual((await page.textContent("#theme-original")).trim(), "Original");
+    assert.deepStrictEqual(await page.$$eval("#menu .theme-group > .meta", (e) => e.map((x) => x.textContent.trim())), ["Style", "Theme", "Accent color"]);
+    await page.click("#theme-original");
+    assert.ok(await page.isHidden("#menu"), "choosing it closes the menu");
+    assert.strictEqual(await theme(), "original");
+    assert.strictEqual(await page.evaluate(() => localStorage.getItem("riffbox.theme")), "original");
+    const std = await look();
+    assert.strictEqual(min.accent, std.accent, "both styles start with the same accent colour");
     assert.strictEqual(min.chipBorder, "0px"); assert.notStrictEqual(std.chipBorder, "0px");
     assert.strictEqual(min.barRadius, "0px"); assert.notStrictEqual(std.barRadius, "0px");
     assert.ok(min.barLeft === 0 && min.barRight === min.vw && std.barLeft > 0, "the player is docked edge to edge in minimal");
     assert.notStrictEqual(min.tabShadow, "none"); assert.strictEqual(std.tabShadow, "none");
     assert.notStrictEqual(std.tabBg, "rgba(0, 0, 0, 0)"); assert.strictEqual(min.tabBg, "rgba(0, 0, 0, 0)");
-    console.log("ok  the Menu switches to the minimal theme: one ink colour, flat tabs, plain tags, a docked player");
+    console.log("ok  minimal is the default; Original is on the right: flat tabs, plain tags, a docked player versus the original look");
 
     // ---- remembered, and applied before the page is drawn
     await page.goto(BASE, { waitUntil: "domcontentloaded" });
-    assert.strictEqual(await theme(), "minimal", "the saved theme is applied from the <head>, before first paint");
+    assert.strictEqual(await theme(), "original", "the saved theme is applied from the <head>, before first paint");
     await page.waitForSelector("#app:not([hidden])");
     await page.click("#menu-btn");
-    assert.strictEqual(await page.getAttribute("#theme-minimal", "aria-pressed"), "true");
-    await page.keyboard.press("Escape");
+    assert.strictEqual(await page.getAttribute("#theme-original", "aria-pressed"), "true");
+    await page.click("#theme-minimal");
+    assert.strictEqual(await theme(), "minimal");
+    await page.goto(BASE, { waitUntil: "domcontentloaded" });
+    assert.strictEqual(await theme(), "minimal"); await page.waitForSelector("#app:not([hidden])");
     console.log("ok  the choice is remembered, applied before first paint, and the menu says how to switch back");
 
     // ---- layout holds in minimal (cozy, compact, select, edit form, data page), light and dark
@@ -116,13 +121,13 @@ const LONG = "Averyveryveryverylongtitlewithoutanyspacesatalleveryletterrunstoge
 
     // ---- and back
     await page.emulateMedia({ colorScheme: "light" });
-    await page.click("#menu-btn"); await page.click("#theme-standard");
-    assert.strictEqual(await theme(), "standard");
-    assert.strictEqual(await page.evaluate(() => localStorage.getItem("riffbox.theme")), "standard");
+    await page.click("#menu-btn"); await page.click("#theme-original");
+    assert.strictEqual(await theme(), "original");
+    assert.strictEqual(await page.evaluate(() => localStorage.getItem("riffbox.theme")), "original");
     const back = await look();
     assert.deepStrictEqual({ ...back, vw: 0 }, { ...std, vw: 0 }, "switching back restores the standard look exactly");
     await page.goto(BASE, { waitUntil: "domcontentloaded" });
-    assert.strictEqual(await theme(), "standard", "and it stays standard after a reload");
+    assert.strictEqual(await theme(), "original", "and it stays original after a reload");
     console.log("ok  switching back restores the standard look exactly, and that is remembered too");
 
     // ---- colours are a separate choice from the style
@@ -136,7 +141,7 @@ const LONG = "Averyveryveryverylongtitlewithoutanyspacesatalleveryletterrunstoge
     assert.strictEqual(await page.getAttribute("#colors-auto", "aria-pressed"), "true");
     await page.click("#colors-dark");
     await page.click("#tab-library"); await page.waitForSelector("#list > li .chip.tag");
-    assert.strictEqual(await colors(), "dark"); assert.strictEqual(await theme(), "standard", "colours do not change the style");
+    assert.strictEqual(await colors(), "dark"); assert.strictEqual(await theme(), "original", "colours do not change the style");
     assert.strictEqual(await page.evaluate(() => localStorage.getItem("riffbox.colors")), "dark");
     let d = await paint();
     assert.strictEqual(d.bg, "rgb(21, 21, 23)", "dark colours even though the device is set to light");
@@ -156,7 +161,7 @@ const LONG = "Averyveryveryverylongtitlewithoutanyspacesatalleveryletterrunstoge
     await page.emulateMedia({ colorScheme: "dark" });
     await page.click("#menu-btn"); await page.click("#colors-light");
     d = await paint(); assert.strictEqual(d.bg, "rgb(255, 255, 255)"); assert.strictEqual(d.chip, "0px");
-    await page.click("#menu-btn"); await page.click("#theme-standard");
+    await page.click("#menu-btn"); await page.click("#theme-original");
     d = await paint(); assert.strictEqual(d.bg, "rgb(255, 255, 255)"); assert.notStrictEqual(d.chip, "0px");
     // auto follows the device again
     await page.click("#menu-btn"); await page.click("#colors-auto");
@@ -176,8 +181,31 @@ const LONG = "Averyveryveryverylongtitlewithoutanyspacesatalleveryletterrunstoge
     await page.waitForSelector("#app:not([hidden])");
     await page.click("#menu-btn");
     assert.strictEqual(await page.getAttribute("#colors-dark", "aria-pressed"), "true"); assert.strictEqual(await page.getAttribute("#theme-minimal", "aria-pressed"), "true");
-    await page.click("#theme-standard"); await page.click("#menu-btn"); await page.click("#colors-auto");
-    console.log("ok  Style (standard, minimal) and Colors (auto, light, dark) are separate choices that combine, are remembered, and keep contrast at 4.5:1");
+    await page.click("#theme-original"); await page.click("#menu-btn"); await page.click("#colors-auto");
+    console.log("ok  Style (minimal, original) and Theme (auto, light, dark) are separate choices that combine, are remembered, and keep contrast at 4.5:1");
+
+    // ---- accent colour: swatches in the Menu, applied to primary buttons and the active tab, remembered, right in light and dark
+    await page.click("#menu-btn");
+    assert.strictEqual(await page.getAttribute('#accent-row [data-a="orange"]', "aria-pressed"), "true", "orange is the default accent");
+    const acc = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim());
+    await page.emulateMedia({ colorScheme: "light" });
+    await page.click('#accent-row [data-a="blue"]');
+    assert.strictEqual(await acc(), "#1d5fd1"); assert.strictEqual(await page.evaluate(() => localStorage.getItem("riffbox.accent")), "blue");
+    for (const style of ["minimal", "original"]) {
+      await page.click("#menu-btn"); await page.click("#theme-" + style);
+      assert.strictEqual(await page.evaluate(() => document.documentElement.dataset.accent), "blue");
+      assert.strictEqual(await page.$eval("#views button[aria-pressed=true]", (b) => getComputedStyle(b).backgroundColor), style === "minimal" ? "rgba(0, 0, 0, 0)" : "rgb(29, 95, 209)");
+    }
+    await page.click("#menu-btn"); await page.click("#colors-dark");
+    assert.strictEqual(await acc(), "#6ea8ff", "dark uses the lighter variant of the same accent");
+    const sw = await page.evaluate(() => getComputedStyle(document.querySelector('#accent-row [data-a="blue"]')).backgroundColor);
+    assert.strictEqual(sw, "rgb(110, 168, 255)", "the swatch shows the dark variant in dark colours");
+    await page.goto(BASE, { waitUntil: "domcontentloaded" });
+    assert.strictEqual(await acc(), "#6ea8ff", "the accent is applied from the <head> after a reload");
+    await page.waitForSelector("#app:not([hidden])");
+    await page.click("#menu-btn"); await page.click("#colors-auto"); await page.click("#menu-btn"); await page.click('#accent-row [data-a="orange"]');
+    assert.strictEqual(await page.evaluate(() => localStorage.getItem("riffbox.accent")), "orange");
+    console.log("ok  Accent colour swatches change the accent in both styles, light and dark, and are remembered");
 
     assert.deepStrictEqual(problems, [], "browser errors: " + problems.join(" | "));
     console.log("ok  no unexpected console or page errors");

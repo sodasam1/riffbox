@@ -40,15 +40,21 @@ async function ask(path, method, body, failed) {
 
 // ---- login ---------------------------------------------------------------
 function show(view) {
+  stored.set("in", view === "app" ? "1" : "0");              // a hint only (see boot): the server decides who is logged in
   $("#login").hidden = view !== "login";
   $("#app").hidden = view !== "app";
   $("#playerbar").hidden = view !== "app";
 }
 
 async function boot() {
+  // Someone who was logged in last time almost certainly still is, so the lists are asked for at the same moment as the session check
+  // instead of after it (one round trip less). If the login has ended, the lists answer 401 and the login page shows, as before.
+  // A visitor who was not logged in gets the plain sequence, so a fresh visit shows no failed requests.
+  const early = stored.get("in") === "1" ? fetchLists() : null;
+  if (early) early.catch(() => { /* reported by loadList below */ });
   let ok = false;
   try { ok = (await api("session")).ok; } catch (e) { /* offline: fall through to login */ }
-  if (ok) { show("app"); route(); await loadList(); } else { show("login"); $("#pass").focus(); }
+  if (ok) { show("app"); route(); await loadList(early); } else { show("login"); $("#pass").focus(); }
 }
 
 // ---- list + playback -------------------------------------------------------
@@ -283,8 +289,17 @@ function setView(next) {
   openEditId = null;
   notify("");
   render();
-  if (next === "trash" || next === "resurface") loadList();      // these lists are only fetched while open
+  if (next === "trash" || next === "resurface" || (next === "library" && !libReady)) loadList();      // these lists are only fetched while open
 }
+$("#trash-empty").addEventListener("click", async () => {
+  const bytes = trashRecs.reduce((sum, r) => sum + (r.size || 0), 0);
+  if (!confirm("Delete everything in the Trash forever?\n\n" + trashRecs.length + (trashRecs.length === 1 ? " idea" : " ideas") + " (" + fmtSize(bytes) +
+               " of audio) will be removed from the server. This cannot be undone. A backup folder keeps its own copy until you delete that too.")) return;
+  $("#trash-empty").disabled = true;
+  if (!(await ask("trash?confirm=empty-trash", "DELETE", undefined, "empty the Trash"))) { $("#trash-empty").disabled = false; return; }
+  await loadList();
+  notify("The Trash is empty.");
+});
 $("#tab-inbox").addEventListener("click", () => setView("inbox"));
 $("#tab-library").addEventListener("click", () => setView("library"));
 $("#tab-resurface").addEventListener("click", () => setView("resurface"));
@@ -332,6 +347,8 @@ function render() {
   $("#side-inbox").hidden = view !== "inbox";                       // the left column: one panel per tab
   $("#side-resurface").hidden = view !== "resurface";
   $("#side-trash").hidden = view !== "trash";
+  $("#trash-empty").disabled = !trashRecs.length;
+  $("#trash-empty").textContent = trashRecs.length ? "Empty Trash (" + trashRecs.length + ")" : "Empty Trash";
   if (view === "resurface") {
     $("#resurface-days").value = String(resurfaceDays);
     $("#resurface-text").textContent = !resurfaceHearts ? "Heart (♥) some ideas in the Library and they will come back here."
@@ -346,7 +363,8 @@ function render() {
   const empty = $("#empty");
   empty.hidden = shown.length > 0;
   if (!shown.length) {
-    empty.textContent = (inboxRecs.length + libTotal) === 0 ? "Nothing yet. Upload a voice memo above."
+    empty.textContent = inLibrary && !libReady ? "Loading your Library…"
+      : (inboxRecs.length + libTotal) === 0 ? "Nothing yet. Upload a voice memo above."
       : view === "trash" ? "The Trash is empty."
       : view === "resurface" ? (resurfaceHearts ? "Every hearted idea has been played recently. Pick a shorter time, or press Surprise me for any ♥." : "No hearted ideas yet.")
       : !inLibrary ? "Nothing waiting to be tagged. Switch to Library to browse what you've saved."
@@ -526,6 +544,14 @@ function buildTrashRow(rec) {
     await loadList();
     notify("Restored to the " + (rec.status === "inbox" ? "Inbox" : "Library") + ".");
   });
+  const purge = el("button", { class: "link danger purge-btn", type: "button" }, "Delete forever");
+  purge.addEventListener("click", async () => {
+    if (!confirm("Delete “" + rec.title + "” forever?\n\nIts audio is removed from the server and this cannot be undone. A backup folder keeps its own copy until you delete that too.")) return;
+    purge.disabled = true;
+    if (!(await ask("trash/" + rec.gid, "DELETE", undefined, "delete it"))) { purge.disabled = false; return; }
+    await loadList();
+    notify("Deleted forever.");
+  });
   const meta = el("div", { class: "meta when" }, "Deleted " + fmtDay(rec.deleted_at) + " · " + fmtSize(rec.size) +
     (rec.parts.length > 1 ? " · " + rec.parts.length + " parts" : ""));
   const info = el("div", { class: "info" }, el("div", { class: "title" }, rec.title), meta);
@@ -534,7 +560,7 @@ function buildTrashRow(rec) {
     for (const t of rec.tags) tags.append(el("span", { class: "chip tag" }, t));
     info.append(tags);
   }
-  return el("li", { "data-id": String(rec.id), "data-title": rec.title }, el("span"), info, el("div", { class: "side" }, restore));
+  return el("li", { "data-id": String(rec.id), "data-title": rec.title }, el("span"), info, el("div", { class: "side" }, restore, purge));
 }
 
 function field(labelText, control, id) {
@@ -799,15 +825,27 @@ function asRec(g) {
 }
 const asRecs = (body) => body.groups.map(asRec);
 
-async function loadList() {
+let libReady = false;          // true once libRecs holds the Library list for the current filters (it is only fetched while its tab is open)
+
+// The requests one refresh needs. The Library's ideas are fetched only while its tab is showing; otherwise just its counts
+// (limit=0: the tab label and the Show filter need them), which is a few hundred bytes instead of the whole list.
+function fetchLists() {
+  return Promise.all([
+    api("groups?status=inbox&sort=recorded&order=desc"),
+    api(view === "library" ? "groups?" + libraryQuery() : "groups?status=tagged&limit=0"),
+    api("tags"),
+    view === "trash" ? api("trash") : Promise.resolve(null),
+    view === "resurface" ? api("resurface?days=" + resurfaceDays) : Promise.resolve(null)]);
+}
+
+// `early`: the answers to a fetchLists() that boot() started before the session check had finished.
+async function loadList(early) {
   clearTimeout(pollTimer);
   const seq = ++loadSeq;
+  const wantsLibrary = view === "library";
   let inbox, lib, tags, trash, forgotten;
   try {
-    [inbox, lib, tags, trash, forgotten] = await Promise.all([
-      api("groups?status=inbox&sort=recorded&order=desc"), api("groups?" + libraryQuery()), api("tags"),
-      view === "trash" ? api("trash") : Promise.resolve(null),
-      view === "resurface" ? api("resurface?days=" + resurfaceDays) : Promise.resolve(null)]);
+    [inbox, lib, tags, trash, forgotten] = await (early || fetchLists());
   } catch (e) {
     if (seq === loadSeq) { notify(NETWORK_ERROR); schedulePoll(); }
     return;
@@ -817,7 +855,8 @@ async function loadList() {
   const [inboxBody, libBody] = await Promise.all([inbox.json(), lib.json()]);
   if (seq !== loadSeq) return;                // a newer load is already on its way; this answer is stale
   inboxRecs = asRecs(inboxBody);
-  libRecs = asRecs(libBody);
+  if (wantsLibrary) { libRecs = asRecs(libBody); libReady = true; }
+  else libReady = false;                       // libRecs (if any) is kept so a recording that is playing can still be found, but it may be out of date
   libTotal = libBody.total;
   libNeeds = libBody.needs || 0;
   libRatings = libBody.ratings;
@@ -881,6 +920,14 @@ function updateFilterUI() {
   const n = [filters.unresolved, filters.q.trim(), filters.tags.length, bpmActive(), filters.key_root, filters.key_mode,
              filters.rating !== "all"].filter(Boolean).length;
   syncBpmUI();
+  const group = (id, on, label) => {                 // summary shows what is set; a group with a filter on is never hidden
+    $("#c-" + id).textContent = on ? "· " + label : "";
+    if (on) $("#g-" + id).open = true;
+  };
+  group("show", filters.rating !== "all", "1 set");
+  group("tags", filters.tags.length, filters.tags.length + " selected");
+  group("bpm", bpmActive(), $("#f-bpm-readout").textContent.trim());
+  group("key", filters.key_root || filters.key_mode, [filters.key_root, filters.key_mode].filter(Boolean).join(" "));
   const counts = { all: libTotal - libRatings.x, heart: libRatings.heart, check: libRatings.check, x: libRatings.x, none: libRatings.none };
   for (const r of document.querySelectorAll('input[name="f-show"]')) {
     r.checked = r.value === filters.rating;
@@ -890,7 +937,7 @@ function updateFilterUI() {
   $("#filters-toggle").textContent = n ? "Filters (" + n + " active)" : "Filters";
   const hiddenX = filters.rating === "all" ? libRatings.x : 0;     // ✗ ones that "All" leaves out
   const otherFilters = Boolean(filters.unresolved || filters.q.trim() || filters.tags.length || bpmActive() || filters.key_root || filters.key_mode);
-  $("#f-count").textContent = libTotal === 0 ? ""
+  $("#f-count").textContent = libTotal === 0 || !libReady ? ""
     : otherFilters || filters.rating !== "all" ? libRecs.length + " of " + libTotal + " recordings"
     : libRecs.length + (libRecs.length === 1 ? " recording" : " recordings") + (hiddenX ? " (" + hiddenX + " marked ✗ hidden)" : "");
 }
@@ -1169,12 +1216,13 @@ $("#random").addEventListener("click", () => {
   notify("Playing “" + rec.title + "”" + (view === "library" && filtersActive() ? " (picked from the filtered list)." : "."));
 });
 
-// ---- Themes: "standard" or "minimal" (static/theme.js applies the saved one before the first paint) ----------------
-// Two separate choices: the style ("standard" or "minimal": the shapes and amount of decoration) and the colours ("auto" follows
-// the device, or "light" / "dark" always). More styles and colour sets can be added next to these.
-const STYLES = ["standard", "minimal"], COLORS = ["auto", "light", "dark"];
+// ---- Themes: "minimal" (default) or "original" (static/theme.js applies the saved one before the first paint) ----------
+// Three separate choices: the style ("minimal" or "original": the shapes and amount of decoration), the theme ("auto" follows
+// the device, or "light" / "dark" always) and the accent colour. More styles and colour sets can be added next to these.
+const STYLES = ["minimal", "original"], COLORS = ["auto", "light", "dark"];
+const ACCENTS = [...document.querySelectorAll("#accent-row button")].map((b) => b.dataset.a);
 function applyTheme(name) {
-  if (name === "minimal") document.documentElement.dataset.theme = "minimal"; else { delete document.documentElement.dataset.theme; name = "standard"; }
+  if (name === "original") { delete document.documentElement.dataset.theme; } else { document.documentElement.dataset.theme = "minimal"; name = "minimal"; }
   stored.set("theme", name);
   for (const t of STYLES) $("#theme-" + t).setAttribute("aria-pressed", String(t === name));
   colorCache = null;                                                     // the waveform picks its colours up from the theme
@@ -1189,7 +1237,17 @@ function applyColors(name) {
 }
 for (const t of STYLES) $("#theme-" + t).addEventListener("click", () => applyTheme(t));
 for (const c of COLORS) $("#colors-" + c).addEventListener("click", () => applyColors(c));
-for (const t of STYLES) $("#theme-" + t).setAttribute("aria-pressed", String((document.documentElement.dataset.theme || "standard") === t));
+for (const t of STYLES) $("#theme-" + t).setAttribute("aria-pressed", String((document.documentElement.dataset.theme || "original") === t));
+function applyAccent(name) {
+  if (!ACCENTS.includes(name)) name = "orange";
+  document.documentElement.dataset.accent = name;
+  stored.set("accent", name);
+  for (const b of $("#accent-row").children) b.setAttribute("aria-pressed", String(b.dataset.a === name));
+  colorCache = null;
+  drawWave();
+}
+for (const b of $("#accent-row").children) b.addEventListener("click", () => applyAccent(b.dataset.a));
+for (const b of $("#accent-row").children) b.setAttribute("aria-pressed", String(b.dataset.a === (document.documentElement.dataset.accent || "orange")));
 for (const c of COLORS) $("#colors-" + c).setAttribute("aria-pressed", String((document.documentElement.dataset.colors || "auto") === c));
 
 // ---- The header menu ---------------------------------------------------------------------------------------

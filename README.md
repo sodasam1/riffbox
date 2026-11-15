@@ -34,7 +34,7 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
   A player with a waveform, scrubbing, speed, A-B loop and Download. Style (standard or minimal) and colours (auto, light or dark) are separate choices in the Menu.
 - **Protect:** a Trash instead of deletion, a backup script and **Back up now** button (a nightly schedule is optional and not set up by default), a **Backup and export** page, and an export to plain files
   that needs none of this code. A **Restoring** section on the Backup and export page puts a backup folder, an unzipped export or an export zip
-  back into an *empty* library (never over recordings you have). Originals are never changed or removed by the app.
+  back into an *empty* library (never over recordings you have). Originals are never changed by the app, and removed only when you choose Delete forever or Empty Trash in the Trash (backups keep their own copy).
 - **Apple Lossless (ALAC) memos:** Safari plays them, Chrome, Edge and Firefox do not. With `ffmpeg` installed the server
   also keeps a lossless FLAC play copy (Download still returns the original). `ffmpeg` also measures each recording's
   length and waveform shortly after upload. Without it everything works; there is just no waveform, length or play copy.
@@ -136,21 +136,9 @@ How login works, how to add it to another app and how to scale it: `docs/AUTH.md
   form, orange only for primary actions.
 - **Candidate features:** an off-server copy reminder and a Verify-library button; timestamped markers on the waveform; the memo's creation date passed from the Shortcut as the date recorded; a
   home-screen icon.
-- **Record-and-send Shortcut** (Action Button / Back Tap / Lock Screen) that records and uploads directly, skipping the
-  Voice Memos app. If Shortcut uploads ever misbehave: a base64 upload variant, a Record button in the page, or email-in.
 - **Weekly email digest** of a few forgotten hearted ideas, through the server's existing `smtpd` and smtp2go relay.
 - **Waveform thumbnails** in the list.
-- **A standard-library-only server** (no Flask or waitress): the hard part is reading file uploads (Python removed `cgi` in
-  3.13); sending the file as a plain request body would avoid needing it. The test suite is the specification.
-- **Serve the page from `htdocs` instead of the app (the owner's preferred direction).** Today the Python app serves
-  `static/` along with the API and relayd sends everything under `/ideas` to the app. The plan lets httpd serve the page like
-  the rest of the site:
-  - put the page files in `/var/www/htdocs/ideas/` (uploaded with FreeFileSync) and keep the URL
-    `https://sanjaysubramanian.com/ideas/`;
-  - narrow the relayd rule from `path "/ideas/*"` to `path "/ideas/api/*"` so only the API goes to the app (the page uses
-    relative URLs, so it needs no change);
-  - trade-offs accepted: two upload destinations; the page and the API can get out of step if only one is uploaded, so every
-    deploy must do both; the page files would no longer be removed by the Riffbox-only uninstall (`deploy/UNINSTALL.md`
-    would gain a step to delete `htdocs/ideas`);
-  - do it as its own phase, with a deploy gate that checks the page loads from httpd and that the old and new routes don't
-    both answer.
+
+*Decided against (owner, 15 Nov 2026), so not planned: serving the page from `htdocs` instead of the app; a standard-library-only server (Flask and waitress stay,
+because uploads and audio `Range` streaming would otherwise need hand-written replacements of stable code); a record-and-send Shortcut (the current Voice Memos
+to Share to Shortcut workflow stays).*

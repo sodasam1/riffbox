@@ -75,7 +75,7 @@ const { PORT, BASE, PY, ROOT, tmp, server, waitUp, wav, launch, assert, fs, os, 
     await page.waitForFunction(() => document.querySelector("#empty") && !document.querySelector("#empty").hidden);
     assert.match(await page.textContent("#notice"), /Restored to the Library/);
     await page.click("#tab-library");
-    await page.waitForSelector("#list > li");
+    await row("Doomed").waitFor();                                                     // the Library list arrives after the tab opens
     assert.ok(await row("Doomed").count());
     const back = (await (await ctx.request.get(BASE + "api/groups?status=tagged")).json()).groups.find((r) => r.title === "Doomed");
     assert.deepStrictEqual([back.tags, back.notes], [["bass"], "keep my notes"]);

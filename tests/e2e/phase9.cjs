@@ -13,6 +13,7 @@ const server2 = startServer({ port: PORT2, data: path.join(tmp, "data2") });   /
     await waitUp(BASE); await waitUp(BASE2);
     browser = await launchBrowser();
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1, locale: "en-US" });
+    await ctx.addInitScript(() => { try { localStorage.setItem("riffbox.theme", "original"); } catch (e) {} });   // this script checks the original look
     const TITLES = ["Never played", "Played 100 days ago", "Played 200 days ago", "Played yesterday", "Check idea", "X idea",
                     "Plain idea", "Another plain", "Long title " + "word ".repeat(20), "Tenth"];
     const RATE = ["heart", "heart", "heart", "heart", "check", "x", null, null, null, null];

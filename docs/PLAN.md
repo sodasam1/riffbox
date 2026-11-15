@@ -15,8 +15,8 @@ to an Inbox triage pass, and retrieval works like a DAW sample browser. Reposito
 has everything; `phase-6`, `phase-7`, `phase-8` are kept as requested).
 
 ## 2. Principles (the rules every decision has been checked against)
-1. **The owner owns the data, and it must stay usable for decades.** Originals are never modified or deleted by the app.
-   Delete is only a Trash. Everything can be exported to plain files that need no software from us.
+1. **The owner owns the data, and it must stay usable for decades.** Originals are never modified by the app, and are removed only when the owner chooses
+   Delete forever or Empty Trash inside the Trash (a two-step action; backups keep their own copy). Delete itself is only a Trash. Everything can be exported to plain files that need no software from us.
 2. **Few, long-lived dependencies.** Python 3 + SQLite + plain HTML/CSS/JS (no build step, no npm, no front-end
    libraries). Flask and waitress are the one soft spot (see section 8). No Cloudflare, no third-party services, no
    outside fonts or scripts.
@@ -169,9 +169,7 @@ Groups are deployed and working (checked with a quick scroll on an iPhone in Saf
   Resurface).
 - **Serve the page files from `htdocs`** and narrow the relayd rule to `/ideas/api/*` (the owner's preferred direction;
   trade-offs recorded in the README).
-- **Later and bigger:** a standard-library-only server (no Flask or waitress). The hard part is reading file uploads
-  (Python removed `cgi` in 3.13); sending the file as a plain request body would avoid needing it. The test suite is the
-  specification for the rewrite.
+- **Decided against (owner, 15 Nov 2026):** a standard-library-only server, serving the page from `htdocs`, and a record-and-send Shortcut. Flask and waitress stay.
 
 ## 8. Risks and limits
 - **Dependencies:** Flask and its six helper packages are the weakest point over decades (major-version changes, OpenBSD

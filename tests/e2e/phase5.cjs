@@ -99,6 +99,8 @@ const SEED = [
     await clearFilters();
     console.log("ok  tag filters: all-selected narrows, any-selected widens, toggling off restores");
 
+    assert.ok(!(await page.$eval("#g-bpm", (d) => d.open)) && !(await page.$eval("#g-key", (d) => d.open)), "BPM and Key groups start closed");
+    await page.click("#g-bpm > summary");
     // BPM range slider (two thumbs; a thumb at its end of the track means "no limit" on that side)
     const setRange = (sel, v) => page.$eval(sel, (el, val) => { el.value = String(val); el.dispatchEvent(new Event("input", { bubbles: true })); }, v);
     const readout = async () => (await page.textContent("#f-bpm-readout")).trim();
@@ -131,6 +133,7 @@ const SEED = [
     await waitSet(SEED.slice(0, 6).map((s) => s[0]), "Home returns the thumb to 'no limit'");
 
     // key
+    await page.click("#g-key > summary");
     await page.selectOption("#f-root", "D"); await waitSet(["Funky bass riff", "Vocal hook"], "key D");
     await page.selectOption("#f-mode", "minor"); await waitSet(["Funky bass riff"], "D minor");
     assert.match((await page.textContent("#filters-toggle")), /Filters \(2 active\)/);

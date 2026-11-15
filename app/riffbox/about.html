@@ -41,7 +41,7 @@ checked on your server and in the tests; anything unverified is marked as such.<
 <ul>
   <li><strong>Select</strong> (Inbox and Library): tick rows (shift-click for a range) to add or remove a tag, set a mark,
     move to the Inbox or the Trash for many at once, all or nothing.</li>
-  <li><strong>Cozy / Compact</strong> rows (Inbox and Library, one setting for both) and two separate look choices in the Menu, each remembered on that device: <strong>Style</strong> (Standard or Minimal) and
+  <li><strong>Cozy / Compact</strong> rows (Inbox and Library, one setting for both) and two separate look choices in the Menu, each remembered on that device: <strong>Style</strong> (Minimal, the default, or Original) and
     <strong>Colors</strong> (Auto follows the device's light or dark setting; Light and Dark force one). Any style works with any colors. The player bar can be collapsed to one row.</li>
   <li><strong>Tap tempo</strong> in the edit form; keys <code>1</code>&ndash;<code>9</code> toggle tags in triage.</li>
 </ul>
@@ -104,13 +104,8 @@ in ways you might not expect:</p>
     numbered migrations, exact version pins, one set of style variables for the themes, the page script split into five files, and browser tests that
     run in Safari's and Firefox's engines). Still planned: loading the Library list only when its tab opens, a monthly self-test, a yearly-care
     checklist, and running the four audio tests in Firefox on a machine with sound.</li>
-  <li><strong>Serve the page files from your website's <code>htdocs</code> folder</strong> (your preferred direction): put the page
-    files in <code>/var/www/htdocs/ideas/</code> and narrow the relayd rule to <code>/ideas/api/*</code>. The address stays
-    <code>/ideas/</code>. Trade-offs: two upload destinations, the page and the data code can get out of step if only one is
-    uploaded, and the Riffbox-only uninstall would no longer remove the page files.</li>
-  <li><strong>An off-server copy reminder and a Verify-library button</strong>; <strong>timestamped markers</strong> on the waveform;
+    <li><strong>An off-server copy reminder and a Verify-library button</strong>; <strong>timestamped markers</strong> on the waveform;
     the memo's creation date passed from the Shortcut as the date recorded; a <strong>home-screen icon</strong>.</li>
-  <li><strong>Record-and-send Shortcut</strong> (Action Button, Back Tap or Lock Screen) that records and uploads directly.</li>
   <li><strong>Weekly email digest</strong> of a few forgotten hearted ideas, through your server's existing mail setup.</li>
   <li><strong>Interface clean-up:</strong> a slimmer idle player, one row-actions menu, collapsible filter groups, a two-step edit form.
     <strong>Possible later:</strong> waveform thumbnails in the list.</li>
@@ -147,7 +142,7 @@ before the next starts, so a problem stays confined to the newest layer.</p>
       <td><span class="status done">Deployed. The nightly schedule and practice restore are not set up (see Planned features)</span></td></tr>
     <tr><td>After 8</td><td>Backup and export page with a status line; Resurface and Surprise me; the Trash tab; the iPhone Outbox
       Shortcuts (confirmed working); editing in the Inbox; Library table (click-to-sort headings, Recorded and Uploaded
-      columns, Compact rows, Select and bulk actions); Random; a Style choice (standard, minimal) and a separate Colors choice (auto, light, dark); tabs that no longer shift the layout; a
+      columns, Compact rows, Select and bulk actions); Random; a Style choice (minimal, original), a separate Theme choice (auto, light, dark) and an Accent colour; tabs that no longer shift the layout; a
       restore tool (<code>deploy/restore.py</code>).</td><td><span class="status next">Built; awaiting your look on real devices</span></td></tr>
     <tr><td>Groups 1&ndash;5</td><td>Ideas made of several recordings: the data layer and an additive migration (stage 1), making and
       changing groups (stage 2), expandable rows, part playback and the player title (stage 3), arrow-key walking through parts, Random, Select and triage for groups (stage 4), Resurface, search and export for groups (stage 5). See the Quickstart.</td>
@@ -352,7 +347,7 @@ and tidied automatically, so "Beat  BOX" and "beat box" are the same tag.</p>
 <h3>Files on disk</h3>
 <p>In <code>/var/riffbox/audio/</code>: your original upload under a random name (for example
 <code>3f9a….m4a</code>), and, for Apple Lossless memos, a matching <code>.flac</code> playback copy under its own
-random name. Originals are never modified or deleted by the app.</p>
+random name. Originals are never modified by the app, and are removed only when you choose Delete forever or Empty Trash in the Trash (backups keep their own copy).</p>
 
 <h2>Keeping your data portable</h2>
 <p>The goal: your recordings and everything you typed about them stay usable for decades, even if this app, this

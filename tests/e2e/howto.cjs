@@ -10,6 +10,7 @@ const { PORT, BASE, PY, ROOT, tmp, server, waitUp, wav, launch, assert, fs, os, 
     await waitUp();
     browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+    await ctx.addInitScript(() => { try { localStorage.setItem("riffbox.theme", "original"); } catch (e) {} });   // this script checks the original look
     const page = await ctx.newPage();
     const problems = [];
     let n401 = 0;
@@ -76,7 +77,13 @@ const { PORT, BASE, PY, ROOT, tmp, server, waitUp, wav, launch, assert, fs, os, 
     await page.waitForSelector("#main-view:not([hidden])");
     console.log("ok  back link, browser Back, reload on #how and logout all behave");
 
-    // --- player bar spacing, phone and desktop
+    // --- player bar spacing, phone and desktop (the player is slim until a recording is loaded, so load one first)
+    const up = await ctx.request.post(BASE + "api/upload", { headers: { Authorization: "Bearer tok" },
+      multipart: { file: { name: "a.wav", mimeType: "audio/wav", buffer: wav(220) }, title: "Spacing test" } });
+    assert.strictEqual(up.status(), 201);
+    await page.reload(); await page.waitForSelector("#list > li");
+    await page.locator("#list > li .play").first().click();
+    await page.waitForFunction(() => !document.querySelector("#player").paused);
     for (const [w, h] of [[390, 844], [1280, 800]]) {
       await page.setViewportSize({ width: w, height: h });
       await page.waitForSelector("#playerbar:not([hidden])");

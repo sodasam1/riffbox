@@ -82,7 +82,7 @@ def _note_text(r, tags, audio_name):
 
 def _idea_note_text(idea, files):
     """One note for an idea of several recordings: the idea's details, then each part."""
-    r, parts = idea["g"], idea["parts"]
+    r = idea["g"]
     lines = ["---", f"title: {_q(r['title'])}", f"recorded: {_q(r['recorded_at'])}", f"uploaded: {_q(r['uploaded_at'])}",
              f"status: {'inbox' if r['status'] == 'inbox' else 'library'}"]
     if r["bpm"]:
