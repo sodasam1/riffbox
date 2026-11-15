@@ -294,11 +294,23 @@ damaged audio is listed, not hidden. Code: `app/riffbox/restorer.py` (`inspect_s
 - [x] Local gate: 389 server tests (9 new in `test_restore_live.py`: backup layout, export folder, export zip, refuses a non-empty library at both the
       API and the function, missing and damaged audio reported, nothing usable, failure leaves the library empty and retry works, login and token
       access); mutation-checked (removing the empty-library rule fails a test); browser test `tests/e2e/restore.cjs`; `datapage.cjs` still passes.
-- [ ] Deploy gate (owner): needs `/var/riffbox-restore` to exist (the `one-file-installer` branch creates it; or `doas install -d -o YOURUSER -m 755
-      /var/riffbox-restore`). Practise on a copy first: upload a backup into it on an EMPTY test library, never on your real library (the button is off
-      when recordings exist). Not verified here: restore time on a multi-GB library, SQLite's online copy into a live WAL database on the real server.
+- [ ] Deploy gate (owner): upload this branch's ZIP (it includes the installer), `doas sh ~/riffbox/deploy/install.sh --app-files-only`. The drop folder
+      `/var/riffbox-restore` already exists from the installer. On your real library the Restoring section must say restoring is switched off and the
+      button must be disabled. Practise a real restore on your own computer on an EMPTY library, never on the server. Not verified here: restore time on a multi-GB library, SQLite's online copy into a live WAL database on the real server.
 
 ## Archive of finished work (branch `archive-old-files`: built on top of the other three, so merge it LAST)
 Five finished-work documents moved (not deleted) into `archive/`, with an index and the reason for each: `archive/README.md`. References updated.
 - [x] Local gate: the three feature branches combined plus this move: 402 server tests, the installer checks and the browser restore test pass.
 - [ ] Owner: look at `archive/README.md` and say if anything should come back out.
+
+## Verified on the owner's server (hashed login)
+`python3 deploy/hash_passphrase.py --method` printed `pbkdf2:sha256:600000`: OpenBSD's Python has no `hashlib.scrypt` (LibreSSL), so Riffbox uses the
+PBKDF2 fallback (600,000 rounds). Login, wrong-passphrase refusal and the phone upload were checked after the conversion.
+
+## Cleanup after all branches are deployed (owner, one time)
+- [ ] `doas rm /etc/riffbox.conf.bak-plain`: the root-only copy of the settings file from before the passphrase was hashed; it still holds the OLD PLAIN-TEXT passphrase.
+- [ ] Old deploy leftovers in the home folder, if present: `rm -rf ~/riffbox-incoming; rm -f ~/install-riffbox.sh ~/riffbox.tgz` (replaced by `~/riffbox` and the installer).
+- [ ] Keep for now as undo files, delete when you no longer want them: `/etc/httpd.conf.pre-kit` (site kit) and, if it exists, `/etc/relayd.conf.pre-riffbox`.
+- [ ] If you ran the iPhone password spike: delete the spike page, its test audio file and its `httpd` block on the server; the `claude/bold-pasteur-0flqrf` branch on GitHub can be deleted.
+- [ ] A Vultr snapshot you took before the changes keeps costing money until deleted (price unverified).
+- [ ] On your computer: the test folder `C:\rb-test` from the restore practice run.

@@ -30,8 +30,8 @@ All of Riffbox's access control is in **one file, `app/riffbox/auth.py`**, plus 
 - Where it differs: **Argon2id is not used**, because it is not in Python's standard library or Werkzeug; scrypt/PBKDF2 are, and are
   long-lived. **Hash parameters were set from secondhand OWASP numbers and are unverified**: re-check them against the current OWASP Password
   Storage Cheat Sheet before relying on them, and raise them if the server can afford it.
-- **Unverified on OpenBSD:** whether its Python has `hashlib.scrypt` (OpenBSD uses LibreSSL). `python3 deploy/hash_passphrase.py --method` prints
-  which method the server will use; either is acceptable.
+- **Verified on the owner's OpenBSD 7.9 server:** its Python has no `hashlib.scrypt` (OpenBSD uses LibreSSL), so the PBKDF2-HMAC-SHA256 fallback with 600,000 rounds
+  is what is in use (`python3 deploy/hash_passphrase.py --method` printed `pbkdf2:sha256:600000`). If scrypt ever becomes available, new hashes use it; old ones keep verifying.
 - Single-user only. No password reset (you hold the server), no multi-factor, no per-session list, no logout-everywhere other than changing the secret.
 
 ## 3. Give a new Flask app a login (about 10 minutes)
