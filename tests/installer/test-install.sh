@@ -27,6 +27,7 @@ diff "$R/orig" "$R/etc/relayd.conf" | grep '^<' >/dev/null && bad "fresh: an ori
 awk '/path "\/ideas\/\*"/{a=NR} /quick header "Host"/&&!h{h=NR} END{exit !(a&&h&&a<h)}' "$R/etc/relayd.conf" && ok "fresh: path rules sit before the Host rules" || bad "fresh: rule order"
 [ -f "$R/etc/relayd.conf.pre-riffbox" ] && cmp -s "$R/etc/relayd.conf.pre-riffbox" "$R/orig" && ok "fresh: backup equals original" || bad "fresh: backup"
 grep -q '^RIFFBOX_PASSPHRASE_HASH=' "$R/etc/riffbox.conf" && ! grep -q 'long test passphrase\|^RIFFBOX_PASSPHRASE=' "$R/etc/riffbox.conf" && ok "fresh: passphrase stored only as a hash" || bad "fresh: hash"
+grep -q '^RIFFBOX_BACKUP_DIR=/var/riffbox-backup$' "$R/etc/riffbox.conf" && ! grep -qi crontab "$R/run1.out" && ok "fresh: backup folder is set for the Back up now button, and no cron job is mentioned or added" || bad "fresh: backup setting / cron"
 grep -q '^RIFFBOX_UPLOAD_TOKEN=tok123$' "$R/etc/riffbox.conf" && ok "fresh: existing phone token reused" || bad "fresh: token"
 [ "$(stat -c %a "$R/etc/riffbox.conf")" = 640 ] && ok "fresh: riffbox.conf mode 640" || bad "fresh: conf mode"
 cp "$R/etc/relayd.conf" "$R/a1"; cp "$R/etc/riffbox.conf" "$R/c1"; cp "$R/etc/rc.d/riffbox" "$R/r1"; sh "$SCR" --yes >/dev/null
@@ -54,12 +55,19 @@ RIFFBOX_TEST_ANSWER=n sh "$SCR" --repair > "$L/o3"; cmp -s "$L/modified" "$L/etc
 RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair > "$L/o4"
 grep -q -- '--threads=4' "$L/etc/rc.d/riffbox" && cmp -s "$L/modified" "$L/etc/rc.d/riffbox.pre-riffbox" && ok "live: --repair with yes replaces it and keeps the old one as .pre-riffbox" || bad "live: repair result"
 
-# the plain-text passphrase on a live server: reported by default, converted only with --repair and a yes
-# (the earlier --repair test already converted it, as designed, so start again from the original file)
+# a live riffbox.conf with no backup-folder line: reported by default; --repair + yes appends the line and keeps everything else
 cp "$L/orig-riffbox.conf" "$L/etc/riffbox.conf"
-sh "$SCR" > "$L/out"
-cmp -s "$L/etc/riffbox.conf" "$L/orig-riffbox.conf" && grep -q 'plain text' "$L/out" && ok "live: plain-text passphrase is reported and left alone by default" || bad "live: default touched riffbox.conf"
-RIFFBOX_TEST_ANSWER=n sh "$SCR" --repair >/dev/null; cmp -s "$L/etc/riffbox.conf" "$L/orig-riffbox.conf" && ok "live: --repair does nothing to riffbox.conf if you answer no" || bad "live: converted without consent"
+sh "$SCR" > "$L/out5"; cmp -s "$L/etc/riffbox.conf" "$L/orig-riffbox.conf" && grep -q 'Back up now' "$L/out5" && ok "live: a missing backup-folder setting is reported and left alone by default" || bad "live: default changed conf"
+RIFFBOX_TEST_ANSWER=n sh "$SCR" --repair >/dev/null; cmp -s "$L/etc/riffbox.conf" "$L/orig-riffbox.conf" && ok "live: --repair does nothing if you answer no" || bad "live: repaired without consent"
+RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair >/dev/null
+[ "$(grep -c '^RIFFBOX_BACKUP_DIR=/var/riffbox-backup$' "$L/etc/riffbox.conf")" = 1 ] && grep -q '^RIFFBOX_SECRET=keep$' "$L/etc/riffbox.conf" && ok "live: --repair with yes adds the one line and keeps the rest" || bad "live: backup line"
+cp "$L/etc/riffbox.conf" "$L/c3"; RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair >/dev/null; cmp -s "$L/c3" "$L/etc/riffbox.conf" && ok "live: a second --repair adds nothing more" || bad "live: duplicated line"
+
+# the plain-text passphrase on a live server: reported by default, converted only with --repair and a yes
+cp "$L/orig-riffbox.conf" "$L/etc/riffbox.conf"
+sh "$SCR" > "$L/out6"
+cmp -s "$L/etc/riffbox.conf" "$L/orig-riffbox.conf" && grep -q 'plain text' "$L/out6" && ok "live: plain-text passphrase is reported and left alone by default" || bad "live: default touched riffbox.conf"
+RIFFBOX_TEST_ANSWER=n sh "$SCR" --repair >/dev/null; cmp -s "$L/etc/riffbox.conf" "$L/orig-riffbox.conf" && ok "live: --repair does nothing to the passphrase if you answer no" || bad "live: converted without consent"
 RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair >/dev/null
 grep -q '^RIFFBOX_PASSPHRASE_HASH=' "$L/etc/riffbox.conf" && ! grep -q 'old plain pass\|^RIFFBOX_PASSPHRASE=' "$L/etc/riffbox.conf" && grep -q '^RIFFBOX_SECRET=keep$' "$L/etc/riffbox.conf" && ok "live: --repair with yes converts the passphrase and keeps the other settings" || bad "live: conversion"
 cp "$L/etc/riffbox.conf" "$L/c2"; RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair >/dev/null; cmp -s "$L/c2" "$L/etc/riffbox.conf" && ok "live: a second --repair leaves the converted file alone" || bad "live: second repair changed it"

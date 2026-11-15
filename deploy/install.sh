@@ -9,7 +9,7 @@
 #
 # Run it from the Riffbox folder you uploaded (the one that contains app/, static/ and deploy/).
 # Rules it follows: new things (users, folders, packages, new files) are created without asking; a change to something that already
-# exists (relayd.conf, root's crontab, /etc/rc.d/riffbox, /etc/riffbox.conf) is shown and needs your "y". It never overwrites an existing
+# exists (relayd.conf, /etc/rc.d/riffbox, /etc/riffbox.conf) is shown and needs your "y". It never overwrites an existing
 # /etc/riffbox.conf (that file holds your secrets) and never touches httpd, pf, mail, Radicale or DNS.
 # The same steps, by hand, are in deploy/INSTALL.md, so you are never dependent on this script.
 #
@@ -160,6 +160,12 @@ if [ -f "$CONF" ]; then
       "$PY" "$SRC/deploy/hash_passphrase.py" --upgrade-conf "$CONF"; chgd "$CONF (passphrase is now a hash)"; CHANGED=1
     else held "plain-text passphrase left as it is (use --repair to convert it; the app still accepts it for now)"; fi
   else left "$CONF exists: never overwritten"; fi
+  if ! grep -q '^RIFFBOX_BACKUP_DIR=' "$CONF"; then
+    say "   $CONF has no RIFFBOX_BACKUP_DIR line, so the Back up now button on the Backup and export page is switched off."
+    if [ "$REPAIR" = 1 ] && ask "Add the line RIFFBOX_BACKUP_DIR=/var/riffbox-backup to it?"; then
+      printf 'RIFFBOX_BACKUP_DIR=/var/riffbox-backup\n' >> "$CONF"; chgd "$CONF (backup folder setting added)"; CHANGED=1
+    else held "no backup folder is set (use --repair to add the line); the Back up now button stays off"; fi
+  fi
 else
   made "$CONF (mode 640, root:_riffbox)"
   if [ "$CHECK" = 0 ]; then
@@ -225,23 +231,6 @@ else
   fi
 fi
 
-# ---- 7. nightly backup ---------------------------------------------------------------------------
-step "7. Nightly backup (03:30) of the database and audio"
-JOB="30 3 * * * $PY /usr/local/riffbox/deploy/backup.py /var/riffbox /var/riffbox-backup > /dev/null; chown -R _riffbox:_riffbox /var/riffbox-backup # riffbox-backup"
-if [ -z "$ROOT" ]; then
-  crontab -l 2>/dev/null > "$CUR" || true
-  if grep -qF "$JOB" "$CUR"; then left "root's crontab already has the backup line"
-  elif grep -q 'backup\.py' "$CUR"; then
-    say "   root's crontab already has a backup line that differs from the one this installer would write:"; grep 'backup\.py' "$CUR" | sed 's/^/   /'
-    if [ "$REPAIR" = 1 ] && ask "Replace it with: $JOB ?"; then grep -v 'backup\.py' "$CUR" > "$TMP"; printf '%s\n' "$JOB" >> "$TMP"; crontab "$TMP"; chgd "root's crontab"
-    else held "existing backup line left as it is (use --repair to replace it)"; fi
-  else
-    say "   will add to root's crontab: $JOB"
-    if ask "Add the nightly backup line to root's crontab?"; then cp "$CUR" "$TMP"; printf '%s\n' "$JOB" >> "$TMP"; crontab "$TMP"; chgd "root's crontab (backup line added)"
-    elif [ "$CHECK" = 1 ]; then chgd "root's crontab (backup line would be added)"
-    else held "no nightly backup was scheduled"; fi
-  fi
-else say "   [would add to root's crontab] $JOB"; fi
 fi   # end of "not --app-files-only"
 
 # ---- start ---------------------------------------------------------------------------------------

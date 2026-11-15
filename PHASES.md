@@ -263,8 +263,8 @@ Short manual checks: `docs/CHECKLIST-code-upkeep.md`.
 
 ## One-file installer (branch `one-file-installer`)
 `deploy/install.sh` replaces the manual runbook steps, `install-riffbox.sh`, `deploy.sh` and `deploy.ps1` (see `deploy/INSTALL.md`, which also
-lists every step by hand). Also: nightly backup scheduled by the installer, `/var/riffbox-restore` drop folder for the planned in-app restore,
-`ffmpeg` installed with the other packages.
+lists every step by hand). Also: `/var/riffbox-restore` drop folder for the in-app restore,
+`ffmpeg` installed with the other packages. No nightly backup is scheduled (owner's decision: manual backups for now, nightly listed as a future feature).
 - [x] Local gate: `tests/installer/test-install.sh` (21 checks, against the real Tech Independence `relayd.conf` and the owner's live `relayd.conf`
       and service script) and the 380 server tests. Modes: default (creates only what is missing), `--repair`, `--app-files-only`, `--yes`, `--check`.
 - [ ] Deploy gate (owner): upload `riffbox/`, `doas sh ~/riffbox/deploy/install.sh --check`, read it, then run it. Expected on the current server:
@@ -282,3 +282,6 @@ place (login unchanged). `docs/AUTH.md` explains it and the path to a shared log
       refused; run `SHORTCUT.md` section 6 (phone upload still works). Run `python3 /usr/local/riffbox/deploy/hash_passphrase.py --method` and tell me what it prints;
       delete `/etc/riffbox.conf.bak-plain` once all is well.
       Not verified here: scrypt availability on OpenBSD, hash parameters vs the current OWASP sheet, iPhone behaviour.
+
+      relayd rules, `riffbox.conf` and the service script all LEFT ALONE; only two new folders are created (and, with --repair, the backup-folder line added to riffbox.conf); code copied; service restarted; PASS line.
+      Not verifiable here: `pkg_add`, `useradd`, `rcctl`, `relayd -n`.

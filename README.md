@@ -119,6 +119,8 @@ How login works, how to add it to another app and how to scale it: `docs/AUTH.md
 
 ## Planned features (not built yet)
 
+- **Scheduled nightly backup (deliberately not installed yet).** The installer creates the backup folder and the *Back up now* button works; a nightly
+  cron line (`30 3 * * *` running `deploy/backup.py`) is the planned addition, to be switched on by the owner.
 - **Backups you do not have to remember:** the backup folder and nightly schedule (`deploy/PHASE8.md`), a practice restore with
   `deploy/restore.py`, and a routine for copying an export or the backup folder off the server. The code exists; the schedule does not.
 - **Speed, interface feel and upkeep.** Measured and written up in `docs/PLAN-performance-ux-sustainability.md`.

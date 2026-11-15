@@ -25,8 +25,7 @@ certificates, DNS or firewall, because Riffbox never changes them.
 Later features may add more (a digest e-mail, if built). This file is updated whenever that happens.
 
 ## Added by the one-file installer (`deploy/install.sh`)
-Besides the list below: the folder `/var/riffbox-restore` (the drop folder for Riffbox data restore, usually empty), the root crontab line
-ending in `# riffbox-backup`, and, on a fresh server, three blocks in `/etc/relayd.conf` between `# BEGIN riffbox` and `# END riffbox`
+Besides the list below: the folder `/var/riffbox-restore` (the drop folder for Riffbox data restore, usually empty) and, on a fresh server, three blocks in `/etc/relayd.conf` between `# BEGIN riffbox` and `# END riffbox`
 (a copy of the original is `/etc/relayd.conf.pre-riffbox`). The service script is written by the installer, not copied from a file.
 
 ## Optional: record a baseline before step 7
