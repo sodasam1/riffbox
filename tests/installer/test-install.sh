@@ -32,10 +32,10 @@ grep -q '^RIFFBOX_UPLOAD_TOKEN=tok123$' "$R/etc/riffbox.conf" && ok "fresh: exis
 cp "$R/etc/relayd.conf" "$R/a1"; cp "$R/etc/riffbox.conf" "$R/c1"; cp "$R/etc/rc.d/riffbox" "$R/r1"; sh "$SCR" --yes >/dev/null
 cmp -s "$R/a1" "$R/etc/relayd.conf" && cmp -s "$R/c1" "$R/etc/riffbox.conf" && cmp -s "$R/r1" "$R/etc/rc.d/riffbox" && ok "fresh: second run changes nothing" || bad "fresh: not idempotent"
 
-# --- --code-only on an empty server touches no system file -----------------------------------------
+# --- --app-files-only on an empty server touches no system file -----------------------------------------
 C="$W/codeonly"; mkdir -p "$C/etc"; cp "$FIX/relayd.pristine.conf" "$C/etc/relayd.conf"
-RIFFBOX_TEST_ROOT="$C" sh "$SCR" --code-only --yes > "$C/out" && [ ! -e "$C/etc/riffbox.conf" ] && [ ! -e "$C/etc/rc.d/riffbox" ] && cmp -s "$FIX/relayd.pristine.conf" "$C/etc/relayd.conf" && ok "code-only: no config, service script or relayd change" || bad "code-only touched system files"
-grep -q 'rsync' "$C/out" && ! grep -q 'groupadd\|pkg_add\|crontab' "$C/out" && ok "code-only: only the code copy (no packages, user or cron)" || bad "code-only: extra steps ran"
+RIFFBOX_TEST_ROOT="$C" sh "$SCR" --app-files-only --yes > "$C/out" && [ ! -e "$C/etc/riffbox.conf" ] && [ ! -e "$C/etc/rc.d/riffbox" ] && cmp -s "$FIX/relayd.pristine.conf" "$C/etc/relayd.conf" && ok "app-files-only: no config, service script or relayd change" || bad "code-only touched system files"
+grep -q 'rsync' "$C/out" && ! grep -q 'groupadd\|pkg_add\|crontab' "$C/out" && ok "app-files-only: only the code copy (no packages, user or cron)" || bad "app-files-only: extra steps ran"
 
 # --- your live server: everything already set up by hand ----------------------------------------------
 L="$W/live"; mkdir -p "$L/etc/rc.d"; cp "$FIX/relayd.live.conf" "$L/etc/relayd.conf"; cp "$FIX/rc.d.live" "$L/etc/rc.d/riffbox"

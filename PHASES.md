@@ -266,7 +266,7 @@ Short manual checks: `docs/CHECKLIST-code-upkeep.md`.
 lists every step by hand). Also: nightly backup scheduled by the installer, `/var/riffbox-restore` drop folder for the planned in-app restore,
 `ffmpeg` installed with the other packages.
 - [x] Local gate: `tests/installer/test-install.sh` (21 checks, against the real Tech Independence `relayd.conf` and the owner's live `relayd.conf`
-      and service script) and the 380 server tests. Modes: default (creates only what is missing), `--repair`, `--code-only`, `--yes`, `--check`.
+      and service script) and the 380 server tests. Modes: default (creates only what is missing), `--repair`, `--app-files-only`, `--yes`, `--check`.
 - [ ] Deploy gate (owner): upload `riffbox/`, `doas sh ~/riffbox/deploy/install.sh --check`, read it, then run it. Expected on the current server:
       relayd rules, `riffbox.conf` and the service script all LEFT ALONE; only two new folders and the backup cron line are created; code copied; service restarted; PASS line.
       Not verifiable here: `pkg_add`, `useradd`, `rcctl`, `relayd -n`, `crontab`.

@@ -4,7 +4,7 @@
 #   doas sh ~/riffbox/deploy/install.sh --check       show what it would do; change nothing
 #   doas sh ~/riffbox/deploy/install.sh               create what is MISSING; leave everything that already exists alone
 #   doas sh ~/riffbox/deploy/install.sh --repair      also fix what exists but is wrong (shows each change, asks first)
-#   doas sh ~/riffbox/deploy/install.sh --code-only   only copy the app code into place and restart (touches no system file)
+#   doas sh ~/riffbox/deploy/install.sh --app-files-only   only copy the app code into place and restart (touches no system file)
 #   add --yes to answer "yes" to every question
 #
 # Run it from the Riffbox folder you uploaded (the one that contains app/, static/ and deploy/).
@@ -26,9 +26,9 @@ for a in "$@"; do
   case "$a" in
     --check) CHECK=1 ;;
     --repair) REPAIR=1 ;;
-    --code-only) CODEONLY=1 ;;
+    --app-files-only) CODEONLY=1 ;;
     --yes) YES=1 ;;
-    *) echo "usage: $0 [--check] [--repair] [--code-only] [--yes]"; exit 2 ;;
+    *) echo "usage: $0 [--check] [--repair] [--app-files-only] [--yes]"; exit 2 ;;
   esac
 done
 
@@ -62,7 +62,7 @@ if [ -z "$ROOT" ]; then
 fi
 [ -f "$SRC/app/wsgi.py" ] && [ -d "$SRC/static" ] || { say "Run this from the uploaded riffbox folder (app/ and static/ not found next to deploy/)."; exit 1; }
 [ "$CHECK" = 1 ] && say "(--check: nothing will be changed)"
-[ "$CODEONLY" = 1 ] && say "(--code-only: only the app code and a restart; no system file is touched)"
+[ "$CODEONLY" = 1 ] && say "(--app-files-only: only the app code and a restart; no system file is touched)"
 
 PY="${RIFFBOX_TEST_PYTHON:-$(command -v python3 2>/dev/null || echo /usr/local/bin/python3)}"
 LOGIN_USER="${DOAS_USER:-${SUDO_USER:-}}"
@@ -242,7 +242,7 @@ if [ -z "$ROOT" ]; then
     else held "no nightly backup was scheduled"; fi
   fi
 else say "   [would add to root's crontab] $JOB"; fi
-fi   # end of "not --code-only"
+fi   # end of "not --app-files-only"
 
 # ---- start ---------------------------------------------------------------------------------------
 step "Service"
