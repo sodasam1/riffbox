@@ -11,7 +11,7 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
 | What is built and how far each phase got | `PHASES.md` |
 | The current plan, principles and open items | `docs/PLAN.md` (the original plan is kept in `docs/archive/`) |
 | Speed, interface and upkeep work planned for later | `docs/PLAN-performance-ux-sustainability.md` |
-| Putting it on the server, routine deploys | `deploy/PHASE2.md` (and `deploy/PHASE3_5.md` for `ffmpeg`) |
+| Putting it on the server, routine deploys, rebuilding | `deploy/INSTALL.md` (one file, `deploy/install.sh`; `PHASE2.md` and `PHASE3_5.md` are history) |
 | Backups, the restore drill, exports | `deploy/PHASE8.md` |
 | First deploy of groups (migration rehearsal, rollback) | `deploy/GROUPS.md` |
 | Uploading from the iPhone | `deploy/SHORTCUT.md` |
@@ -80,7 +80,8 @@ reads at start-up (`RIFFBOX_CONFIG` names another file). Real environment variab
 | Variable | Meaning |
 |---|---|
 | `RIFFBOX_SECRET` | signs the login cookie; the app will not start without it |
-| `RIFFBOX_PASSPHRASE` | what you type to log in |
+| `RIFFBOX_PASSPHRASE_HASH` | a salted hash of what you type to log in (made by `deploy/install.sh`; see `docs/AUTH.md`) |
+| `RIFFBOX_PASSPHRASE` | older plain-text form of the same; still accepted with a warning, will be removed |
 | `RIFFBOX_UPLOAD_TOKEN` | lets the phone Shortcut add recordings (and nothing else) |
 | `RIFFBOX_DATA_DIR` | database and audio (default `/var/riffbox`) |
 | `RIFFBOX_BASE_PATH` | the URL prefix, e.g. `/ideas` (empty at the root) |
@@ -102,22 +103,26 @@ static/        the page: index.html, style.css, theme.js, and the scripts app.js
                triage.js, pages.js (How this works, Backup and export), boot.js (starts the page; loaded last)
 tests/e2e/     browser tests (Playwright; _helpers.cjs is the shared set-up, _browser.cjs picks the engine);
                tests/perf/  measurements
-deploy/        rc.d script, config example, optional deploy.sh / deploy.ps1, backup.py, export.py, and the runbooks above
+deploy/        install.sh (the one-file installer), INSTALL.md, config example, backup.py, export.py, and the runbooks above
 docs/          the plan, the later-work plan, and docs/archive/ (the original plan)
 ```
 
 ## Security notes
 
-- Logins are throttled: 5 wrong passphrases per client (30 from anyone) within 15 minutes returns HTTP 429 until the
-  oldest failure ages out. The counters live in memory and reset when the service restarts. The client address comes from
-  relayd's `X-Forwarded-For`, trusted only for loopback peers. Still use a long random passphrase.
+How login works, how to add it to another app and how to scale it: `docs/AUTH.md`. In short:
+- All access control is in `app/riffbox/auth.py`. The passphrase is stored only as a salted hash (scrypt, or PBKDF2 where scrypt is unavailable).
+- Logins are throttled: 5 wrong passphrases per client (30 from anyone) within 15 minutes returns HTTP 429. The counters live in memory and
+  reset when the service restarts. The client address comes from relayd's `X-Forwarded-For`, trusted only for loopback peers.
+  Still use a long random passphrase.
 - The login cookie is signed, HTTP-only, `SameSite=Lax` and scoped to the app's path.
 - The upload token can only add recordings (and check that it works). It cannot list, download, change or export anything.
 - All recordings, exports and the How this works page need a login session; the public page files contain no data and no server details.
-- `.gitattributes` forces LF line endings so Windows checkouts don't break `deploy/rc.d/riffbox`.
+- `.gitattributes` forces LF line endings so Windows checkouts don't break `deploy/install.sh`.
 
 ## Planned features (not built yet)
 
+- **Scheduled nightly backup (deliberately not installed yet).** The installer creates the backup folder and the *Back up now* button works; a nightly
+  cron line (`30 3 * * *` running `deploy/backup.py`) is the planned addition, to be switched on by the owner.
 - **Backups you do not have to remember:** the backup folder and nightly schedule (`deploy/PHASE8.md`), a practice restore with
   `deploy/restore.py`, and a routine for copying an export or the backup folder off the server. The code exists; the schedule does not.
 - **Speed, interface feel and upkeep.** Measured and written up in `docs/PLAN-performance-ux-sustainability.md`.

@@ -68,7 +68,7 @@ Do not start a phase until the previous gate is ticked.
             only after a real listen, lengths and the two new sorts, phone layout. Loop, played-marker and
             scrubbing tests were each checked by breaking the code and watching them fail.
       - [ ] Deploy gate: routine deploy (no new package; ffmpeg is already installed and configured). After
-            `sh ~/install-riffbox.sh` the restart measures existing recordings: waveforms should appear within a
+            `doas sh ~/riffbox/deploy/install.sh` the restart measures existing recordings: waveforms should appear within a
             minute. Try the waveform, scrubbing, speed, loop and download on the phone and on the computer.
 - [ ] **Phase 7** Ratings + triage mode (branch `phase-7`; not merged to `main` until the owner asks).
       - Design: three marks (`heart`, `check`, `x`) on `recordings.rating`; `used_in` only exists while the mark is a
@@ -261,6 +261,31 @@ recording really ended. Also found: two browser test scripts (`datapage`, `phase
 pass/fail loop used until then did not notice (it only looked for a "FAIL" line): they now run, and the loop checks exit codes.
 Short manual checks: `docs/CHECKLIST-code-upkeep.md`.
 
+## One-file installer (branch `one-file-installer`)
+`deploy/install.sh` replaces the manual runbook steps, `install-riffbox.sh`, `deploy.sh` and `deploy.ps1` (see `deploy/INSTALL.md`, which also
+lists every step by hand). Also: `/var/riffbox-restore` drop folder for the in-app restore,
+`ffmpeg` installed with the other packages. No nightly backup is scheduled (owner's decision: manual backups for now, nightly listed as a future feature).
+- [x] Local gate: `tests/installer/test-install.sh` (21 checks, against the real Tech Independence `relayd.conf` and the owner's live `relayd.conf`
+      and service script) and the 380 server tests. Modes: default (creates only what is missing), `--repair`, `--app-files-only`, `--yes`, `--check`.
+- [ ] Deploy gate (owner): upload `riffbox/`, `doas sh ~/riffbox/deploy/install.sh --check`, read it, then run it. Expected on the current server:
+      relayd rules, `riffbox.conf` and the service script all LEFT ALONE; only two new folders and the backup cron line are created; code copied; service restarted; PASS line.
+      Not verifiable here: `pkg_add`, `useradd`, `rcctl`, `relayd -n`, `crontab`.
+
+## Hashed login (branch `hashed-login`, stacked on `one-file-installer`: merge that one first)
+All login code moved to `app/riffbox/auth.py`; the passphrase is stored only as a salted hash (`RIFFBOX_PASSPHRASE_HASH`; method scrypt, or PBKDF2
+if the server's Python lacks scrypt). The old plain `RIFFBOX_PASSPHRASE` still works with a log warning, and `deploy/install.sh` converts it in
+place (login unchanged). `docs/AUTH.md` explains it and the path to a shared login or a proxy.
+- [x] Local gate: 393 server tests (13 new in `test_auth_hash.py`; breaking the verifier makes 5 fail), installer tests 17 checks.
+- [ ] Deploy gate (owner): merge, upload, make a root-only safety copy (`doas cp -p /etc/riffbox.conf /etc/riffbox.conf.bak-plain`), then
+      `doas sh ~/riffbox/deploy/install.sh --app-files-only` (new code; plain passphrase still accepted) and confirm login works; then
+      `doas sh ~/riffbox/deploy/install.sh --repair` and answer `y` to replace the plain passphrase with a hash. Log in with your SAME passphrase; a wrong one is
+      refused; run `SHORTCUT.md` section 6 (phone upload still works). Run `python3 /usr/local/riffbox/deploy/hash_passphrase.py --method` and tell me what it prints;
+      delete `/etc/riffbox.conf.bak-plain` once all is well.
+      Not verified here: scrypt availability on OpenBSD, hash parameters vs the current OWASP sheet, iPhone behaviour.
+
+      relayd rules, `riffbox.conf` and the service script all LEFT ALONE; only two new folders are created (and, with --repair, the backup-folder line added to riffbox.conf); code copied; service restarted; PASS line.
+      Not verifiable here: `pkg_add`, `useradd`, `rcctl`, `relayd -n`.
+
 ## Restore inside the app (branch `in-app-restore`, independent of the other two)
 The Backup and export page has a **Restoring** section. Upload a backup folder (`db/` + `audio/`), an unzipped export or an export zip to the drop
 folder `/var/riffbox-restore` (`RIFFBOX_RESTORE_DIR`), press the button. It only works while the library is **empty**; it works out of sight first,
@@ -269,6 +294,18 @@ damaged audio is listed, not hidden. Code: `app/riffbox/restorer.py` (`inspect_s
 - [x] Local gate: 389 server tests (9 new in `test_restore_live.py`: backup layout, export folder, export zip, refuses a non-empty library at both the
       API and the function, missing and damaged audio reported, nothing usable, failure leaves the library empty and retry works, login and token
       access); mutation-checked (removing the empty-library rule fails a test); browser test `tests/e2e/restore.cjs`; `datapage.cjs` still passes.
-- [ ] Deploy gate (owner): needs `/var/riffbox-restore` to exist (the `one-file-installer` branch creates it; or `doas install -d -o YOURUSER -m 755
-      /var/riffbox-restore`). Practise on a copy first: upload a backup into it on an EMPTY test library, never on your real library (the button is off
-      when recordings exist). Not verified here: restore time on a multi-GB library, SQLite's online copy into a live WAL database on the real server.
+- [ ] Deploy gate (owner): upload this branch's ZIP (it includes the installer), `doas sh ~/riffbox/deploy/install.sh --app-files-only`. The drop folder
+      `/var/riffbox-restore` already exists from the installer. On your real library the Restoring section must say restoring is switched off and the
+      button must be disabled. Practise a real restore on your own computer on an EMPTY library, never on the server. Not verified here: restore time on a multi-GB library, SQLite's online copy into a live WAL database on the real server.
+
+## Verified on the owner's server (hashed login)
+`python3 deploy/hash_passphrase.py --method` printed `pbkdf2:sha256:600000`: OpenBSD's Python has no `hashlib.scrypt` (LibreSSL), so Riffbox uses the
+PBKDF2 fallback (600,000 rounds). Login, wrong-passphrase refusal and the phone upload were checked after the conversion.
+
+## Cleanup after all branches are deployed (owner, one time)
+- [ ] `doas rm /etc/riffbox.conf.bak-plain`: the root-only copy of the settings file from before the passphrase was hashed; it still holds the OLD PLAIN-TEXT passphrase.
+- [ ] Old deploy leftovers in the home folder, if present: `rm -rf ~/riffbox-incoming; rm -f ~/install-riffbox.sh ~/riffbox.tgz` (replaced by `~/riffbox` and the installer).
+- [ ] Keep for now as undo files, delete when you no longer want them: `/etc/httpd.conf.pre-kit` (site kit) and, if it exists, `/etc/relayd.conf.pre-riffbox`.
+- [ ] If you ran the iPhone password spike: delete the spike page, its test audio file and its `httpd` block on the server; the `claude/bold-pasteur-0flqrf` branch on GitHub can be deleted.
+- [ ] A Vultr snapshot you took before the changes keeps costing money until deleted (price unverified).
+- [ ] On your computer: the test folder `C:\rb-test` from the restore practice run.
