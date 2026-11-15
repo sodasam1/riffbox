@@ -8,6 +8,10 @@
     --line: #34343b; --accent: #ff7a3d; --accent-text: #151517; --err: #ff8a80;
   }
 }
+/* The accent (orange) is for the active tab and primary buttons only. Everything else uses the theme's neutral text colours: links and
+   row actions in the text colour (underlined), pressed toggles as a dark fill, and the heart in its own red. */
+:root { --link: var(--text); --on: var(--text); --on-text: var(--bg); --heart: #c2185b; --heart-text: #fff; }
+@media (prefers-color-scheme: dark) { :root { --heart: #ff8fb3; --heart-text: #151517; } }
 * { box-sizing: border-box; }
 html { color-scheme: light dark; scroll-padding-bottom: calc(var(--bar-h, 12rem) + 8px); }   /* --bar-h is set from the player's height */
 body {
@@ -18,7 +22,7 @@ main, #app { max-width: 52rem; margin: 0 auto; padding: 0 16px 14rem; }   /* roo
 h1 { font-size: var(--h1-size, 1.4rem); font-weight: var(--h1-weight, 700); margin: 1.2rem 0 .8rem; }
 h2 { font-size: 1rem; text-transform: var(--h2-case, uppercase); letter-spacing: var(--h2-spacing, .06em); font-weight: var(--h2-weight, 700); color: var(--muted); margin: 2rem 0 .6rem; }
 header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .3rem 1rem; }
-a { color: var(--accent); }
+a { color: var(--link); }
 #menu-wrap { position: relative; }
 #menu-btn { min-height: 38px; padding: .3rem .8rem; }
 #menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; display: grid; min-width: 13rem; padding: 6px;
@@ -27,7 +31,7 @@ a { color: var(--accent); }
                         font: inherit; text-align: left; text-decoration: none; cursor: pointer; min-height: 44px; }
 #menu a:hover, #menu button:hover, #menu a:focus-visible, #menu button:focus-visible { background: var(--menu-hover, var(--bg)); }
 a.quiet { color: var(--muted); font-size: .9rem; }
-a.quiet:hover { color: var(--accent); }
+a.quiet:hover { color: var(--text); text-decoration: underline; }
 
 /* "How this works" page */
 .how-title { margin-top: 0; }
@@ -44,8 +48,8 @@ a.quiet:hover { color: var(--accent); }
 #how-body th, #how-body td { text-align: left; vertical-align: top; padding: .4rem .6rem; border-bottom: 1px solid var(--line); }
 #how-body th { color: var(--muted); font-weight: 600; white-space: nowrap; }
 .status { display: inline-block; font-size: .75rem; font-weight: 700; padding: 0 .5rem; border-radius: var(--r-pill-sq, 99px); border: 1px solid var(--line); white-space: nowrap; }
-.status.done { background: var(--done-bg, var(--accent)); color: var(--done-fg, var(--accent-text)); border-color: var(--accent); }
-.status.next { border-color: var(--next-border, var(--accent)); color: var(--next-fg, var(--accent)); }
+.status.done { background: var(--done-bg, var(--on)); color: var(--done-fg, var(--on-text)); border-color: var(--on); }
+.status.next { border-color: var(--next-border, var(--muted)); color: var(--next-fg, var(--text)); }
 [hidden] { display: none !important; }
 
 button, .pick {
@@ -55,7 +59,7 @@ button, .pick {
 button:disabled { opacity: .45; cursor: not-allowed; }          /* a disabled button must look disabled (it used to look normal) */
 #restore-on.off { opacity: .6; }                                  /* Restoring switched off: the whole section is greyed */
 button[type=submit], button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-button.link, .pick { border: 0; background: none; color: var(--accent); text-decoration: underline; padding: 0; min-height: 0; display: inline; }
+button.link, .pick { border: 0; background: none; color: var(--link); text-decoration: underline; padding: 0; min-height: 0; display: inline; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 #login-form { display: grid; gap: .6rem; max-width: 22rem; margin-top: 2rem; }
@@ -86,7 +90,7 @@ progress { grid-column: 1 / -1; width: 100%; height: 6px; accent-color: var(--ac
 .meta { overflow-wrap: anywhere; }
 .meta { color: var(--muted); font-size: .85rem; }
 .chip { display: inline-block; border: var(--chip-bw, 1px) solid var(--line); border-radius: var(--r-chip, 99px); padding: 0 var(--chip-padx, .5rem); font-size: .75rem; margin: 0 var(--chip-mr, 0) 0 var(--chip-ml, .4rem); color: var(--chip-fg, inherit); }
-a.dl { color: var(--accent); font-size: .9rem; }
+a.dl { color: var(--link); font-size: .9rem; }
 
 /* The player floats a little above the bottom edge (and above the iPhone home indicator), with
    breathing room around the controls, instead of being jammed against the screen edge. */
@@ -110,8 +114,8 @@ a.dl { color: var(--accent); font-size: .9rem; }
             min-height: 40px; padding: 0 .4rem; }
 .pb-loop { display: flex; gap: 6px; }
 .pb-loop button { min-height: 40px; min-width: 40px; padding: .2rem .65rem; }
-.pb-loop button[aria-pressed="true"] { background: var(--on-bg, var(--accent)); color: var(--on-fg, var(--accent-text)); border-color: var(--accent); box-shadow: var(--on-line, none); }
-.pb-loop button.set { border-color: var(--accent); color: var(--accent); }
+.pb-loop button[aria-pressed="true"] { background: var(--on-bg, var(--on)); color: var(--on-fg, var(--on-text)); border-color: var(--on); box-shadow: var(--on-line, none); }
+.pb-loop button.set { border-color: var(--on); color: var(--text); font-weight: 700; }
 .pb-loop button:disabled, #pb-play:disabled { opacity: .45; cursor: default; }
 #pb-toggle { min-width: 36px; min-height: 36px; padding: 0 .5rem; flex: none; }
 
@@ -125,11 +129,12 @@ a.dl { color: var(--accent); font-size: .9rem; }
 #playerbar.mini .pb-title { order: 0; }
 #playerbar.mini .pb-time { order: 1; }
 #playerbar.mini #pb-toggle { order: 2; }
+#playerbar.idle #pb-toggle, #playerbar.idle .pb-time { display: none; }      /* nothing to expand or time yet */
 
 /* ---- phase 4: inbox/library switch, details, intake form ---- */
 #views { display: flex; gap: 8px; margin: .2rem 0 .8rem; }
 #views button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-#notice { background: var(--notice-bg, var(--panel)); border-left: var(--notice-bw, 4px) solid var(--accent); padding: .5rem .8rem; margin: 0 0 .8rem; }
+#notice { background: var(--notice-bg, var(--panel)); border-left: var(--notice-bw, 4px) solid var(--muted); padding: .5rem .8rem; margin: 0 0 .8rem; }
 #empty { color: var(--muted); }
 
 #list li { align-items: start; }
@@ -152,7 +157,7 @@ form.edit fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; 
 form.edit legend { padding: 0; margin-bottom: 4px; }
 .tagbox { display: flex; flex-wrap: wrap; gap: 6px; }
 .tagbtn { border-radius: var(--r-tag, 99px); padding: .3rem .8rem; min-height: 36px; }
-.tagbtn[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.tagbtn[aria-pressed="true"] { background: var(--on); color: var(--on-text); border-color: var(--on); }
 .addtag { display: flex; gap: 8px; }
 .addtag input { flex: 1; }
 .radio { display: inline-flex; align-items: center; gap: 4px; margin-right: 14px; }
@@ -179,7 +184,7 @@ form.edit .error { margin: 0; }
 #how-view, #data-view, #triage { max-width: 56rem; }
 #list:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 #list li.selected { background: var(--panel); box-shadow: inset 3px 0 0 var(--accent); }
-#list li.playing .title { color: var(--accent); }
+#list li.playing .title { color: var(--text); font-weight: 800; }
 #kbd-hint { margin: .6rem 0 0; }
 
 #filters { margin-bottom: 14px; }
@@ -261,7 +266,7 @@ form.edit .error { margin: 0; }
 @media (prefers-color-scheme: dark) { :root { --ok: #3fb950; --ok-text: #0d1117; } }
 .rate { display: flex; gap: 6px; }
 .ratebtn { min-width: 36px; min-height: 36px; padding: 0 .4rem; border-radius: var(--r-rate, 8px); border-width: var(--rate-bw, 1px); background: var(--rate-bg, var(--ctl-bg, var(--panel))); color: var(--rate-fg, var(--text)); font-size: 1.05rem; line-height: 1; }
-.ratebtn[aria-pressed="true"][data-rating="heart"] { background: var(--rate-on-bg, var(--accent)); color: var(--rate-on-fg, var(--accent-text)); border-color: var(--accent); }
+.ratebtn[aria-pressed="true"][data-rating="heart"] { background: var(--rate-on-bg, var(--heart)); color: var(--rate-on-fg, var(--heart-text)); border-color: var(--heart); }
 .ratebtn[aria-pressed="true"][data-rating="check"] { background: var(--rate-on-bg, var(--ok)); color: var(--rate-on-fg, var(--ok-text)); border-color: var(--ok); }
 .ratebtn[aria-pressed="true"][data-rating="x"] { background: var(--rate-on-bg, var(--muted)); color: var(--rate-on-fg, var(--bg)); border-color: var(--muted); }
 .ratebtn[aria-pressed="true"] { box-shadow: var(--on-line, none); border-radius: var(--r-rate-on, var(--r-rate, 8px)); }
@@ -305,11 +310,11 @@ a.btn.primary { background: var(--accent); color: var(--accent-text); border-col
 #views #tab-trash[aria-pressed="true"] { background: var(--panel); color: var(--text); border-color: var(--muted); border-style: solid; }
 #library-tools { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: 8px; }
 #library-tools button, #random, #select-toggle { min-height: 36px; padding: .3rem .7rem; font-size: .85rem; }
-#select-toggle[aria-pressed="true"] { background: var(--panel); border-color: var(--accent); font-weight: 700; }
+#select-toggle[aria-pressed="true"] { background: var(--panel); border-color: var(--on); font-weight: 700; }
 #density { display: inline-flex; }
 #density button:first-child { border-radius: 6px 0 0 6px; }
 #density button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
-#density button[aria-pressed="true"] { background: var(--panel); color: var(--text); border-color: var(--accent); position: relative; font-weight: 700; }
+#density button[aria-pressed="true"] { background: var(--panel); color: var(--text); border-color: var(--on); position: relative; font-weight: 700; }
 #app.in-trash #lib-h { color: var(--muted); }
 #app.in-trash #list li { color: var(--muted); border-left: 3px solid var(--line); }
 #trash-note { margin: 0 0 .8rem; }
@@ -435,7 +440,7 @@ form.edit .parts-list button { min-height: 36px; }
 #list .title.has-parts .tt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #list .title.has-parts .chip.parts, #list .title.has-parts .caret { flex: none; }
 #list.compact .title.has-parts .p-w { display: none; }
-#list .chip.pending { margin-left: .4rem; flex: none; border-style: dashed; color: var(--accent); font-weight: 400; }
+#list .chip.pending { margin-left: .4rem; flex: none; border-style: dashed; color: var(--warn, var(--text)); font-weight: 400; }
 #list .title:not(.has-parts) .chip.pending { display: inline-block; }
 #list.compact .chip.pending .p-w { display: none; }
 form.edit .pending-note { margin: 0 0 .7rem; padding: .5rem .6rem; border: 1px dashed var(--line); border-radius: 8px; display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
@@ -472,7 +477,7 @@ html[data-theme="minimal"][data-colors="dark"] { color-scheme: dark; --bg: #1010
 #menu .theme-group { padding: 4px 6px 6px; display: grid; gap: 4px; }
 #menu .theme-group > div { display: flex; gap: 4px; }
 #menu .theme-group button { width: auto; flex: 1; text-align: center; padding: .4rem .3rem; min-height: 44px; border: 1px solid var(--line); background: none; }
-#menu .theme-group button[aria-pressed="true"] { border-color: var(--accent); font-weight: 700; background: var(--bg); }
+#menu .theme-group button[aria-pressed="true"] { border-color: var(--on); font-weight: 700; background: var(--bg); }
 #list .caret-gap { display: inline-block; width: 4px; }
 
 /* ---- long lists stay quick: rows that are off screen are not laid out or painted until they scroll into view. Only in Chromium

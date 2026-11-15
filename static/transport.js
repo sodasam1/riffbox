@@ -48,6 +48,7 @@ function loadTransport(rec) {
   dl.href = "api/audio/" + rec.id + "?download=1";
   dl.hidden = false;
   $("#pb-play").disabled = false;
+  applyBar();                      // the bar was slim while idle: now it opens to the saved preference
   applySpeed();                    // a new source resets the rate in some browsers
   syncLoopUI(); updateTime(); drawWave();
   loadAnalysis(rec, 0);
@@ -256,7 +257,9 @@ const isTextField = (n) => Boolean(n && n.matches && !n.closest("#playerbar") &&
   n.matches('textarea, select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"])'));
 const smallScreen = () => window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
 function applyBar() {
-  const collapsed = barMini || typing;
+  const idle = current === null;                          // nothing loaded: one slim row (there is nothing to scrub or loop yet)
+  const collapsed = barMini || typing || idle;
+  playerBar.classList.toggle("idle", idle);
   playerBar.classList.toggle("mini", collapsed);
   barToggle.textContent = collapsed ? "▴" : "▾";
   barToggle.setAttribute("aria-label", collapsed ? "Expand the player" : "Collapse the player");

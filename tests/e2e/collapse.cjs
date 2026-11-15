@@ -18,6 +18,11 @@ const { PORT, BASE, PY, ROOT, tmp, server, waitUp, wav, launch, assert, fs, os, 
     page.on("pageerror", (e) => problems.push("pageerror: " + e.message));
     page.on("console", (m) => { if (m.type() === "error") problems.push("console: " + m.text()); });
 
+    // The player stays slim (and has no expand button) until a recording is loaded; then it opens to the remembered size.
+    const playFirst = async () => {
+      await page.locator("#list > li .play").first().click();
+      await page.waitForFunction(() => { const a = document.querySelector("#player"); return !a.paused && a.currentTime > 0.2; }, null, { timeout: 8000 });
+    };
     const bar = () => page.evaluate(() => {
       const r = (s) => document.querySelector(s).getBoundingClientRect();
       const shown = (s) => { const n = document.querySelector(s); return !!n && getComputedStyle(n).display !== "none" && n.getBoundingClientRect().width > 0; };
@@ -57,9 +62,13 @@ const { PORT, BASE, PY, ROOT, tmp, server, waitUp, wav, launch, assert, fs, os, 
     await page.click("#pb-play"); await page.waitForFunction(() => !document.querySelector("#player").paused);
     await page.reload(); await page.waitForSelector("#list > li");
     await waitHeight("h <= 72");
-    assert.strictEqual((await bar()).label, "Expand the player", "still collapsed after a reload");
+    assert.strictEqual((await bar()).toggle, false, "nothing loaded yet: slim, and no expand button to press");
+    await playFirst();
+    assert.strictEqual((await bar()).label, "Expand the player", "still collapsed after a reload, once something plays");
     await page.click("#pb-toggle"); await waitHeight("h > 150");
     await page.reload(); await page.waitForSelector("#list > li");
+    await waitHeight("h <= 72");                                        // idle again: slim whatever the saved size
+    await playFirst();
     await waitHeight("h > 150");
     console.log("ok  the slim bar plays and pauses; collapsed or expanded is remembered across reloads");
 
@@ -124,11 +133,13 @@ const { PORT, BASE, PY, ROOT, tmp, server, waitUp, wav, launch, assert, fs, os, 
     await tp.goto(BASE);
     await tp.waitForSelector("#list > li");
     assert.ok(await tp.evaluate(() => matchMedia("(pointer: coarse)").matches), "premise: the emulated phone has a coarse pointer");
+    const barH = () => tp.evaluate(() => document.querySelector("#playerbar").getBoundingClientRect().height);
+    const h0 = await barH();                                            // slim: nothing is loaded on this fresh page
     await tp.locator("#list > li button.edit-btn").tap();
     await tp.waitForSelector("#list form.edit");
     await tp.waitForTimeout(450);
     assert.notStrictEqual(await tp.evaluate(() => document.activeElement.tagName), "INPUT", "no keyboard pops up on its own");
-    assert.ok((await tp.evaluate(() => document.querySelector("#playerbar").getBoundingClientRect().height)) > 150, "so the player stays as it was");
+    assert.ok(Math.abs((await barH()) - h0) < 2, "so the player stays as it was (opening the form does not change its size)");
     await tp.locator("#list form.edit textarea").tap();                                       // tapping a field collapses it
     await tp.waitForFunction(() => document.querySelector("#playerbar").getBoundingClientRect().height <= 72, null, { timeout: 4000 });
     await touch.close();
