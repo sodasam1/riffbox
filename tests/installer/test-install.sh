@@ -34,7 +34,7 @@ cmp -s "$R/a1" "$R/etc/relayd.conf" && cmp -s "$R/c1" "$R/etc/riffbox.conf" && c
 
 # --- --app-files-only on an empty server touches no system file -----------------------------------------
 C="$W/codeonly"; mkdir -p "$C/etc"; cp "$FIX/relayd.pristine.conf" "$C/etc/relayd.conf"
-RIFFBOX_TEST_ROOT="$C" sh "$SCR" --app-files-only --yes > "$C/out" && [ ! -e "$C/etc/riffbox.conf" ] && [ ! -e "$C/etc/rc.d/riffbox" ] && cmp -s "$FIX/relayd.pristine.conf" "$C/etc/relayd.conf" && ok "app-files-only: no config, service script or relayd change" || bad "code-only touched system files"
+RIFFBOX_TEST_ROOT="$C" sh "$SCR" --app-files-only --yes > "$C/out" && [ ! -e "$C/etc/riffbox.conf" ] && [ ! -e "$C/etc/rc.d/riffbox" ] && cmp -s "$FIX/relayd.pristine.conf" "$C/etc/relayd.conf" && ok "app-files-only: no config, service script or relayd change" || bad "app-files-only touched system files"
 grep -q 'rsync' "$C/out" && ! grep -q 'groupadd\|pkg_add\|crontab' "$C/out" && ok "app-files-only: only the code copy (no packages, user or cron)" || bad "app-files-only: extra steps ran"
 
 # --- your live server: everything already set up by hand ----------------------------------------------
