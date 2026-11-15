@@ -28,7 +28,7 @@ class Auth:
         self.app = app
         self.throttle = LoginThrottle(clock)
         if not app.config.get("PASSPHRASE_HASH") and app.config.get("PASSPHRASE"):
-            app.logger.warning("RIFFBOX_PASSPHRASE is stored as plain text. Run deploy/install.sh (or deploy/hash_passphrase.py) "
+            app.logger.warning("RIFFBOX_PASSPHRASE is stored as plain text. Run deploy/install.sh --repair (or deploy/hash_passphrase.py) "
                                "to replace it with RIFFBOX_PASSPHRASE_HASH; plain-text support will be removed in a later version.")
 
     # ---- checks ----------------------------------------------------------------------------------------

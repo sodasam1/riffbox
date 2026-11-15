@@ -10,14 +10,20 @@ update, and a rebuild after the server was wiped.
    ```sh
    doas sh ~/riffbox/deploy/install.sh --check
    ```
+   Each line says `LEFT ALONE`, `WILL CREATE` or `WILL CHANGE`, with the reason, and a summary at the end.
 3. **Do it:**
    ```sh
    doas sh ~/riffbox/deploy/install.sh
    ```
-   It only applies differences, so running it again after an update just copies the new files and restarts the service.
-   On a brand-new install it asks for a login passphrase and for your phone upload token: paste your existing token so the
-   iPhone Shortcut keeps working, or press Enter for a new one (then update the Shortcut once, `SHORTCUT.md` section 0).
-4. **Riffbox data restore** (only after a wipe): upload your backup folder to `/var/riffbox-restore` and use the Restore section
+   The rules it follows: **new** things (the user, folders, packages, new files) are created without asking. Something that **already exists**
+   is left alone; a change to relayd.conf or root's crontab is shown and needs your `y`. `/etc/riffbox.conf` is never overwritten.
+   On a brand-new install it asks for a login passphrase and your phone upload token: paste your existing token so the iPhone Shortcut keeps
+   working, or press Enter for a new one (then update the Shortcut once, `SHORTCUT.md` section 0).
+4. **Other modes**
+   - `--repair`: also fix what exists but is wrong (a different service script, wrong folder owner or mode, a different backup line). Each fix is shown and asks first; the old service script is kept as `/etc/rc.d/riffbox.pre-riffbox`.
+   - `--app-files-only`: only copy the app code into place and restart. Touches no system file. This is the everyday update command.
+   - `--yes`: answer yes to every question (for a rebuild, when you have read `--check`).
+5. **Riffbox data restore** (only after a wipe): upload your backup folder to `/var/riffbox-restore` and use the Restore section
    of the app's Backup and export page (branch `in-app-restore`). The installer itself never touches your recordings.
 
 ## What the installer does, and the same steps by hand

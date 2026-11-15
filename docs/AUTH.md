@@ -16,7 +16,7 @@ All of Riffbox's access control is in **one file, `app/riffbox/auth.py`**, plus 
 - **The passphrase is stored only as a salted hash** (`RIFFBOX_PASSPHRASE_HASH` in `/etc/riffbox.conf`), made by Werkzeug (installed with
   Flask). Method: scrypt (N=2^16, r=8, p=2) when Python's `hashlib` has it, otherwise PBKDF2-HMAC-SHA256 with 600,000 rounds. The method is written
   inside the hash string, so old hashes keep working if the method is changed later. The older plain `RIFFBOX_PASSPHRASE` still works for now,
-  with a warning in the log, so an upgrade never locks you out; `deploy/install.sh` converts it automatically (login stays the same).
+  with a warning in the log, so an upgrade never locks you out; `deploy/install.sh --repair` converts it, after showing what it will do and asking (login stays the same).
 - **Attempt limit:** 5 wrong passphrases per client (30 from anyone) per 15 minutes, then HTTP 429. In memory only (a restart clears it).
 - **CSRF:** the `SameSite=Lax` cookie is the standard defence for a cookie login. The Bearer token is not sent automatically by browsers.
 - **Changing the passphrase:** `printf '%s\n' 'new long passphrase' | python3 /usr/local/riffbox/deploy/hash_passphrase.py`, put the output
