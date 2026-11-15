@@ -50,6 +50,15 @@ If the script ever stops working on a future OpenBSD, these are the same steps. 
 | 8 | `doas rcctl enable riffbox; doas rcctl restart riffbox` | Start at boot, and now. |
 | 9 | `curl -s http://127.0.0.1:8100/ideas/health` | Should print `{"status":"ok"}`. |
 
+## Practise a restore before you ever need one (on your computer, not the server)
+Pull `/var/riffbox-backup` to your computer, then one command restores it into a throwaway empty library and checks the result:
+```sh
+python deploy/practice_restore.py C:\\path\\to\\riffbox-backup
+```
+It needs Python with Flask (`pip install flask waitress`). It prints PASS or FAIL for: the restore itself, every audio file against its checksum, and the restored
+database against the source (titles, tags, notes, marks, tempo, key, dates, Trash). Add `--serve` to look at the practice library in a browser. It never changes the
+folder you give it and deletes its practice library afterwards (`--keep` to keep it).
+
 ## Backups (manual for now)
 The installer creates `/var/riffbox-backup` and sets `RIFFBOX_BACKUP_DIR` in a new `/etc/riffbox.conf`. Two ways to make a backup yourself:
 - the **Back up now** button on the app's Backup and export page (needs that setting; on an existing server `install.sh --repair` offers to add the line), or

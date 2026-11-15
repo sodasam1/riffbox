@@ -330,3 +330,16 @@ restoring is not possible. CSS and a few lines of page code only (`static/style.
 - [x] Local gate: all 24 browser scripts pass (`restore.cjs` now also checks the computed opacity of the button and the section).
 - [ ] Deploy gate (owner): upload, `doas sh ~/riffbox/deploy/install.sh --app-files-only`, open Backup and export: the Restoring section and its button must look greyed out on
       your real library. Check one other page with a disabled button (press Back up now: the button dims while it runs).
+
+## Practice restore script (branch `practice-restore-script`)
+`deploy/practice_restore.py PATH` restores a backup folder, an unzipped export or an export zip into a throwaway EMPTY library on the owner's computer, through the
+app's own restore code, and checks: no missing or damaged audio, every audio file matches its checksum, and the restored database has the same rows as the source.
+PASS/FAIL per check; exit code 0/1/2. `--serve` lets the owner look at the result in a browser. It replaces most of the manual clicking in the restore rehearsal.
+Also fixed (found by this script's test): opening a backup database, even read-only, could create `-wal`/`-shm` files in the owner's drop folder, because backups keep the
+live database's WAL setting. Source databases are now opened `immutable` (in `restorer.py` too), so the drop folder is never changed.
+- [x] Local gate: 6 tests in `test_practice_restore.py` (good backup passes and the source folder is byte-identical afterwards; damaged and missing audio fail; unusable
+      folder exits 2; practice library deleted unless `--keep`; the comparison notices a changed note and a missing row) and 1 regression test in `test_restore_live.py`
+      (no side files in the drop folder; fails without the fix).
+- [ ] Deploy gate (owner): on your PC, pull a backup (`/var/riffbox-backup`), run `python deploy\practice_restore.py <folder>`; it should print `ALL CHECKS PASSED`.
+      Then `--serve` and look: counts, a recording's tags and notes, playback. Not verified here: Windows paths and `pip install` behaviour. App change: run
+      `--app-files-only` on the server to pick up the `immutable` fix (harmless if you do not).
