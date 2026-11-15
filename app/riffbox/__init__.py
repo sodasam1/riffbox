@@ -465,8 +465,12 @@ def create_app(config=None):
             filters = parse_filters(request.args)
         except Invalid as exc:
             return bad_request(str(exc))
+        limit = request.args.get("limit")
+        if limit not in (None, "", "0"):
+            return bad_request("limit can only be 0 (the counts, without the ideas)")
         sql, params = build_query(filters)
-        rows = db().execute(sql, params).fetchall()
+        # limit=0: the page only wants the totals (for the tab label and the Show filter) and will fetch the ideas when that tab is opened
+        rows = [] if limit == "0" else db().execute(sql, params).fetchall()
         count_sql, count_params = "SELECT rating, COUNT(*) AS n FROM idea_groups WHERE deleted_at IS NULL", []
         if filters["status"]:
             count_sql += " AND status = ?"

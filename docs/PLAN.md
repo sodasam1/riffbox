@@ -169,9 +169,7 @@ Groups are deployed and working (checked with a quick scroll on an iPhone in Saf
   Resurface).
 - **Serve the page files from `htdocs`** and narrow the relayd rule to `/ideas/api/*` (the owner's preferred direction;
   trade-offs recorded in the README).
-- **Later and bigger:** a standard-library-only server (no Flask or waitress). The hard part is reading file uploads
-  (Python removed `cgi` in 3.13); sending the file as a plain request body would avoid needing it. The test suite is the
-  specification for the rewrite.
+- **Decided against (owner, 15 Nov 2026):** a standard-library-only server, serving the page from `htdocs`, and a record-and-send Shortcut. Flask and waitress stay.
 
 ## 8. Risks and limits
 - **Dependencies:** Flask and its six helper packages are the weakest point over decades (major-version changes, OpenBSD

@@ -91,7 +91,17 @@ const server = spawn(PY, ["-m", "waitress", `--listen=127.0.0.1:${PORT}`, "--thr
       console.log(`INTERACTION ${label}: ${ms.toFixed(0)} ms to next paint (good is 200 or less)`);
       await page.waitForTimeout(900);
     };
-    await inp("open the Library tab", "#tab-library");
+    // The Library list is fetched when its tab opens, so "next paint" is only the "Loading" message. What a person waits for is the rows:
+    const rowsMs = await page.evaluate(async () => {
+      const t = performance.now(); document.querySelector("#tab-library").click();
+      while (document.querySelectorAll("#list > li").length < 5) await new Promise((r) => requestAnimationFrame(r));
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      return performance.now() - t;
+    });
+    console.log(`INTERACTION open the Library tab until its rows are on screen: ${rowsMs.toFixed(0)} ms (good is 200 or less)`);
+    await page.waitForTimeout(900);
+    await page.click("#tab-inbox"); await page.waitForTimeout(500);
+    await inp("open the Library tab (first paint only)", "#tab-library");
     await inp("switch to Compact", "#dens-compact");
     await inp("switch to Cozy", "#dens-cozy");
     await inp("turn Select mode on", "#select-toggle");

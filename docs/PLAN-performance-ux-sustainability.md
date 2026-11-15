@@ -220,3 +220,15 @@ a machine with a sound device). **Still planned:** A2 (Library list only when it
 Measured after this branch (300 recordings, 4x CPU, 1.6 Mbps): page load LCP about 1.1 s, FCP about 0.9 s; 12 requests (the page, three style/theme files, five scripts, the API
 calls), 59 KB on the wire (the split into five scripts costs about 4 KB and no extra waiting: the requests run in parallel and are cached for a year); Library open 158 ms, Select on 48 ms,
 Select all 38 ms, Cozy/Compact 44-70 ms in Chromium. Safari and Firefox draw every row (no off-screen skipping), about 330-430 ms to open the Library in the same lab.
+
+## 9. Progress, branch `faster-startup` (15 Nov 2026; built and tested, not deployed)
+**A2 loading, done:** (5) a returning visitor's lists are requested at the same moment as the session check (the page remembers, in `localStorage`, that it was logged in; a fresh
+visitor still gets the plain order and no failed requests); (6) the Library's ideas are fetched only while its tab is open (`GET /api/groups?...&limit=0` answers just the counts, for the
+tab label and the Show filter). **(7) `defer` on the scripts was tried and removed:** it made a first visit about 100 ms slower in the lab (first paint 957 to 1067 ms), because the scripts
+are already at the end of the page.
+Measured with `tests/perf/measure.cjs` (300 recordings, 4x CPU, 1.6 Mbps, 150 ms RTT, three runs each, Chromium): bytes on the wire for a first load **60.0 KB to 52.1 KB**; first-visit LCP
+**about 1217 to 1141 ms**; repeat-visit LCP **about 690 to 535 ms**; opening the Library tab until its rows are drawn **183 ms (before, list already loaded) to 250-370 ms** (one extra
+request, the trade-off of fetching it only when opened). The script now also prints that "until the rows are on screen" figure, because "next paint" alone only shows the Loading message.
+Tests: `tests/e2e/startup.cjs` (counts only at start, list on tab open, no refetch when switching back, lists requested before the session answer for a returning visitor, no failed
+requests for a fresh visitor); two server tests for `limit=0`; `phase4.cjs` now waits for the rows after opening the Library tab.
+

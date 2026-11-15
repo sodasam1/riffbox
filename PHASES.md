@@ -363,3 +363,12 @@ checked against a whitelist), no secrets committed, no CRLF, no flag mentioned i
 - [x] Local gate: 412 server tests (3 new; removing the fix makes each fail), installer checks, `restore.cjs` and `datapage.cjs`.
 - [ ] Deploy gate (owner): upload, `doas sh ~/riffbox/deploy/install.sh --app-files-only`; the Backup and export page still loads and shows the Restoring section greyed out. Fix 1 is only
       exercised on a fresh-server install, so it is first proven at the next rebuild.
+
+## Faster start-up and a shorter planned list (branch `faster-startup`)
+Speed items A2.5 and A2.6 of `docs/PLAN-performance-ux-sustainability.md` (details and honest measurements in its section 9): returning visitors start their lists together with the session
+check; the Library's ideas load when its tab opens (counts only at start). Dropped by the owner and removed from the planned lists: serving the page from `htdocs`, a standard-library-only
+server, a record-and-send Shortcut.
+- [x] Local gate: 414 server tests, all 24 browser scripts plus the new `startup.cjs`.
+- [ ] Deploy gate (owner): upload, `doas sh ~/riffbox/deploy/install.sh --app-files-only`; open the site on the phone: the Inbox shows, the Library tab label has its count, tapping Library shows the rows
+      after a very short wait (this is the trade-off: one extra request); log out and in again: the login page shows, then the Inbox.
+

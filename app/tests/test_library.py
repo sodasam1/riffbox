@@ -325,3 +325,19 @@ def test_parse_filters_defaults():
     assert (f["status"], f["terms"], f["tags"], f["match"], f["sort"], f["order"]) == (None, [], [], "all", "uploaded", "desc")
     with pytest.raises(Invalid):
         parse_filters({"tags": "bad<tag"})
+
+
+# ---- counts only (limit=0): what the page asks for while the Library tab is closed ------------------
+def test_limit_zero_returns_the_same_counts_without_the_ideas(lib, client):
+    full = client.get("/api/groups?status=tagged").get_json()
+    lean = client.get("/api/groups?status=tagged&limit=0").get_json()
+    assert len(full["groups"]) > 3 and lean["groups"] == [] and lean["count"] == 0
+    for key in ("total", "ratings", "needs", "trashed"):
+        assert lean[key] == full[key]
+
+
+def test_limit_accepts_only_zero_and_needs_a_login(lib, client, app):
+    assert client.get("/api/groups?limit=5").status_code == 400
+    assert client.get("/api/groups?limit=abc").status_code == 400
+    assert client.get("/api/groups?limit=0").status_code == 200
+    assert app.test_client().get("/api/groups?limit=0").status_code == 401

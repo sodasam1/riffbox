@@ -40,15 +40,21 @@ async function ask(path, method, body, failed) {
 
 // ---- login ---------------------------------------------------------------
 function show(view) {
+  stored.set("in", view === "app" ? "1" : "0");              // a hint only (see boot): the server decides who is logged in
   $("#login").hidden = view !== "login";
   $("#app").hidden = view !== "app";
   $("#playerbar").hidden = view !== "app";
 }
 
 async function boot() {
+  // Someone who was logged in last time almost certainly still is, so the lists are asked for at the same moment as the session check
+  // instead of after it (one round trip less). If the login has ended, the lists answer 401 and the login page shows, as before.
+  // A visitor who was not logged in gets the plain sequence, so a fresh visit shows no failed requests.
+  const early = stored.get("in") === "1" ? fetchLists() : null;
+  if (early) early.catch(() => { /* reported by loadList below */ });
   let ok = false;
   try { ok = (await api("session")).ok; } catch (e) { /* offline: fall through to login */ }
-  if (ok) { show("app"); route(); await loadList(); } else { show("login"); $("#pass").focus(); }
+  if (ok) { show("app"); route(); await loadList(early); } else { show("login"); $("#pass").focus(); }
 }
 
 // ---- list + playback -------------------------------------------------------
@@ -283,7 +289,7 @@ function setView(next) {
   openEditId = null;
   notify("");
   render();
-  if (next === "trash" || next === "resurface") loadList();      // these lists are only fetched while open
+  if (next === "trash" || next === "resurface" || (next === "library" && !libReady)) loadList();      // these lists are only fetched while open
 }
 $("#tab-inbox").addEventListener("click", () => setView("inbox"));
 $("#tab-library").addEventListener("click", () => setView("library"));
@@ -346,7 +352,8 @@ function render() {
   const empty = $("#empty");
   empty.hidden = shown.length > 0;
   if (!shown.length) {
-    empty.textContent = (inboxRecs.length + libTotal) === 0 ? "Nothing yet. Upload a voice memo above."
+    empty.textContent = inLibrary && !libReady ? "Loading your Library…"
+      : (inboxRecs.length + libTotal) === 0 ? "Nothing yet. Upload a voice memo above."
       : view === "trash" ? "The Trash is empty."
       : view === "resurface" ? (resurfaceHearts ? "Every hearted idea has been played recently. Pick a shorter time, or press Surprise me for any ♥." : "No hearted ideas yet.")
       : !inLibrary ? "Nothing waiting to be tagged. Switch to Library to browse what you've saved."
@@ -799,15 +806,27 @@ function asRec(g) {
 }
 const asRecs = (body) => body.groups.map(asRec);
 
-async function loadList() {
+let libReady = false;          // true once libRecs holds the Library list for the current filters (it is only fetched while its tab is open)
+
+// The requests one refresh needs. The Library's ideas are fetched only while its tab is showing; otherwise just its counts
+// (limit=0: the tab label and the Show filter need them), which is a few hundred bytes instead of the whole list.
+function fetchLists() {
+  return Promise.all([
+    api("groups?status=inbox&sort=recorded&order=desc"),
+    api(view === "library" ? "groups?" + libraryQuery() : "groups?status=tagged&limit=0"),
+    api("tags"),
+    view === "trash" ? api("trash") : Promise.resolve(null),
+    view === "resurface" ? api("resurface?days=" + resurfaceDays) : Promise.resolve(null)]);
+}
+
+// `early`: the answers to a fetchLists() that boot() started before the session check had finished.
+async function loadList(early) {
   clearTimeout(pollTimer);
   const seq = ++loadSeq;
+  const wantsLibrary = view === "library";
   let inbox, lib, tags, trash, forgotten;
   try {
-    [inbox, lib, tags, trash, forgotten] = await Promise.all([
-      api("groups?status=inbox&sort=recorded&order=desc"), api("groups?" + libraryQuery()), api("tags"),
-      view === "trash" ? api("trash") : Promise.resolve(null),
-      view === "resurface" ? api("resurface?days=" + resurfaceDays) : Promise.resolve(null)]);
+    [inbox, lib, tags, trash, forgotten] = await (early || fetchLists());
   } catch (e) {
     if (seq === loadSeq) { notify(NETWORK_ERROR); schedulePoll(); }
     return;
@@ -817,7 +836,8 @@ async function loadList() {
   const [inboxBody, libBody] = await Promise.all([inbox.json(), lib.json()]);
   if (seq !== loadSeq) return;                // a newer load is already on its way; this answer is stale
   inboxRecs = asRecs(inboxBody);
-  libRecs = asRecs(libBody);
+  if (wantsLibrary) { libRecs = asRecs(libBody); libReady = true; }
+  else libReady = false;                       // libRecs (if any) is kept so a recording that is playing can still be found, but it may be out of date
   libTotal = libBody.total;
   libNeeds = libBody.needs || 0;
   libRatings = libBody.ratings;
@@ -890,7 +910,7 @@ function updateFilterUI() {
   $("#filters-toggle").textContent = n ? "Filters (" + n + " active)" : "Filters";
   const hiddenX = filters.rating === "all" ? libRatings.x : 0;     // ✗ ones that "All" leaves out
   const otherFilters = Boolean(filters.unresolved || filters.q.trim() || filters.tags.length || bpmActive() || filters.key_root || filters.key_mode);
-  $("#f-count").textContent = libTotal === 0 ? ""
+  $("#f-count").textContent = libTotal === 0 || !libReady ? ""
     : otherFilters || filters.rating !== "all" ? libRecs.length + " of " + libTotal + " recordings"
     : libRecs.length + (libRecs.length === 1 ? " recording" : " recordings") + (hiddenX ? " (" + hiddenX + " marked ✗ hidden)" : "");
 }
