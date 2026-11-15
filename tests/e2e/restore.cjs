@@ -47,6 +47,8 @@ let server2;
     await page.waitForFunction(() => /Restored 2 recording/.test(document.querySelector("#restore-msg").textContent), null, { timeout: 20000 });
     await page.waitForFunction(() => /The library already has recordings|already has recordings/.test(document.querySelector("#restore-state").textContent));
     assert.ok(await page.isDisabled("#restore-now"), "after a restore the button is switched off");
+    const look = await page.evaluate(() => ({ btn: getComputedStyle(document.querySelector("#restore-now")).opacity, sec: getComputedStyle(document.querySelector("#restore-on")).opacity }));
+    assert.ok(Number(look.btn) < 1 && Number(look.sec) < 1, "switched off looks switched off (greyed): " + JSON.stringify(look));
     const d = await (await ctx.request.get(BASE2 + "api/data")).json();
     assert.strictEqual(d.recordings, 2);
     console.log("ok  restore ran, 2 recordings are back, and the button is now off");

@@ -322,3 +322,11 @@ upload folder. Fix: the installer sets `PYTHONDONTWRITEBYTECODE=1` and the comma
 - [ ] If you ran the iPhone password spike: delete the spike page, its test audio file and its `httpd` block on the server; the `claude/bold-pasteur-0flqrf` branch on GitHub can be deleted.
 - [ ] A Vultr snapshot you took before the changes keeps costing money until deleted (price unverified).
 - [ ] On your computer: the test folder `C:\rb-test` from the restore practice run.
+
+## Greyed-out disabled buttons (branch `dim-disabled-restore`)
+Owner's check of the Restoring section: it was not visibly greyed out when switched off, because disabled buttons had no style at all (a disabled primary
+button looked exactly like an enabled one). Now every disabled button is dimmed with a "not allowed" cursor, and the Restoring section is greyed whenever
+restoring is not possible. CSS and a few lines of page code only (`static/style.css`, `static/pages.js`).
+- [x] Local gate: all 24 browser scripts pass (`restore.cjs` now also checks the computed opacity of the button and the section).
+- [ ] Deploy gate (owner): upload, `doas sh ~/riffbox/deploy/install.sh --app-files-only`, open Backup and export: the Restoring section and its button must look greyed out on
+      your real library. Check one other page with a disabled button (press Back up now: the button dims while it runs).

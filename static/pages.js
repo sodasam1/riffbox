@@ -51,7 +51,9 @@ async function loadRestore() {
   $("#restore-state").textContent = !f ? "Nothing to restore: no backup or export found in " + d.folder + "."
     : !d.library_empty ? "Found a " + f.layout + (f.recordings !== null ? " with " + f.recordings + " recordings" : "") + ", but this library already has recordings, so restoring is switched off."
     : "Found a " + f.layout + (f.recordings !== null ? " with " + f.recordings + " recordings" : "") + " in " + d.folder + ". The library is empty, so you can restore it.";
-  $("#restore-now").disabled = job.running || !f || !d.library_empty;
+  const canRestore = !job.running && !!f && d.library_empty;
+  $("#restore-now").disabled = !canRestore;
+  $("#restore-on").classList.toggle("off", !canRestore && !job.running);       // greyed out whenever restoring is not possible
   $("#restore-msg").textContent = job.running ? "Restoring… this can take a few minutes for a large library. This page updates when it finishes." : job.message || "";
   $("#restore-report").replaceChildren(...[].concat(job.missing || [], job.damaged || []).map((t) => el("li", { class: "warn" }, t)));
   if (job.running) dataTimer = setTimeout(() => { loadRestore(); }, 2000);
