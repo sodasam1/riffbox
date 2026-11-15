@@ -277,7 +277,7 @@ if the server's Python lacks scrypt). The old plain `RIFFBOX_PASSPHRASE` still w
 place (login unchanged). `docs/AUTH.md` explains it and the path to a shared login or a proxy.
 - [x] Local gate: 393 server tests (13 new in `test_auth_hash.py`; breaking the verifier makes 5 fail), installer tests 17 checks.
 - [ ] Deploy gate (owner): merge, upload, make a root-only safety copy (`doas cp -p /etc/riffbox.conf /etc/riffbox.conf.bak-plain`), then
-      `doas sh ~/riffbox/deploy/install.sh --code-only` (new code; plain passphrase still accepted) and confirm login works; then
+      `doas sh ~/riffbox/deploy/install.sh --app-files-only` (new code; plain passphrase still accepted) and confirm login works; then
       `doas sh ~/riffbox/deploy/install.sh --repair` and answer `y` to replace the plain passphrase with a hash. Log in with your SAME passphrase; a wrong one is
       refused; run `SHORTCUT.md` section 6 (phone upload still works). Run `python3 /usr/local/riffbox/deploy/hash_passphrase.py --method` and tell me what it prints;
       delete `/etc/riffbox.conf.bak-plain` once all is well.
