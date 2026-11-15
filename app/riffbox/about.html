@@ -3,7 +3,7 @@
      Quickstart, Planned features, Roadmap, Context, Guide and ti.sh, Architecture, Data model, Keeping your data portable.
      UPDATE the Roadmap table and the "Last updated" line whenever a phase finishes. -->
 
-<p class="meta">Last updated: 10 Nov 2026, after groups stage 5 (ideas made of several recordings). Written from what was
+<p class="meta">Last updated: 15 Nov 2026, after the one-file installer, the hashed login and restoring from inside the app. Written from what was
 checked on your server and in the tests; anything unverified is marked as such.</p>
 
 <h2>Quickstart</h2>
@@ -160,6 +160,12 @@ before the next starts, so a problem stays confined to the newest layer.</p>
       the page script is five files instead of one; the browser tests share their set-up and run in the engines behind Safari and Firefox, which found
       and fixed three real problems (the player bar covering a field in Safari, rows moving under the pointer in Safari, and the next part starting too early).</td>
       <td><span class="status next">Built and tested; awaiting your deploy and check on the phone</span></td></tr>
+    <tr><td>Install, login, restore</td><td>One-file installer (<code>deploy/install.sh</code>: creates what is missing, leaves what exists alone, <code>--repair</code> fixes
+      with your yes, <code>--app-files-only</code> for everyday updates); the login passphrase stored only as a salted hash (PBKDF2, because this server's Python has no scrypt), with all
+      login code in one file (<code>auth.py</code>, with <code>docs/AUTH.md</code> on how it scales); a <em>Restoring</em> section on the Backup and export page that restores a backup
+      folder, an export folder or an export zip into an empty library only; installer and tools no longer leave root-owned files in your upload folder; finished-work
+      documents moved to <code>archive/</code>. Backups stay manual (the button or <code>backup.py</code>); a nightly schedule is a planned feature.</td>
+      <td><span class="status done">Deployed and checked by you; a full restore of your real backup not yet practised</span></td></tr>
   </tbody>
 </table>
 </div>
@@ -224,8 +230,9 @@ audio files. Everything else on your domain is still handled by httpd exactly as
       <code>_riffbox</code> account, which has no shell, no login and no <code>doas</code>.</td></tr>
     <tr><td>The code</td><td><code>/usr/local/riffbox</code></td><td>Owned by root, so the app cannot
       change its own code. Includes the page files (<code>static/</code>) and this page.</td></tr>
-    <tr><td>Secrets and settings</td><td><code>/etc/riffbox.conf</code></td><td>Session key, upload token, login
-      passphrase, address prefix and the ffmpeg path. Deploys never touch it.</td></tr>
+    <tr><td>Secrets and settings</td><td><code>/etc/riffbox.conf</code></td><td>Session key, upload token, a salted hash of the login
+      passphrase (never the passphrase itself), address prefix, backup folder and the ffmpeg path. The installer never overwrites it; with <code>--repair</code> and your yes
+      it edits single lines.</td></tr>
     <tr><td>Your data</td><td><code>/var/riffbox</code></td><td>The SQLite database (<code>riffbox.db</code>) and the
       <code>audio/</code> folder with your originals (and the FLAC play copies). A <code>tmp/</code> folder inside it
       is scratch space for big uploads and exports, emptied at every start. Deploys never touch any of it.</td></tr>

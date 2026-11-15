@@ -322,3 +322,9 @@ upload folder. Fix: the installer sets `PYTHONDONTWRITEBYTECODE=1` and the comma
 - [ ] If you ran the iPhone password spike: delete the spike page, its test audio file and its `httpd` block on the server; the `claude/bold-pasteur-0flqrf` branch on GitHub can be deleted.
 - [ ] A Vultr snapshot you took before the changes keeps costing money until deleted (price unverified).
 - [ ] On your computer: the test folder `C:\rb-test` from the restore practice run.
+
+## Docs refresh (branch `docs-refresh`)
+The housekeeping rule above was overdue: the in-app *How this works* page (roadmap row, Last updated, the settings-file row) and `docs/PLAN.md` (deploy row, roadmap row, date) now describe the
+installer, the hashed login and in-app restore. Text only.
+- [x] Local gate: 402 server tests (including `test_about.py`), `howto.cjs`.
+- [ ] Owner: after a deploy (`--app-files-only`), open *How this works*: the Last updated line says 15 Nov 2026 and the roadmap has the new row.
