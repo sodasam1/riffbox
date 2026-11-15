@@ -382,3 +382,13 @@ when the owner chooses these two actions. Rules in code: only ideas already in t
 - [x] Local gate: 423 server tests (9 new in `test_purge.py`, the trashed-only rule mutation-checked at both levels), all 26 browser scripts including the new `trash.cjs`.
 - [ ] Deploy gate (owner): upload, `doas sh ~/riffbox/deploy/install.sh --app-files-only`; delete a test recording, open the Trash, press Delete forever (cancel once, then confirm), then check that it is gone;
       press Empty Trash with one more test recording in it. Do NOT test with recordings you want to keep: there is no undo. Check `ls /var/riffbox/audio` shrinks accordingly.
+
+## Branch `interface-cleanup` (stacked on `empty-trash`)
+- [x] Slim idle player; the accent colour only on the active tab and primary buttons; collapsible filter groups that show what is set (BPM and Key start closed; a group with a filter on opens itself).
+- [x] Minimal is now the default style and sits on the left of the Menu; "Standard" is renamed "Original" (a saved "Original" choice is kept; anything else, including no choice, is Minimal).
+      The Colors row is renamed Theme (Auto / Light / Dark). A new Accent color row has seven swatches (orange, blue, teal, green, purple, pink, black/white); each has a light and a dark value, the
+      choice is remembered per device and applied before first paint, and it works in both styles. Minimal now shows the accent on its active tab underline and primary buttons (it was black).
+- [x] Found while testing the new default: Download links were 29px tall in Minimal (now 30+), and the active tab got wider than the others (bold), shifting the row; fixed by not changing weight.
+      `howto.cjs` and `phase9.cjs` check the Original geometry, so they pin that style; `theme.cjs` covers Minimal.
+- [x] Local gate: 423 server tests, all 26 browser scripts.
+- [ ] Still to do on this branch: one row-actions menu, and the two-step edit form.

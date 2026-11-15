@@ -1216,12 +1216,13 @@ $("#random").addEventListener("click", () => {
   notify("Playing “" + rec.title + "”" + (view === "library" && filtersActive() ? " (picked from the filtered list)." : "."));
 });
 
-// ---- Themes: "standard" or "minimal" (static/theme.js applies the saved one before the first paint) ----------------
-// Two separate choices: the style ("standard" or "minimal": the shapes and amount of decoration) and the colours ("auto" follows
-// the device, or "light" / "dark" always). More styles and colour sets can be added next to these.
-const STYLES = ["standard", "minimal"], COLORS = ["auto", "light", "dark"];
+// ---- Themes: "minimal" (default) or "original" (static/theme.js applies the saved one before the first paint) ----------
+// Three separate choices: the style ("minimal" or "original": the shapes and amount of decoration), the theme ("auto" follows
+// the device, or "light" / "dark" always) and the accent colour. More styles and colour sets can be added next to these.
+const STYLES = ["minimal", "original"], COLORS = ["auto", "light", "dark"];
+const ACCENTS = [...document.querySelectorAll("#accent-row button")].map((b) => b.dataset.a);
 function applyTheme(name) {
-  if (name === "minimal") document.documentElement.dataset.theme = "minimal"; else { delete document.documentElement.dataset.theme; name = "standard"; }
+  if (name === "original") { delete document.documentElement.dataset.theme; } else { document.documentElement.dataset.theme = "minimal"; name = "minimal"; }
   stored.set("theme", name);
   for (const t of STYLES) $("#theme-" + t).setAttribute("aria-pressed", String(t === name));
   colorCache = null;                                                     // the waveform picks its colours up from the theme
@@ -1236,7 +1237,17 @@ function applyColors(name) {
 }
 for (const t of STYLES) $("#theme-" + t).addEventListener("click", () => applyTheme(t));
 for (const c of COLORS) $("#colors-" + c).addEventListener("click", () => applyColors(c));
-for (const t of STYLES) $("#theme-" + t).setAttribute("aria-pressed", String((document.documentElement.dataset.theme || "standard") === t));
+for (const t of STYLES) $("#theme-" + t).setAttribute("aria-pressed", String((document.documentElement.dataset.theme || "original") === t));
+function applyAccent(name) {
+  if (!ACCENTS.includes(name)) name = "orange";
+  document.documentElement.dataset.accent = name;
+  stored.set("accent", name);
+  for (const b of $("#accent-row").children) b.setAttribute("aria-pressed", String(b.dataset.a === name));
+  colorCache = null;
+  drawWave();
+}
+for (const b of $("#accent-row").children) b.addEventListener("click", () => applyAccent(b.dataset.a));
+for (const b of $("#accent-row").children) b.setAttribute("aria-pressed", String(b.dataset.a === (document.documentElement.dataset.accent || "orange")));
 for (const c of COLORS) $("#colors-" + c).setAttribute("aria-pressed", String((document.documentElement.dataset.colors || "auto") === c));
 
 // ---- The header menu ---------------------------------------------------------------------------------------

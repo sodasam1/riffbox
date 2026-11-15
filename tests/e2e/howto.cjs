@@ -10,6 +10,7 @@ const { PORT, BASE, PY, ROOT, tmp, server, waitUp, wav, launch, assert, fs, os, 
     await waitUp();
     browser = await launch();
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+    await ctx.addInitScript(() => { try { localStorage.setItem("riffbox.theme", "original"); } catch (e) {} });   // this script checks the original look
     const page = await ctx.newPage();
     const problems = [];
     let n401 = 0;
