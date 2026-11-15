@@ -34,7 +34,7 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
   A player with a waveform, scrubbing, speed, A-B loop and Download. Style (standard or minimal) and colours (auto, light or dark) are separate choices in the Menu.
 - **Protect:** a Trash instead of deletion, a backup script and **Back up now** button (a nightly schedule is optional and not set up by default), a **Backup and export** page, and an export to plain files
   that needs none of this code. A **Restoring** section on the Backup and export page puts a backup folder, an unzipped export or an export zip
-  back into an *empty* library (never over recordings you have). Originals are never changed or removed by the app.
+  back into an *empty* library (never over recordings you have). Originals are never changed by the app, and removed only when you choose Delete forever or Empty Trash in the Trash (backups keep their own copy).
 - **Apple Lossless (ALAC) memos:** Safari plays them, Chrome, Edge and Firefox do not. With `ffmpeg` installed the server
   also keeps a lossless FLAC play copy (Download still returns the original). `ffmpeg` also measures each recording's
   length and waveform shortly after upload. Without it everything works; there is just no waveform, length or play copy.

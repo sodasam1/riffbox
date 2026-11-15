@@ -291,6 +291,15 @@ function setView(next) {
   render();
   if (next === "trash" || next === "resurface" || (next === "library" && !libReady)) loadList();      // these lists are only fetched while open
 }
+$("#trash-empty").addEventListener("click", async () => {
+  const bytes = trashRecs.reduce((sum, r) => sum + (r.size || 0), 0);
+  if (!confirm("Delete everything in the Trash forever?\n\n" + trashRecs.length + (trashRecs.length === 1 ? " idea" : " ideas") + " (" + fmtSize(bytes) +
+               " of audio) will be removed from the server. This cannot be undone. A backup folder keeps its own copy until you delete that too.")) return;
+  $("#trash-empty").disabled = true;
+  if (!(await ask("trash?confirm=empty-trash", "DELETE", undefined, "empty the Trash"))) { $("#trash-empty").disabled = false; return; }
+  await loadList();
+  notify("The Trash is empty.");
+});
 $("#tab-inbox").addEventListener("click", () => setView("inbox"));
 $("#tab-library").addEventListener("click", () => setView("library"));
 $("#tab-resurface").addEventListener("click", () => setView("resurface"));
@@ -338,6 +347,8 @@ function render() {
   $("#side-inbox").hidden = view !== "inbox";                       // the left column: one panel per tab
   $("#side-resurface").hidden = view !== "resurface";
   $("#side-trash").hidden = view !== "trash";
+  $("#trash-empty").disabled = !trashRecs.length;
+  $("#trash-empty").textContent = trashRecs.length ? "Empty Trash (" + trashRecs.length + ")" : "Empty Trash";
   if (view === "resurface") {
     $("#resurface-days").value = String(resurfaceDays);
     $("#resurface-text").textContent = !resurfaceHearts ? "Heart (♥) some ideas in the Library and they will come back here."
@@ -533,6 +544,14 @@ function buildTrashRow(rec) {
     await loadList();
     notify("Restored to the " + (rec.status === "inbox" ? "Inbox" : "Library") + ".");
   });
+  const purge = el("button", { class: "link danger purge-btn", type: "button" }, "Delete forever");
+  purge.addEventListener("click", async () => {
+    if (!confirm("Delete “" + rec.title + "” forever?\n\nIts audio is removed from the server and this cannot be undone. A backup folder keeps its own copy until you delete that too.")) return;
+    purge.disabled = true;
+    if (!(await ask("trash/" + rec.gid, "DELETE", undefined, "delete it"))) { purge.disabled = false; return; }
+    await loadList();
+    notify("Deleted forever.");
+  });
   const meta = el("div", { class: "meta when" }, "Deleted " + fmtDay(rec.deleted_at) + " · " + fmtSize(rec.size) +
     (rec.parts.length > 1 ? " · " + rec.parts.length + " parts" : ""));
   const info = el("div", { class: "info" }, el("div", { class: "title" }, rec.title), meta);
@@ -541,7 +560,7 @@ function buildTrashRow(rec) {
     for (const t of rec.tags) tags.append(el("span", { class: "chip tag" }, t));
     info.append(tags);
   }
-  return el("li", { "data-id": String(rec.id), "data-title": rec.title }, el("span"), info, el("div", { class: "side" }, restore));
+  return el("li", { "data-id": String(rec.id), "data-title": rec.title }, el("span"), info, el("div", { class: "side" }, restore, purge));
 }
 
 function field(labelText, control, id) {

@@ -15,8 +15,8 @@ to an Inbox triage pass, and retrieval works like a DAW sample browser. Reposito
 has everything; `phase-6`, `phase-7`, `phase-8` are kept as requested).
 
 ## 2. Principles (the rules every decision has been checked against)
-1. **The owner owns the data, and it must stay usable for decades.** Originals are never modified or deleted by the app.
-   Delete is only a Trash. Everything can be exported to plain files that need no software from us.
+1. **The owner owns the data, and it must stay usable for decades.** Originals are never modified by the app, and are removed only when the owner chooses
+   Delete forever or Empty Trash inside the Trash (a two-step action; backups keep their own copy). Delete itself is only a Trash. Everything can be exported to plain files that need no software from us.
 2. **Few, long-lived dependencies.** Python 3 + SQLite + plain HTML/CSS/JS (no build step, no npm, no front-end
    libraries). Flask and waitress are the one soft spot (see section 8). No Cloudflare, no third-party services, no
    outside fonts or scripts.

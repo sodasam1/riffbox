@@ -372,3 +372,13 @@ server, a record-and-send Shortcut.
 - [ ] Deploy gate (owner): upload, `doas sh ~/riffbox/deploy/install.sh --app-files-only`; open the site on the phone: the Inbox shows, the Library tab label has its count, tapping Library shows the rows
       after a very short wait (this is the trade-off: one extra request); log out and in again: the login page shows, then the Inbox.
 
+
+## Delete forever and Empty Trash (branch `empty-trash`, stacked on `faster-startup`)
+Owner request. The Trash gets two permanent actions: **Delete forever** on one idea, and **Empty Trash** for all of them, each behind a confirmation that says what is removed and that a backup
+folder keeps its own copy. This changes a long-standing promise ("originals are never removed by the app"): the README, `docs/PLAN.md` and the *How this works* page now say originals are removed only
+when the owner chooses these two actions. Rules in code: only ideas already in the Trash can be deleted for good (checked by the routes and again by `groups.purge`); emptying everything needs an explicit
+`?confirm=empty-trash`; the database change is all-or-nothing and the audio files (originals and FLAC play copies) are removed only after it commits; a file that cannot be removed is reported
+(`files_failed`) and the rows are gone either way; backups are never touched; the phone's upload token cannot use these routes. `DELETE /api/trash/<id>` and `DELETE /api/trash?confirm=empty-trash`.
+- [x] Local gate: 423 server tests (9 new in `test_purge.py`, the trashed-only rule mutation-checked at both levels), all 26 browser scripts including the new `trash.cjs`.
+- [ ] Deploy gate (owner): upload, `doas sh ~/riffbox/deploy/install.sh --app-files-only`; delete a test recording, open the Trash, press Delete forever (cancel once, then confirm), then check that it is gone;
+      press Empty Trash with one more test recording in it. Do NOT test with recordings you want to keep: there is no undo. Check `ls /var/riffbox/audio` shrinks accordingly.

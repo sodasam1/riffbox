@@ -652,7 +652,7 @@ def create_app(config=None):
         failed = guarded(work)
         return failed if failed is not None else jsonify(updated=len(ids))
 
-    # ---- delete and restore: "delete" only moves an idea to the Trash; nothing is removed from disk ----
+    # ---- delete and restore: "delete" only moves an idea to the Trash; nothing is removed from disk until you delete from the Trash ----
     @bp.delete("/api/groups/<int:gid>")
     @require_auth()
     def trash_group(gid):
@@ -696,6 +696,51 @@ def create_app(config=None):
     def list_trash():
         rows = db().execute("SELECT * FROM idea_groups WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC, id DESC").fetchall()
         return revalidated(jsonify(groups=groups.load(db(), rows)))
+
+    # ---- delete for good: the ONLY place the app removes an original, and only for ideas already in the Trash ----------------------
+    def remove_files(names):
+        gone = failed = 0
+        for name in set(names):
+            if not name or Path(name).name != name:               # a plain file name inside the audio folder, never a path
+                continue
+            try:
+                (audio_dir / name).unlink()
+                gone += 1
+            except FileNotFoundError:
+                pass
+            except OSError as exc:                                # the rows are already gone; an orphan file is harmless and is reported
+                failed += 1
+                app.logger.warning("could not remove %s: %s", name, exc)
+        return gone, failed
+
+    def purge_ids(gids):
+        done = {"ids": [], "files": [], "size": 0}
+
+        def work(conn):
+            for i in range(0, len(gids), 500):                    # in chunks: SQLite limits how many values one statement may carry
+                ids, files, size = groups.purge(conn, gids[i:i + 500])
+                done["ids"] += ids
+                done["files"] += files
+                done["size"] += size
+        guarded(work)                                              # all of the database change, or none of it
+        gone, failed = remove_files(done["files"])                # only after the commit
+        return jsonify(purged=len(done["ids"]), files_removed=gone, files_failed=failed, bytes_freed=done["size"])
+
+    @bp.delete("/api/trash/<int:gid>")
+    @require_auth()
+    def purge_one(gid):
+        row = groups.get(db(), gid, live=False)
+        if row is None or not row["deleted_at"]:
+            abort(404)                                             # an idea that is not in the Trash cannot be deleted for good
+        return purge_ids([gid])
+
+    @bp.delete("/api/trash")
+    @require_auth()
+    def empty_trash():
+        if request.args.get("confirm") != "empty-trash":
+            return bad_request("add ?confirm=empty-trash to empty the whole Trash")
+        gids = [r[0] for r in db().execute("SELECT id FROM idea_groups WHERE deleted_at IS NOT NULL")]
+        return purge_ids(gids) if gids else jsonify(purged=0, files_removed=0, files_failed=0, bytes_freed=0)
 
     @bp.get("/api/resurface")
     @require_auth()

@@ -199,6 +199,27 @@ def trash(conn, gids, now):
     conn.execute(f"UPDATE recordings SET deleted_at = ? WHERE deleted_at IS NULL AND group_id IN ({marks})", [now, *gids])
 
 
+def purge(conn, gids):
+    """Remove trashed ideas for good from the database: their recordings, tags and the ideas themselves. Only ideas that are ALREADY in the
+    Trash are touched. Returns (the ids removed, the audio file names, originals and play copies, that no row refers to any more, their
+    size in bytes). The caller deletes those files from disk after the commit: never before, so a failure leaves nothing half-done."""
+    gids = list(gids)
+    ids = [r[0] for r in conn.execute(f"SELECT id FROM idea_groups WHERE deleted_at IS NOT NULL AND id IN ({_marks(gids)})", gids)]
+    if not ids:
+        return [], [], 0
+    marks = _marks(ids)
+    files, size = [], 0
+    for r in conn.execute(f"SELECT filename, play_filename, size FROM recordings WHERE group_id IN ({marks})", ids):
+        files.append(r[0])
+        if r[1]:
+            files.append(r[1])
+        size += r[2] or 0
+    conn.execute(f"DELETE FROM recordings WHERE group_id IN ({marks})", ids)      # recording_tags go with them (ON DELETE CASCADE)
+    conn.execute(f"DELETE FROM group_tags WHERE group_id IN ({marks})", ids)
+    conn.execute(f"DELETE FROM idea_groups WHERE id IN ({marks})", ids)
+    return ids, files, size
+
+
 def restore(conn, gid):
     """Bring a trashed group back with all its parts, unless the same audio has been uploaded again since."""
     twin = conn.execute("SELECT p.title FROM recordings r JOIN recordings p ON p.sha256 = r.sha256 AND p.deleted_at IS NULL"
