@@ -163,25 +163,25 @@
             <label for="f-q">Search</label>
             <input id="f-q" type="search" placeholder="Title, notes or tag" autocomplete="off" maxlength="200">
           </div>
-          <fieldset class="showfilter">
-            <legend>Show</legend>
+          <details class="fgroup showfilter" id="g-show" open>
+            <summary>Show <span class="fcount" id="c-show"></span></summary>
             <span class="radio"><input type="radio" name="f-show" id="f-show-all" value="all" checked><label for="f-show-all" data-base="All (hides ✗)">All</label></span>
             <span class="radio"><input type="radio" name="f-show" id="f-show-heart" value="heart"><label for="f-show-heart" data-base="♥ Interesting">♥ Interesting</label></span>
             <span class="radio"><input type="radio" name="f-show" id="f-show-check" value="check"><label for="f-show-check" data-base="✓ Used in a song">✓ Used in a song</label></span>
             <span class="radio"><input type="radio" name="f-show" id="f-show-x" value="x"><label for="f-show-x" data-base="✗ No longer interesting">✗ No longer interesting</label></span>
             <span class="radio"><input type="radio" name="f-show" id="f-show-none" value="none"><label for="f-show-none" data-base="No mark">No mark</label></span>
-          </fieldset>
+          </details>
           <div class="field needsfilter"><span class="radio"><input type="checkbox" id="f-unresolved"><label for="f-unresolved" id="f-unresolved-label">Needs a tempo or key choice</label></span></div>
-          <fieldset>
-            <legend>Tags</legend>
+          <details class="fgroup" id="g-tags" open>
+            <summary>Tags <span class="fcount" id="c-tags"></span></summary>
             <div id="f-tags" class="tagbox" role="group" aria-label="Filter by tag"></div>
             <div class="matchrow">
               <span class="radio"><input type="radio" name="f-match" id="f-match-all" value="all" checked><label for="f-match-all">Has all selected</label></span>
               <span class="radio"><input type="radio" name="f-match" id="f-match-any" value="any"><label for="f-match-any">Has any selected</label></span>
             </div>
-          </fieldset>
-          <fieldset class="bpmfilter">
-            <legend>BPM</legend>
+          </details>
+          <details class="fgroup bpmfilter" id="g-bpm">
+            <summary>BPM <span class="fcount" id="c-bpm"></span></summary>
             <div id="f-bpm-readout" class="bpm-readout" aria-live="polite">Any BPM</div>
             <div class="dual">
               <div class="track"><div class="fill" id="f-bpm-fill"></div></div>
@@ -189,12 +189,15 @@
               <input id="f-bpm-max" type="range" min="40" max="240" step="1" value="240" aria-label="Highest BPM">
             </div>
             <p id="f-bpm-note" class="meta" hidden>Recordings with no BPM are hidden while this is set.</p>
-          </fieldset>
-          <div class="keyrow">
+          </details>
+          <details class="fgroup" id="g-key">
+            <summary>Key <span class="fcount" id="c-key"></span></summary>
+            <div class="keyrow">
             <div class="field"><label for="f-root">Key</label><select id="f-root"><option value="">Any</option></select></div>
             <div class="field"><label for="f-mode">Major / minor</label>
               <select id="f-mode"><option value="">Any</option><option value="major">major</option><option value="minor">minor</option></select></div>
-          </div>
+            </div>
+          </details>
           <div class="field">
             <label for="f-sort">Sort by</label>
             <div class="sortrow">

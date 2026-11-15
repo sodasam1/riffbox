@@ -920,6 +920,14 @@ function updateFilterUI() {
   const n = [filters.unresolved, filters.q.trim(), filters.tags.length, bpmActive(), filters.key_root, filters.key_mode,
              filters.rating !== "all"].filter(Boolean).length;
   syncBpmUI();
+  const group = (id, on, label) => {                 // summary shows what is set; a group with a filter on is never hidden
+    $("#c-" + id).textContent = on ? "· " + label : "";
+    if (on) $("#g-" + id).open = true;
+  };
+  group("show", filters.rating !== "all", "1 set");
+  group("tags", filters.tags.length, filters.tags.length + " selected");
+  group("bpm", bpmActive(), $("#f-bpm-readout").textContent.trim());
+  group("key", filters.key_root || filters.key_mode, [filters.key_root, filters.key_mode].filter(Boolean).join(" "));
   const counts = { all: libTotal - libRatings.x, heart: libRatings.heart, check: libRatings.check, x: libRatings.x, none: libRatings.none };
   for (const r of document.querySelectorAll('input[name="f-show"]')) {
     r.checked = r.value === filters.rating;

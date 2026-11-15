@@ -197,8 +197,11 @@ form.edit .error { margin: 0; }
   font: inherit; color: var(--text); background: var(--field-bg, var(--panel)); border: 1px solid var(--line); border-width: var(--field-bw, 1px);
   border-radius: var(--r-field, 6px); padding: .5rem .6rem; width: 100%; min-height: 40px;
 }
-#filters-panel fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
-#filters-panel legend { padding: 0; margin-bottom: 4px; }
+#filters-panel .fgroup > :not(summary) { margin-top: 8px; }
+#filters-panel .fgroup > .radio, #filters-panel .fgroup > .matchrow { margin-top: 6px; }
+#filters-panel .fgroup > summary { cursor: pointer; font-size: .85rem; color: var(--muted); padding: 2px 0; }
+#filters-panel .fgroup[open] > summary { margin-bottom: 6px; }
+.fcount { color: var(--text); font-weight: 600; }
 #filters-panel .radio label { color: var(--text); font-size: 1rem; }
 #filters-panel .radio input { width: auto; min-height: 0; }
 #filters-panel .keyrow { gap: 8px; }
