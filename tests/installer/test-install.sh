@@ -71,4 +71,12 @@ RIFFBOX_TEST_ANSWER=n sh "$SCR" --repair >/dev/null; cmp -s "$L/etc/riffbox.conf
 RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair >/dev/null
 grep -q '^RIFFBOX_PASSPHRASE_HASH=' "$L/etc/riffbox.conf" && ! grep -q 'old plain pass\|^RIFFBOX_PASSPHRASE=' "$L/etc/riffbox.conf" && grep -q '^RIFFBOX_SECRET=keep$' "$L/etc/riffbox.conf" && ok "live: --repair with yes converts the passphrase and keeps the other settings" || bad "live: conversion"
 cp "$L/etc/riffbox.conf" "$L/c2"; RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair >/dev/null; cmp -s "$L/c2" "$L/etc/riffbox.conf" && ok "live: a second --repair leaves the converted file alone" || bad "live: second repair changed it"
+
+# --- the uploaded folder stays clean: running the installer and the tools must not leave __pycache__ folders in it (as root they could not be deleted again)
+K="$W/upload"; mkdir -p "$K/etc"; cp "$FIX/relayd.pristine.conf" "$K/etc/relayd.conf"
+mkdir -p "$W/src"; cp -R app static deploy "$W/src/"; find "$W/src" -name __pycache__ -prune -exec rm -rf {} +
+RIFFBOX_TEST_ROOT="$K" sh "$W/src/deploy/install.sh" --yes >/dev/null
+printf 'a long test passphrase\n' | "$RIFFBOX_TEST_PYTHON" "$W/src/deploy/hash_passphrase.py" >/dev/null
+"$RIFFBOX_TEST_PYTHON" "$W/src/deploy/hash_passphrase.py" --method >/dev/null
+[ -z "$(find "$W/src" -name __pycache__)" ] && ok "upload folder: the installer and tools leave no __pycache__ behind" || bad "upload folder: __pycache__ was created"
 [ "$fail" = 0 ] && echo "ALL PASSED" || { echo "SOME FAILED"; exit 1; }

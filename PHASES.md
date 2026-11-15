@@ -307,6 +307,14 @@ Five finished-work documents moved (not deleted) into `archive/`, with an index 
 `python3 deploy/hash_passphrase.py --method` printed `pbkdf2:sha256:600000`: OpenBSD's Python has no `hashlib.scrypt` (LibreSSL), so Riffbox uses the
 PBKDF2 fallback (600,000 rounds). Login, wrong-passphrase refusal and the phone upload were checked after the conversion.
 
+## Clean upload folder (branch `clean-upload-folder`)
+Found when FreeFileSync could not delete files in `~/riffbox`: Python run as root (the installer's passphrase tool) left root-owned `__pycache__` folders in the
+upload folder. Fix: the installer sets `PYTHONDONTWRITEBYTECODE=1` and the command-line tools (`hash_passphrase.py`, `backup.py`, `export.py`, `restore.py`) set
+`sys.dont_write_bytecode` before importing anything. A one-time `chown` of the existing folder is in `deploy/INSTALL.md`.
+- [x] Local gate: new installer test (nothing named `__pycache__` appears in the upload folder after the installer and the tools run; removing the fix fails it).
+- [ ] Deploy gate (owner): `doas chown -R YOURUSER:YOURUSER ~/riffbox` once, upload this branch, run the installer with `--app-files-only`, then upload again with
+      FreeFileSync: it must be able to replace and delete files. `find ~/riffbox ! -user YOURUSER` should print nothing, and still print nothing after the installer ran.
+
 ## Cleanup after all branches are deployed (owner, one time)
 - [ ] `doas rm /etc/riffbox.conf.bak-plain`: the root-only copy of the settings file from before the passphrase was hashed; it still holds the OLD PLAIN-TEXT passphrase.
 - [ ] Old deploy leftovers in the home folder, if present: `rm -rf ~/riffbox-incoming; rm -f ~/install-riffbox.sh ~/riffbox.tgz` (replaced by `~/riffbox` and the installer).
