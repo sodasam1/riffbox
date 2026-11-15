@@ -48,7 +48,7 @@ async function loadRestore() {
   if (!d.available) return;
   $("#restore-folder").textContent = d.folder;
   const job = d.job, f = d.found;
-  $("#restore-state").textContent = !f ? "Nothing to restore: no backup or export found in " + d.folder + "."
+  $("#restore-state").textContent = !f ? (d.error || "Nothing to restore: no backup or export found in " + d.folder + ".")
     : !d.library_empty ? "Found a " + f.layout + (f.recordings !== null ? " with " + f.recordings + " recordings" : "") + ", but this library already has recordings, so restoring is switched off."
     : "Found a " + f.layout + (f.recordings !== null ? " with " + f.recordings + " recordings" : "") + " in " + d.folder + ". The library is empty, so you can restore it.";
   const canRestore = !job.running && !!f && d.library_empty;

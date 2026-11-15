@@ -213,3 +213,33 @@ def test_looking_at_a_backup_leaves_no_side_files_in_the_drop_folder(tmp_path, o
     assert c.post("/api/restore").status_code == 202
     wait_done(c)
     assert sorted(str(p.relative_to(drop)) for p in drop.rglob("*")) == before
+
+
+def test_an_unreadable_drop_folder_is_explained_not_a_server_error(tmp_path, monkeypatch):
+    drop = tmp_path / "drop"
+    app = new_app(tmp_path, drop)
+    c = logged_in(app)
+    import riffbox.restorer as r
+
+    def denied(folder):
+        raise PermissionError(13, "Permission denied")
+    monkeypatch.setattr(r, "inspect_source", denied)
+    st = c.get("/api/restore")
+    assert st.status_code == 200
+    d = st.get_json()
+    assert d["found"] is None and "cannot read" in d["error"] and "permissions" in d["error"]
+    post = c.post("/api/restore")
+    assert post.status_code == 409                                                  # a clear refusal, not a 500
+
+
+def test_an_export_restore_moves_audio_and_leaves_no_staging_behind(tmp_path, old):
+    oldapp, oc, _ = old
+    drop = tmp_path / "drop"
+    drop.mkdir()
+    (drop / "riffbox-export-20261114.zip").write_bytes(oc.get("/api/export.zip?trash=1").data)
+    app = create_app(cfg_for(tmp_path, "new", drop))
+    c = logged_in(app)
+    assert c.post("/api/restore").status_code == 202
+    assert wait_done(c)["ok"]
+    assert not list((Path(app.config["DATA_DIR"]) / "tmp").glob("restore-*"))      # the staging folder is gone
+    assert len(list((Path(app.config["DATA_DIR"]) / "audio").iterdir())) == 3       # all three originals are in place

@@ -241,8 +241,11 @@ step "Service"
 if [ "$CODEONLY" = 0 ]; then
   if [ -z "$ROOT" ] && rcctl ls on 2>/dev/null | grep -qx riffbox; then left "riffbox is already enabled at boot"; else run rcctl enable riffbox; fi
 fi
-if [ "$CHANGED" = 1 ]; then run rcctl restart riffbox
-elif [ -z "$ROOT" ] && [ "$CHECK" = 0 ]; then rcctl check riffbox >/dev/null 2>&1 && say "   running; nothing needed restarting" || run rcctl start riffbox
+if [ "$CHANGED" = 1 ]; then
+  # on a brand-new server the service is not running yet, and "restart" of a stopped service may report failure: then simply start it
+  if ! run rcctl restart riffbox; then say "   restart reported a problem; trying a plain start"; run rcctl start riffbox; fi
+elif [ -z "$ROOT" ] && [ "$CHECK" = 0 ]; then
+  if rcctl check riffbox >/dev/null 2>&1; then say "   running; nothing needed restarting"; else run rcctl start riffbox; fi
 else say "   (nothing changed, no restart needed)"; fi
 
 step "Check"
@@ -252,7 +255,7 @@ if [ -z "$ROOT" ] && [ "$CHECK" = 0 ]; then
     if curl -s http://127.0.0.1:8100/ideas/health | grep -q '"ok"'; then ok=1; break; fi
     i=$((i+1)); sleep 1
   done
-  [ "$ok" = 1 ] && say "   PASS: Riffbox answers on 127.0.0.1:8100" || say "   FAIL: no answer from Riffbox; see: tail /var/log/daemon"
+  if [ "$ok" = 1 ]; then say "   PASS: Riffbox answers on 127.0.0.1:8100"; else say "   FAIL: no answer from Riffbox; see: tail /var/log/daemon"; fi
 else say "   (skipped in --check / test mode)"; fi
 say ""
 say "Summary: $N_LEFT left alone, $N_NEW $( [ "$CHECK" = 1 ] && echo 'to create' || echo created ), $N_CHG $( [ "$CHECK" = 1 ] && echo 'to change' || echo changed ), $N_HELD held back."

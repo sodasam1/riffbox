@@ -7,6 +7,7 @@
                                                                      with RIFFBOX_PASSPHRASE_HASH (the login stays the same)
 The hash is written by app/riffbox/passwords.py; read its header for the method and why.
 """
+import os
 import sys
 from pathlib import Path
 
@@ -37,9 +38,22 @@ def upgrade_conf(path):
                   file=sys.stderr)
         lines[plain_at] = "RIFFBOX_PASSPHRASE_HASH=" + passwords.hash_passphrase(value, check_length=False)
         print("replaced the plain-text passphrase with a", passwords.default_method().split(":")[0], "hash")
-    # rewritten in place so the file keeps its owner and mode (root:_riffbox, 640)
-    with open(path, "w") as fh:
-        fh.write("\n".join(lines) + "\n")
+    # Written as a new file and then renamed over the old one, so a crash half-way can never leave a damaged settings file. Owner and mode are copied
+    # across (root:_riffbox, 640); the owner copy needs root, which is how the installer runs it.
+    st = path.stat()
+    tmp = path.with_name(path.name + ".new")
+    try:
+        with open(tmp, "w") as fh:
+            fh.write("\n".join(lines) + "\n")
+        os.chmod(tmp, st.st_mode & 0o777)
+        try:
+            os.chown(tmp, st.st_uid, st.st_gid)
+        except PermissionError:
+            pass
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
     return 0
 
 

@@ -126,3 +126,22 @@ def test_upgrade_conf_replaces_only_the_plain_line(tmp_path):
     before = text
     hp.upgrade_conf(conf)                                                 # second run: nothing left to do
     assert conf.read_text() == before
+
+
+def test_a_failed_rewrite_leaves_the_settings_file_untouched(tmp_path, monkeypatch):
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location("hp2", Path(__file__).resolve().parents[2] / "deploy" / "hash_passphrase.py")
+    hp = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hp)
+    conf = tmp_path / "riffbox.conf"
+    original = "RIFFBOX_SECRET=abc\nRIFFBOX_PASSPHRASE=my old pass\n"
+    conf.write_text(original)
+
+    def boom(*a, **kw):
+        raise OSError("disk full")
+    monkeypatch.setattr(hp.os, "replace", boom)
+    with pytest.raises(OSError):
+        hp.upgrade_conf(conf)
+    assert conf.read_text() == original                                          # the real file was never half-written
+    assert not (tmp_path / "riffbox.conf.new").exists()                          # and no leftover temporary file

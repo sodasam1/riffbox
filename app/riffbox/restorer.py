@@ -8,6 +8,7 @@ marked for rebuilding (the app makes them again at start-up when `ffmpeg` is ins
 """
 import datetime as dt
 import hashlib
+import os
 import re
 import shutil
 import sqlite3
@@ -190,9 +191,17 @@ def restore_into_live(folder, data_dir, live_conn, migrate, scratch):
                         report["missing"].append(f"recording {r['id']} ({r['title']}): no audio file in the backup")
                     continue                           # (export layout already reported it)
                 if not (dest.is_file() and dest.stat().st_size == src.stat().st_size):
-                    tmp = dest.with_name(dest.name + ".partial")
-                    shutil.copy2(src, tmp)
-                    tmp.replace(dest)
+                    if info["layout"] == "backup":         # the source is the owner's own folder: copy, never move
+                        tmp = dest.with_name(dest.name + ".partial")
+                        shutil.copy2(src, tmp)
+                        tmp.replace(dest)
+                    else:                                  # export/zip: the file is already our own staged copy, so move it (no second copy of a big library)
+                        try:
+                            os.replace(src, dest)
+                        except OSError:                    # not the same disk: fall back to copying
+                            tmp = dest.with_name(dest.name + ".partial")
+                            shutil.copy2(src, tmp)
+                            tmp.replace(dest)
                 if info["layout"] == "backup" and _sha256(dest) != r["sha256"]:
                     report["damaged"].append(f"recording {r['id']} ({r['title']}): the file does not match its recorded checksum")
                 report["restored"] += 1
@@ -221,10 +230,14 @@ class Runner:
             empty = conn.execute("SELECT COUNT(*) FROM recordings").fetchone()[0] == 0
         finally:
             conn.close()
-        info = inspect_source(self.folder)
+        error = None
+        try:
+            info = inspect_source(self.folder)
+        except OSError as exc:                         # e.g. the folder or a file in it cannot be read by the app's user
+            info, error = None, f"The app cannot read {self.folder}: {exc.strerror or exc}. Check the folder's permissions."
         found = None if info is None else {"layout": info["layout"], "recordings": info["recordings"],
                                            "name": info["path"].name if info["layout"] == "zip" else (info["db"].name if info["db"] else "")}
-        return {"folder": str(self.folder), "found": found, "library_empty": empty, "job": self.job}
+        return {"folder": str(self.folder), "found": found, "error": error, "library_empty": empty, "job": self.job}
 
     def start(self):
         """(True, "") if started; (False, reason) if not."""

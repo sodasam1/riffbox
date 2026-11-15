@@ -349,3 +349,17 @@ The housekeeping rule above was overdue: the in-app *How this works* page (roadm
 installer, the hashed login and in-app restore. Text only.
 - [x] Local gate: 402 server tests (including `test_about.py`), `howto.cjs`.
 - [ ] Owner: after a deploy (`--app-files-only`), open *How this works*: the Last updated line says 15 Nov 2026 and the roadmap has the new row.
+
+## Review pass (branch `review-fixes`; contains dim-disabled-restore, practice-restore-script and docs-refresh, so merging this one brings all four)
+Whole-code review with ShellCheck (installers), Bandit (Python security lint), a triage of every flagged SQL line, a secrets scan of both repositories' history, a
+line-ending scan, and a read of the risky paths. Result: no injection paths (every interpolated SQL piece is a `?` placeholder list, fixed text, or the sort column
+checked against a whitelist), no secrets committed, no CRLF, no flag mentioned in docs that the installer lacks. Five real weaknesses found and fixed:
+1. **Installer, fresh server:** `rcctl restart` of a service that is not running yet can report failure, and the script would have stopped before the health check.
+   It now falls back to a plain start. (Matters on a rebuild; cannot trigger on the current server. OpenBSD-only behaviour: not testable here.)
+2. **Restore, unreadable drop folder:** if the app's user could not read the folder, the Restoring section would have failed with a server error. It now says why.
+3. **Restore, export or zip:** audio was copied twice (staging, then the library), doubling disk use for a big library. It is now moved (instant); a backup folder is still only copied.
+4. **Settings-file conversion:** `hash_passphrase.py --upgrade-conf` rewrote `/etc/riffbox.conf` in place; a crash half-way could have left it damaged. It now writes a new file and renames it over the old one.
+5. **Installer style:** two `A && B || C` constructs replaced with explicit if/else (ShellCheck clean).
+- [x] Local gate: 412 server tests (3 new; removing the fix makes each fail), installer checks, `restore.cjs` and `datapage.cjs`.
+- [ ] Deploy gate (owner): upload, `doas sh ~/riffbox/deploy/install.sh --app-files-only`; the Backup and export page still loads and shows the Restoring section greyed out. Fix 1 is only
+      exercised on a fresh-server install, so it is first proven at the next rebuild.
