@@ -130,10 +130,11 @@ How login works, how to add it to another app and how to scale it: `docs/AUTH.md
   Done: compression and long-lived caching (deployed); much faster Library, Select mode and Select all, revalidated lists, numbered
   database migrations, every dependency pinned (on branch `speed-and-upkeep`); one set of style variables for the themes, `app.js` split into
   five files, shared browser-test set-up, and the browser tests run in WebKit and Firefox (on branch `code-upkeep`). Still planned:
-  - load the Library list only when its tab opens, and start the list request together with the session check;
+  - (the Library-on-tab-open and early-list-request items are done, in the Nov 2026 speed work)
   - a monthly self-test; a yearly-care checklist; running the audio tests in Firefox on a machine with sound.
-- **Interface clean-up:** an idle player that stays slim, one row-actions menu, collapsible filter groups, a two-step edit
-  form, orange only for primary actions.
+- **Interface clean-up** (done, Nov 2026): slim idle player, collapsible filter groups, accent colour only on primary actions, Minimal as the default style with an Accent color row.
+  Possible future features, not planned (owner, 15 Nov 2026): **one row-actions (⋯) menu** (keep ♥ and Edit visible; Download, ✓ and ✗ move into the menu; costs an extra tap to mark ✓ or ✗) and a
+  **two-step edit form** (Basics first; BPM, Key, Date, Used in and Parts under a closed "More details" that opens itself when tempo or key need a choice).
 - **Candidate features:** an off-server copy reminder and a Verify-library button; timestamped markers on the waveform; the memo's creation date passed from the Shortcut as the date recorded; a
   home-screen icon.
 - **Weekly email digest** of a few forgotten hearted ideas, through the server's existing `smtpd` and smtp2go relay.
