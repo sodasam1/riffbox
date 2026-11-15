@@ -21,7 +21,7 @@ update, and a rebuild after the server was wiped.
    working, or press Enter for a new one (then update the Shortcut once, `SHORTCUT.md` section 0).
 4. **Other modes**
    - `--repair`: also fix what exists but is wrong (a different service script, wrong folder owner or mode, a different backup line). Each fix is shown and asks first; the old service script is kept as `/etc/rc.d/riffbox.pre-riffbox`.
-   - `--code-only`: only copy the app code into place and restart. Touches no system file. This is the everyday update command.
+   - `--app-files-only`: only copy the app code into place and restart. Touches no system file. This is the everyday update command.
    - `--yes`: answer yes to every question (for a rebuild, when you have read `--check`).
 5. **Riffbox data restore** (only after a wipe): upload your backup folder to `/var/riffbox-restore` and use the Restore section
    of the app's Backup and export page (branch `in-app-restore`). The installer itself never touches your recordings.
