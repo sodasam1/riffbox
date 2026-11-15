@@ -1,4 +1,4 @@
-# Riffbox: current plan (updated 10 Nov 2026, groups stages 1 to 5 built)
+# Riffbox: current plan (updated 15 Nov 2026: one-file installer, hashed login and in-app restore deployed)
 
 The original plan is archived, unchanged, at `archive/docs/plan-original-2026-11-08.md` in the repository. This version
 reflects what was actually built, the principles that emerged, and what comes next. Day-to-day status lives in
@@ -87,7 +87,7 @@ has everything; `phase-6`, `phase-7`, `phase-8` are kept as requested).
 | Media | ffmpeg (optional): waveform, length, FLAC copies. The app works without it. |
 | Front door | relayd sends `/ideas` and `/ideas/*` to `127.0.0.1:8100`; TLS and certificates unchanged |
 | Server layout | code `/usr/local/riffbox` (root-owned); data `/var/riffbox` (`riffbox.db`, `audio/`, `tmp/`); settings `/etc/riffbox.conf`; service `/etc/rc.d/riffbox`; optional backups `/var/riffbox-backup` |
-| Deploy | FreeFileSync (SFTP) to `~/riffbox-incoming`, then `sh ~/install-riffbox.sh` |
+| Deploy | FreeFileSync (SFTP) to `~/riffbox`, then `doas sh ~/riffbox/deploy/install.sh` (`--app-files-only` for everyday updates); see `deploy/INSTALL.md` |
 
 Changes from the original plan: path `/ideas` instead of an `ideas.` subdomain; the iPhone Shortcut grew into the Outbox
 pattern; delete, backup, export and the backup page are in Phase 8 and after; the waveform is computed on the server
@@ -118,6 +118,7 @@ instead of the browser.
 | Groups 6 | Optional: grouping suggestions from times, download all parts, play together | Not decided |
 | After groups | Compression and long-lived caching; a grouped idea's Download gives a zip of all parts | Deployed and checked on the live site (headers and group zip) |
 | Next | Code upkeep on branch `code-upkeep` (theme variables, `app.js` split into five scripts, shared test set-up, browser tests in WebKit and Firefox, three engine-specific fixes); built and tested, awaiting deploy and check |
+| Nov 2026 | One-file installer (conservative by default, `--repair`, `--app-files-only`); login passphrase stored as a salted hash, login code in `auth.py` (`docs/AUTH.md`); restore from inside the app into an empty library; no root-owned files left in the upload folder; finished docs moved to `archive/`. Backups stay manual; a nightly schedule is a planned feature | Deployed and checked by the owner; a full restore of the real backup not yet practised |
 | Before that | Speed, interface feel and upkeep: `docs/PLAN-performance-ux-sustainability.md` (interaction speed, smaller list payload, then migrations, pinned dependencies, WebKit/Firefox tests) | Built and tested on branch `speed-and-upkeep` (interaction speed, revalidated lists, numbered migrations, every dependency pinned, engine-selectable browser tests); awaiting deploy and check |
 
 Quality gates today: 308 automated server tests on `main` (326 on `groups`) and 15 Playwright browser scripts (`tests/e2e/`), all passing. Each groups stage ends with a short manual checklist (`docs/CHECKLIST-groups.md`).

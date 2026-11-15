@@ -343,3 +343,9 @@ live database's WAL setting. Source databases are now opened `immutable` (in `re
 - [ ] Deploy gate (owner): on your PC, pull a backup (`/var/riffbox-backup`), run `python deploy\practice_restore.py <folder>`; it should print `ALL CHECKS PASSED`.
       Then `--serve` and look: counts, a recording's tags and notes, playback. Not verified here: Windows paths and `pip install` behaviour. App change: run
       `--app-files-only` on the server to pick up the `immutable` fix (harmless if you do not).
+
+## Docs refresh (branch `docs-refresh`)
+The housekeeping rule above was overdue: the in-app *How this works* page (roadmap row, Last updated, the settings-file row) and `docs/PLAN.md` (deploy row, roadmap row, date) now describe the
+installer, the hashed login and in-app restore. Text only.
+- [x] Local gate: 402 server tests (including `test_about.py`), `howto.cjs`.
+- [ ] Owner: after a deploy (`--app-files-only`), open *How this works*: the Last updated line says 15 Nov 2026 and the roadmap has the new row.
