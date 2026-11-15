@@ -265,10 +265,10 @@ Short manual checks: `docs/CHECKLIST-code-upkeep.md`.
 `deploy/install.sh` replaces the manual runbook steps, `install-riffbox.sh`, `deploy.sh` and `deploy.ps1` (see `deploy/INSTALL.md`, which also
 lists every step by hand). Also: nightly backup scheduled by the installer, `/var/riffbox-restore` drop folder for the planned in-app restore,
 `ffmpeg` installed with the other packages.
-- [x] Local gate: `tests/installer/test-install.sh` (14 checks, against the real Tech Independence `relayd.conf` and the owner's live one; the
-      generated file is identical to the hand-edited live one apart from markers) and the 380 server tests.
+- [x] Local gate: `tests/installer/test-install.sh` (21 checks, against the real Tech Independence `relayd.conf` and the owner's live `relayd.conf`
+      and service script) and the 380 server tests. Modes: default (creates only what is missing), `--repair`, `--code-only`, `--yes`, `--check`.
 - [ ] Deploy gate (owner): upload `riffbox/`, `doas sh ~/riffbox/deploy/install.sh --check`, read it, then run it. Expected on the current server:
-      relayd rules detected and left alone, `riffbox.conf` kept, new folders and the backup cron line added, service restarted, PASS line.
+      relayd rules, `riffbox.conf` and the service script all LEFT ALONE; only two new folders and the backup cron line are created; code copied; service restarted; PASS line.
       Not verifiable here: `pkg_add`, `useradd`, `rcctl`, `relayd -n`, `crontab`.
 
 ## Hashed login (branch `hashed-login`, stacked on `one-file-installer`: merge that one first)
@@ -276,7 +276,9 @@ All login code moved to `app/riffbox/auth.py`; the passphrase is stored only as 
 if the server's Python lacks scrypt). The old plain `RIFFBOX_PASSPHRASE` still works with a log warning, and `deploy/install.sh` converts it in
 place (login unchanged). `docs/AUTH.md` explains it and the path to a shared login or a proxy.
 - [x] Local gate: 393 server tests (13 new in `test_auth_hash.py`; breaking the verifier makes 5 fail), installer tests 17 checks.
-- [ ] Deploy gate (owner): merge, upload, `doas sh ~/riffbox/deploy/install.sh --check` (should say it will replace the plain passphrase with a
-      hash), run it, log in with your SAME passphrase; log out and in; five wrong attempts get locked out; run `SHORTCUT.md` section 6 (phone
-      upload still works, wrong token refused). Run `python3 /usr/local/riffbox/deploy/hash_passphrase.py --method` and tell me what it prints.
+- [ ] Deploy gate (owner): merge, upload, make a root-only safety copy (`doas cp -p /etc/riffbox.conf /etc/riffbox.conf.bak-plain`), then
+      `doas sh ~/riffbox/deploy/install.sh --code-only` (new code; plain passphrase still accepted) and confirm login works; then
+      `doas sh ~/riffbox/deploy/install.sh --repair` and answer `y` to replace the plain passphrase with a hash. Log in with your SAME passphrase; a wrong one is
+      refused; run `SHORTCUT.md` section 6 (phone upload still works). Run `python3 /usr/local/riffbox/deploy/hash_passphrase.py --method` and tell me what it prints;
+      delete `/etc/riffbox.conf.bak-plain` once all is well.
       Not verified here: scrypt availability on OpenBSD, hash parameters vs the current OWASP sheet, iPhone behaviour.
