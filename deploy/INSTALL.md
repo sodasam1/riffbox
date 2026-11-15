@@ -26,6 +26,15 @@ update, and a rebuild after the server was wiped.
 5. **Riffbox data restore** (only after a wipe): upload your backup folder to `/var/riffbox-restore` and use the Restore section
    of the app's Backup and export page (branch `in-app-restore`). The installer itself never touches your recordings.
 
+## If FreeFileSync cannot delete or replace files in `~/riffbox`
+Some file in that folder is owned by root instead of by you. Cause: Python run as root (by the installer, or `doas python3 deploy/...`) used to leave
+`__pycache__` folders there; the installer and tools no longer do (branch `clean-upload-folder`). To fix an existing folder once:
+```sh
+find ~/riffbox ! -user YOURUSER          # lists what is not yours (should be only these __pycache__ items)
+doas chown -R YOURUSER:YOURUSER ~/riffbox
+```
+Safe: `~/riffbox` is only the staging copy you upload; the running app lives in `/usr/local/riffbox`. Never run `chown -R` on `/usr/local/riffbox`, `/var/riffbox` or `/etc`.
+
 ## What the installer does, and the same steps by hand
 If the script ever stops working on a future OpenBSD, these are the same steps. `doas` runs a command as root.
 

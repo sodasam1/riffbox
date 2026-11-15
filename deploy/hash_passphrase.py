@@ -10,6 +10,7 @@ The hash is written by app/riffbox/passwords.py; read its header for the method 
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True          # no __pycache__ next to the source: run as root, it would leave root-owned files in the upload folder
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _shared import load  # noqa: E402
 

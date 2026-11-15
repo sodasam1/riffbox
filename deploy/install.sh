@@ -15,6 +15,9 @@
 #
 # Test hook: RIFFBOX_TEST_ROOT=/some/dir applies file edits under that folder and only PRINTS the system commands.
 set -eu
+# Python must not leave __pycache__ folders in the uploaded riffbox folder: they would be owned by root, and FreeFileSync (your login) could then
+# never delete or replace them.
+export PYTHONDONTWRITEBYTECODE=1
 
 ROOT="${RIFFBOX_TEST_ROOT:-}"
 SRC=$(cd "$(dirname "$0")/.." && pwd)
