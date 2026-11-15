@@ -392,3 +392,14 @@ when the owner chooses these two actions. Rules in code: only ideas already in t
       `howto.cjs` and `phase9.cjs` check the Original geometry, so they pin that style; `theme.cjs` covers Minimal.
 - [x] Local gate: 423 server tests, all 26 browser scripts.
 - [ ] Still to do on this branch: one row-actions menu, and the two-step edit form.
+
+### Full codebase inspection (on `interface-cleanup`)
+Tools run: pyflakes, vulture (min confidence 70), bandit, radon (complexity), coverage over the 423 server tests, `node --check` on every script, a scan for JS functions never called and CSS classes never used, and TODO/debug-output search.
+- Fixed: one unused variable (`parts` in `exporter._idea_note_text`).
+- Clean: no dead functions in `static/*.js`, no unused CSS classes, no leftover `console.log`/TODO, every JS file parses. Bandit's 10 "SQL injection" hits (B608) are all f-strings that interpolate only a row of `?` placeholders or a fixed
+  `WHERE` clause; no user text reaches the SQL string. They stay as written (a bandit `# nosec` marker would only hide future real findings).
+- Left as is on purpose: the re-exported names in `__init__.py` (`LOOPBACK`, throttle constants) are used by the tests.
+- Coverage 93% overall. Lowest: `exporter.py` 73% (the multi-part note and zip writer run in a subprocess in the tests, which `coverage` does not follow, so the figure understates it), `restorer.py` 87% (error branches for unreadable files), `backup.py` 88%.
+- Complexity hot spots (radon E/D): `intake.validate_patch` (36), `groups.suggest` (34), `intake.validate_bulk` (24), `groups.update` (21). All are covered by tests; splitting them would be tidier but is a risk for no user-visible gain, so not done.
+- Size: `app.js` is 82 KB (24 KB gzipped) and is the biggest first-load cost. Possible later saving: load the Data/How pages' code and the edit form only when first needed (about 10 KB gzipped). Not done: the measured first-load gain was small last time and it adds a request.
+- Not run here: ShellCheck (not installed in this environment) on `deploy/*.sh`; it was run in earlier sessions.
