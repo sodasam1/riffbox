@@ -117,7 +117,9 @@ def _roots(folder):
 
 
 def _count(db_path):
-    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    # immutable=1: a backup is a finished file. Without it SQLite may create -wal/-shm side files next to the database (a backup keeps the
+    # live database's WAL setting), which would change the owner's drop folder. as_uri() also protects paths with spaces or odd characters.
+    conn = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro&immutable=1", uri=True)
     try:
         return conn.execute("SELECT COUNT(*) FROM recordings").fetchone()[0]
     finally:

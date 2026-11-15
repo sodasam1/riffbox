@@ -12,7 +12,7 @@ Python + Flask + SQLite and a plain HTML/CSS/JS page: no build step, no npm, no 
 | The current plan, principles and open items | `docs/PLAN.md` (the original plan is kept in `archive/`) |
 | Speed, interface and upkeep work planned for later | `docs/PLAN-performance-ux-sustainability.md` |
 | Putting it on the server, routine deploys, rebuilding | `deploy/INSTALL.md` (one file, `deploy/install.sh`; the old first-deploy runbooks are in `archive/`) |
-| Backups, the restore drill, exports | `deploy/PHASE8.md` |
+| Backups, the restore drill, exports | `deploy/PHASE8.md`; a one-command practice restore: `deploy/practice_restore.py` (see `deploy/INSTALL.md`) |
 | First deploy of groups (migration rehearsal, rollback) | `archive/deploy/GROUPS.md` |
 | Uploading from the iPhone | `deploy/SHORTCUT.md` |
 | Removing everything Riffbox added to the server | `deploy/UNINSTALL.md` |

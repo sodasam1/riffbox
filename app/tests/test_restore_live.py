@@ -199,3 +199,17 @@ def test_the_restore_function_itself_refuses_a_library_that_has_recordings(tmp_p
             restorer.restore_into_live(tmp_path / "drop", oldapp.config["DATA_DIR"], live, migrations.run, tmp_path / "scratch")
     finally:
         live.close()
+
+
+def test_looking_at_a_backup_leaves_no_side_files_in_the_drop_folder(tmp_path, old):
+    """SQLite can create -wal/-shm files next to a database it merely opens; the owner's drop folder must stay exactly as uploaded."""
+    oldapp, _, _ = old
+    drop = tmp_path / "drop"
+    backups.backup(oldapp.config["DATA_DIR"], drop / "b")
+    before = sorted(str(p.relative_to(drop)) for p in drop.rglob("*"))
+    app = new_app(tmp_path, drop)
+    c = logged_in(app)
+    assert c.get("/api/restore").get_json()["found"]["layout"] == "backup"        # this opens the database to count its recordings
+    assert c.post("/api/restore").status_code == 202
+    wait_done(c)
+    assert sorted(str(p.relative_to(drop)) for p in drop.rglob("*")) == before
