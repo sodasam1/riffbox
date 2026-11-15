@@ -25,6 +25,7 @@ done
 diff "$R/orig" "$R/etc/relayd.conf" | grep '^<' >/dev/null && bad "fresh: an original relayd line changed" || ok "fresh: relayd edit is additions only"
 awk '/path "\/ideas\/\*"/{a=NR} /quick header "Host"/&&!h{h=NR} END{exit !(a&&h&&a<h)}' "$R/etc/relayd.conf" && ok "fresh: path rules sit before the Host rules" || bad "fresh: rule order"
 [ -f "$R/etc/relayd.conf.pre-riffbox" ] && cmp -s "$R/etc/relayd.conf.pre-riffbox" "$R/orig" && ok "fresh: backup equals original" || bad "fresh: backup"
+grep -q '^RIFFBOX_BACKUP_DIR=/var/riffbox-backup$' "$R/etc/riffbox.conf" && ! grep -qi crontab "$R/run1.out" && ok "fresh: backup folder is set for the Back up now button, and no cron job is mentioned or added" || bad "fresh: backup setting / cron"
 grep -q '^RIFFBOX_UPLOAD_TOKEN=tok123$' "$R/etc/riffbox.conf" && ok "fresh: existing phone token reused" || bad "fresh: token"
 [ "$(stat -c %a "$R/etc/riffbox.conf")" = 640 ] && ok "fresh: riffbox.conf mode 640" || bad "fresh: conf mode"
 cp "$R/etc/relayd.conf" "$R/a1"; cp "$R/etc/riffbox.conf" "$R/c1"; cp "$R/etc/rc.d/riffbox" "$R/r1"; sh "$SCR" --yes >/dev/null
@@ -51,4 +52,12 @@ sh "$SCR" > "$L/o2"; cmp -s "$L/modified" "$L/etc/rc.d/riffbox" && grep -q 'use 
 RIFFBOX_TEST_ANSWER=n sh "$SCR" --repair > "$L/o3"; cmp -s "$L/modified" "$L/etc/rc.d/riffbox" && ok "live: --repair does nothing if you answer no" || bad "live: repair ignored the answer"
 RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair > "$L/o4"
 grep -q -- '--threads=4' "$L/etc/rc.d/riffbox" && cmp -s "$L/modified" "$L/etc/rc.d/riffbox.pre-riffbox" && ok "live: --repair with yes replaces it and keeps the old one as .pre-riffbox" || bad "live: repair result"
+
+# a live riffbox.conf with no backup-folder line: reported by default; --repair + yes appends the line and keeps everything else
+cp "$L/orig-riffbox.conf" "$L/etc/riffbox.conf"
+sh "$SCR" > "$L/out5"; cmp -s "$L/etc/riffbox.conf" "$L/orig-riffbox.conf" && grep -q 'Back up now' "$L/out5" && ok "live: a missing backup-folder setting is reported and left alone by default" || bad "live: default changed conf"
+RIFFBOX_TEST_ANSWER=n sh "$SCR" --repair >/dev/null; cmp -s "$L/etc/riffbox.conf" "$L/orig-riffbox.conf" && ok "live: --repair does nothing if you answer no" || bad "live: repaired without consent"
+RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair >/dev/null
+[ "$(grep -c '^RIFFBOX_BACKUP_DIR=/var/riffbox-backup$' "$L/etc/riffbox.conf")" = 1 ] && grep -q '^RIFFBOX_SECRET=keep$' "$L/etc/riffbox.conf" && ok "live: --repair with yes adds the one line and keeps the rest" || bad "live: backup line"
+cp "$L/etc/riffbox.conf" "$L/c3"; RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair >/dev/null; cmp -s "$L/c3" "$L/etc/riffbox.conf" && ok "live: a second --repair adds nothing more" || bad "live: duplicated line"
 [ "$fail" = 0 ] && echo "ALL PASSED" || { echo "SOME FAILED"; exit 1; }
