@@ -1,5 +1,8 @@
 # How login works, how to add it to an app, and how to scale it
 
+> **Updated on branch `adopt-shared-kit-and-harden-login`.** Riffbox can now accept the server-wide login (section 6) and carries several safeguards from a
+> security review (section 7). Sections 1-5 describe the older, per-app login, which is still the default (`RIFFBOX_AUTH=local`).
+
 Written for the owner. Principles: use standard, long-lived parts; write as little security code as possible; keep everything at the
 app level so the server as a whole depends on none of it; keep a clear path to something bigger.
 
@@ -54,3 +57,26 @@ means replacing `auth.py`, not touching the rest of the app.
 ## 5. Static private pages
 Plain files under `htdocs/private/` are protected by the web server itself (the site kit's `install.sh`: `authenticate` plus a bcrypt `htpasswd`
 file), not by this code. Different purpose: that protects pages with no server code; this protects an app's data. The same passphrase can open both.
+
+## 6. The site-wide login (new): `RIFFBOX_AUTH=local | both | site`
+One central login service (personal-site `login/`, at `/login`) checks your passphrase once and sets one cookie **per app**, each signed with that app's own key
+(`/etc/site-auth/keys/riffbox.key`, readable only by `_riffbox`). Riffbox verifies `site_riffbox` with `siteauth` (vendored in `app/siteauth/`). Full design:
+personal-site `docs/MULTI-APP.md`.
+| `RIFFBOX_AUTH` | Meaning |
+|---|---|
+| `local` (default) | exactly as before: Riffbox's own passphrase and cookie. The site cookie is ignored. |
+| `both` | either works. Use while moving over. |
+| `site` | only the site login. `POST /api/login` answers 410 and the page sends you to `/login?next=/ideas/`. |
+To move over: install the login service (personal-site `RESTORE.html` B2), re-run `doas sh ~/riffbox/deploy/install.sh` (it registers Riffbox and writes its key; held back with a
+message if the login is not installed yet), add `RIFFBOX_AUTH=both` to `/etc/riffbox.conf`, `doas rcctl restart riffbox`, sign in at `/login`, check `/ideas/`, then set `site`.
+Back out at any time by setting it back to `local`. The phone upload token is unaffected in every mode. "Log out everywhere": `keys.py rotate` (see MULTI-APP.md).
+
+## 7. Safeguards added after the security review (all modes)
+- A stranger can no longer lock you out: the old 30-failures-from-anyone rule made every login answer 429; now it only slows attempts (2 s each, at most 2 waiting at once). The per-client limit (5 per 15 min) is unchanged.
+- `/api/login` reads at most 4 KB (it used to accept up to the app-wide 300 MB before checking anything).
+- Wrong upload tokens are counted: 20 per client per 15 min, then that client is refused.
+- State-changing requests that a browser says came from another origin get 403 (on top of `SameSite=Lax`). Requests with no `Origin` (Shortcut, curl) are unaffected.
+- A strict Content-Security-Policy (`script-src 'self'`, no inline script, `frame-ancestors 'none'`); the looser site-wide one in relayd stays, and the stricter one wins.
+- Passphrase minimum is 15 characters (NIST SP 800-63B-4 for a password used alone) when choosing one; an older shorter one still verifies, with a note.
+- Cookie lifetime 30 days (was 60).
+- **Not changed, on purpose:** the old plain-text `RIFFBOX_PASSPHRASE` setting is still accepted (removing it would lock you out if the live conf still has it; `--repair` converts it, then it can be removed in a later change).

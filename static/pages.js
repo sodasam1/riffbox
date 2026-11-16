@@ -146,5 +146,5 @@ $("#logout").addEventListener("click", async () => {
   try { await api("logout", { method: "POST" }); }
   catch (e) { notify("Could not log out: " + NETWORK_ERROR); return; }       // still logged in, so do not pretend otherwise
   history.replaceState(null, "", location.pathname + location.search);   // leave "#how" behind
-  show("login");
+  goLogin();
 });

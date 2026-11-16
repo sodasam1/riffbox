@@ -1,0 +1,13 @@
+# Riffbox's settings for the shared installer (deploy/appkit.sh). Values with spaces are quoted. Reference: kit/appkit/README.md.
+NAME=riffbox
+UNIXNAME=riffbox
+TITLE=Riffbox
+BASE_PATH=/ideas
+PORT=8100
+PKGS="py3-flask py3-waitress ffmpeg"
+SVC_HOME=/var/riffbox
+SRC_MARKER="app/wsgi.py static"
+MARK=riffbox
+HEALTH_PATH=/ideas/health
+DIRS="/var/riffbox,@svc,@svc,750 /var/riffbox-backup,@svc,@svc,755 /var/riffbox-restore,@login,@login,755"
+SITE_AUTH=1

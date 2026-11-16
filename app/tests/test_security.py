@@ -82,11 +82,25 @@ def test_success_clears_that_clients_failures(client, monkeypatch):
         assert bad(client, "1.1.1.1").status_code == 401
 
 
-def test_global_cap_stops_distributed_guessing(client, monkeypatch):
+def test_global_pressure_slows_but_never_locks_the_owner_out(client, monkeypatch):
+    """Before: 30 wrong guesses from anyone made every login, including the owner's, answer 429 for 15 minutes (a stranger could lock
+    the owner out). Now a spread-out attack only adds a short delay to each attempt."""
     with_clock(monkeypatch)
+    slept = []
+    client.application.config["LOGIN_SLEEP"] = slept.append
     for i in range(riffbox.LOGIN_GLOBAL_MAX):
         assert bad(client, f"10.0.{i // 250}.{i % 250}").status_code == 401
-    assert good(client, "9.9.9.9").status_code == 429
+    assert slept == []                                           # not slowed until the threshold is reached
+    assert good(client, "9.9.9.9").status_code == 200            # the owner still gets in...
+    assert slept == [riffbox.throttle.LOGIN_SLOW_DELAY]          # ...after one short delay
+
+
+def test_slow_lane_is_bounded_so_threads_cannot_all_be_parked():
+    from riffbox import throttle as th
+    t = th.LoginThrottle(lambda: 0.0)
+    assert [t.try_slow() for _ in range(th.LOGIN_SLOW_WAITERS + 1)] == [True] * th.LOGIN_SLOW_WAITERS + [False]
+    t.leave_slow()
+    assert t.try_slow() is True
 
 
 def test_forwarded_header_ignored_for_non_loopback_peers(client, monkeypatch):

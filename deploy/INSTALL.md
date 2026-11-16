@@ -70,3 +70,8 @@ The installer's file edits are tested against your real `relayd.conf` (and the o
 `pkg_add`, `useradd`, `rcctl`, and `relayd -n` can only be run on OpenBSD: the first run on your server is the test,
 which is why `--check` exists and why it keeps `/etc/relayd.conf.pre-riffbox`. On your current server the hand-written
 relayd rules are detected and left alone, and `/etc/riffbox.conf` is never overwritten.
+
+
+---
+**Note (branch `adopt-shared-kit-and-harden-login`):** `deploy/install.sh` is now three lines plus `deploy/app.manifest` and `deploy/hooks.sh`; the logic is the shared `deploy/appkit.sh`
+(personal-site `kit/appkit/`). It writes exactly the same files as before (proved by `tests/installer/test-equivalence.sh`). The steps above are unchanged and still work by hand.

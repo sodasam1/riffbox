@@ -89,6 +89,10 @@ ABOUT = Path(__file__).with_name("about.html")        # the private "How this wo
 # anyone) inside WINDOW seconds, logins get HTTP 429 until the oldest failure ages out.
 
 
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src 'self'; connect-src 'self'; "
+       "base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'")
+
+
 def _now():
     # Module-level so tests can replace the clock.
     return time.monotonic()
@@ -143,6 +147,10 @@ def create_app(config=None):
         PASSPHRASE=os.environ.get("RIFFBOX_PASSPHRASE", ""),            # older, plain-text setting
         PASSPHRASE_HASH=os.environ.get("RIFFBOX_PASSPHRASE_HASH", ""),  # preferred: a salted hash, see passwords.py
         SECRET_KEY=os.environ.get("RIFFBOX_SECRET", ""),
+        # Who may sign in: "local" (this app's own passphrase, the default), "both", or "site" (the server-wide login). See auth.py.
+        AUTH_MODE=os.environ.get("RIFFBOX_AUTH", "local"),
+        SITE_KEY_FILE=os.environ.get("RIFFBOX_SITE_KEY_FILE", "/etc/site-auth/keys/riffbox.key"),
+        SITE_LOGIN_URL=os.environ.get("RIFFBOX_SITE_LOGIN_URL", "/login"),
         MAX_CONTENT_LENGTH=300 * 1024 * 1024,
         # URL prefix the app is served under, e.g. "/ideas" ("" at the root, for dev/tests).
         BASE_PATH=os.environ.get("RIFFBOX_BASE_PATH", ""),
@@ -159,7 +167,7 @@ def create_app(config=None):
         SESSION_COOKIE_SAMESITE="Lax",
         # Set RIFFBOX_INSECURE_COOKIES=1 only for local http testing.
         SESSION_COOKIE_SECURE=os.environ.get("RIFFBOX_INSECURE_COOKIES") != "1",
-        PERMANENT_SESSION_LIFETIME=dt.timedelta(days=60),
+        PERMANENT_SESSION_LIFETIME=dt.timedelta(days=30),
     )
     if config:
         app.config.update(config)
@@ -1000,6 +1008,10 @@ def create_app(config=None):
     @app.after_request
     def harden(resp):
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        # A strict policy of this app's own: no inline script, nothing from other sites, no framing, nowhere to send forms but here.
+        # (relayd adds a looser site-wide one; browsers apply every policy, so the strictest wins.)
+        resp.headers.setdefault("Content-Security-Policy", CSP)
+        resp.headers.setdefault("Referrer-Policy", "same-origin")
         return resp
 
     @app.after_request
