@@ -1,3 +1,5 @@
+import pytest
+
 import riffbox
 from conftest import PASS, TOKEN, make_wav, upload
 
@@ -65,6 +67,28 @@ def test_lockout_expires_after_window(client, monkeypatch):
     assert good(client, "1.1.1.1").status_code == 200
 
 
+def test_the_limit_and_window_can_be_relaxed_in_the_settings(tmp_path, monkeypatch):
+    clock = with_clock(monkeypatch)
+    app = riffbox.create_app({"TESTING": True, "DATA_DIR": str(tmp_path / "d"), "PASSPHRASE": PASS, "SECRET_KEY": "s", "SESSION_COOKIE_SECURE": False,
+                              "LOGIN_MAX_FAILS": 12, "LOGIN_WINDOW_MINUTES": 2})
+    c = app.test_client()
+    for _ in range(11):
+        assert bad(c, "1.1.1.1").status_code == 401          # five is no longer the limit
+    assert bad(c, "1.1.1.1").status_code == 401              # the 12th wrong one is still answered (and counted)
+    r = good(c, "1.1.1.1")
+    assert r.status_code == 429 and int(r.headers["Retry-After"]) <= 2 * 60 + 1   # now locked, but only for the 2-minute window
+    clock.t += 2 * 60 + 1
+    assert good(c, "1.1.1.1").status_code == 200
+
+
+def test_bad_limit_settings_stop_the_app_at_start_up(monkeypatch, tmp_path):
+    for name, val in (("RIFFBOX_LOGIN_MAX_FAILS", "ten"), ("RIFFBOX_LOGIN_MAX_FAILS", "0"), ("RIFFBOX_LOGIN_WINDOW_MINUTES", "-3")):
+        monkeypatch.setenv(name, val)
+        with pytest.raises(RuntimeError, match=name):
+            riffbox.create_app({"TESTING": True, "DATA_DIR": str(tmp_path / "x"), "PASSPHRASE": PASS, "SECRET_KEY": "s"})
+        monkeypatch.delenv(name)
+
+
 def test_other_clients_are_unaffected(client, monkeypatch):
     with_clock(monkeypatch)
     for _ in range(5):
@@ -82,11 +106,25 @@ def test_success_clears_that_clients_failures(client, monkeypatch):
         assert bad(client, "1.1.1.1").status_code == 401
 
 
-def test_global_cap_stops_distributed_guessing(client, monkeypatch):
+def test_global_pressure_slows_but_never_locks_the_owner_out(client, monkeypatch):
+    """Before: 30 wrong guesses from anyone made every login, including the owner's, answer 429 for 15 minutes (a stranger could lock
+    the owner out). Now a spread-out attack only adds a short delay to each attempt."""
     with_clock(monkeypatch)
+    slept = []
+    client.application.config["LOGIN_SLEEP"] = slept.append
     for i in range(riffbox.LOGIN_GLOBAL_MAX):
         assert bad(client, f"10.0.{i // 250}.{i % 250}").status_code == 401
-    assert good(client, "9.9.9.9").status_code == 429
+    assert slept == []                                           # not slowed until the threshold is reached
+    assert good(client, "9.9.9.9").status_code == 200            # the owner still gets in...
+    assert slept == [riffbox.throttle.LOGIN_SLOW_DELAY]          # ...after one short delay
+
+
+def test_slow_lane_is_bounded_so_threads_cannot_all_be_parked():
+    from riffbox import throttle as th
+    t = th.LoginThrottle(lambda: 0.0)
+    assert [t.try_slow() for _ in range(th.LOGIN_SLOW_WAITERS + 1)] == [True] * th.LOGIN_SLOW_WAITERS + [False]
+    t.leave_slow()
+    assert t.try_slow() is True
 
 
 def test_forwarded_header_ignored_for_non_loopback_peers(client, monkeypatch):

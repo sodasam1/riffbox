@@ -1,0 +1,17 @@
+# Riffbox's settings for the shared installer (deploy/appkit.sh). Values with spaces are quoted. Reference: kit/appkit/README.md.
+NAME=riffbox
+UNIXNAME=riffbox
+TITLE=Riffbox
+BASE_PATH=/ideas
+PORT=8100
+PKGS="py3-flask py3-waitress ffmpeg"
+# Program files stay on the boot disk (/usr/local/riffbox); ALL data lives on the separate volume, so a rebuilt server is simply pointed at it.
+# The installer refuses to run, and the service refuses to start, unless DATA_ROOT is mounted and holds .volume-ok.
+DATA_ROOT=/mnt/data
+REQUIRE_MOUNT=$DATA_ROOT
+SVC_HOME=/var/empty
+SRC_MARKER="app/wsgi.py static"
+MARK=riffbox
+HEALTH_PATH=/ideas/health
+DIRS="$DATA_ROOT/apps/riffbox/data,@svc,@svc,750 $DATA_ROOT/apps/riffbox/backup,@svc,@svc,755 $DATA_ROOT/apps/riffbox/restore,@login,@login,755"
+SITE_AUTH=1

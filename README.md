@@ -83,12 +83,14 @@ reads at start-up (`RIFFBOX_CONFIG` names another file). Real environment variab
 | `RIFFBOX_PASSPHRASE_HASH` | a salted hash of what you type to log in (made by `deploy/install.sh`; see `docs/AUTH.md`) |
 | `RIFFBOX_PASSPHRASE` | older plain-text form of the same; still accepted with a warning, will be removed |
 | `RIFFBOX_UPLOAD_TOKEN` | lets the phone Shortcut add recordings (and nothing else) |
-| `RIFFBOX_DATA_DIR` | database and audio (default `/var/riffbox`) |
+| `RIFFBOX_DATA_DIR` | database and audio. The installer writes `/mnt/data/apps/riffbox/data` (the data volume); the built-in default, if the line is missing, is `/var/riffbox` on the boot disk |
 | `RIFFBOX_BASE_PATH` | the URL prefix, e.g. `/ideas` (empty at the root) |
 | `RIFFBOX_STATIC_DIR` | where the page files are |
 | `RIFFBOX_FFMPEG` | path to `ffmpeg`; empty switches it off (found automatically if installed) |
 | `RIFFBOX_BACKUP_DIR` | the folder behind the "Back up now" button; empty switches the button off |
-| `RIFFBOX_RESTORE_DIR` | the drop folder the Restoring section reads (default `/var/riffbox-restore`) |
+| `RIFFBOX_RESTORE_DIR` | the drop folder the Restoring section reads (the installer writes `/mnt/data/apps/riffbox/restore`; built-in default `/var/riffbox-restore`) |
+| `RIFFBOX_LOGIN_MAX_FAILS` | wrong passphrases one client may try within the window before it must wait (default 5) |
+| `RIFFBOX_LOGIN_WINDOW_MINUTES` | the window, and so the longest wait (default 15). A restart of the service clears all counters |
 | `RIFFBOX_INSECURE_COOKIES=1` | local plain-http testing only |
 
 ## Layout
@@ -130,10 +132,11 @@ How login works, how to add it to another app and how to scale it: `docs/AUTH.md
   Done: compression and long-lived caching (deployed); much faster Library, Select mode and Select all, revalidated lists, numbered
   database migrations, every dependency pinned (on branch `speed-and-upkeep`); one set of style variables for the themes, `app.js` split into
   five files, shared browser-test set-up, and the browser tests run in WebKit and Firefox (on branch `code-upkeep`). Still planned:
-  - load the Library list only when its tab opens, and start the list request together with the session check;
+  - (the Library-on-tab-open and early-list-request items are done, in the Nov 2026 speed work)
   - a monthly self-test; a yearly-care checklist; running the audio tests in Firefox on a machine with sound.
-- **Interface clean-up:** an idle player that stays slim, one row-actions menu, collapsible filter groups, a two-step edit
-  form, orange only for primary actions.
+- **Interface clean-up** (done, Nov 2026): slim idle player, collapsible filter groups, accent colour only on primary actions, Minimal as the default style with an Accent color row.
+  Possible future features, not planned (owner, 15 Nov 2026): **one row-actions (⋯) menu** (keep ♥ and Edit visible; Download, ✓ and ✗ move into the menu; costs an extra tap to mark ✓ or ✗) and a
+  **two-step edit form** (Basics first; BPM, Key, Date, Used in and Parts under a closed "More details" that opens itself when tempo or key need a choice).
 - **Candidate features:** an off-server copy reminder and a Verify-library button; timestamped markers on the waveform; the memo's creation date passed from the Shortcut as the date recorded; a
   home-screen icon.
 - **Weekly email digest** of a few forgotten hearted ideas, through the server's existing `smtpd` and smtp2go relay.

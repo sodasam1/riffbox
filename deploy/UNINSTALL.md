@@ -4,6 +4,8 @@ Riffbox is built so that everything it adds to your server is on this one list. 
 the server is back to how it was before Riffbox. Nothing here touches your website, email, Radicale,
 certificates, DNS or firewall, because Riffbox never changes them.
 
+**Where the data is:** Riffbox's recordings, database, backups and restore folder live on the separate data volume (`/mnt/data/apps/riffbox/`), not on the boot disk. Everything in the table below that is **not** under `/mnt/data` is rebuilt by the installer; the folders under `/mnt/data/apps/riffbox` are your data and survive a wiped server. This guide never touches the volume itself, its mount or `/etc/fstab`; deleting `/mnt/data/apps/riffbox` is a separate, deliberate step (below) that you do only if you really want the recordings gone.
+
 ## Everything Riffbox adds
 
 | # | What | Where | Added in | Shared with other things? |
@@ -14,18 +16,18 @@ certificates, DNS or firewall, because Riffbox never changes them.
 | 4 | Secrets file | `/etc/riffbox.conf` | step 4 | No |
 | 5 | Service user and group | `_riffbox` in `/etc/passwd` and `/etc/group` | step 3 | **Yes** (system files) |
 | 6 | The code | `/usr/local/riffbox` | step 3 / deploys | No |
-| 7 | **Your recordings and database** (also holds the scratch folder `tmp/`) | `/var/riffbox` | step 3 / use | No. **This is your data** |
-| 7b | **Backup copy of your data** (only if you did `deploy/PHASE8.md`): database copies and a second copy of every original | `/var/riffbox-backup` (or whatever `RIFFBOX_BACKUP_DIR` says) | phase 8 | No. **This is also your data** |
+| 7 | **Your recordings and database** (also holds the scratch folder `tmp/`) | `/mnt/data/apps/riffbox/data` | step 3 / use | No. **This is your data** |
+| 7b | **Backup copy of your data** (only if you did `deploy/PHASE8.md`): database copies and a second copy of every original | `/mnt/data/apps/riffbox/backup` (or whatever `RIFFBOX_BACKUP_DIR` says) | phase 8 | No. **This is also your data** |
 | 7c | Nightly backup job (only if you added it) | root's crontab (`doas crontab -l`, the line that runs `backup.py`) | phase 8 | **Yes** (the crontab may hold other jobs) |
 | 7d | Export folder (only if you ran `export.py` on the server) | `/tmp/riffbox-export` or the folder you named | phase 8 | No |
 | 8 | Python packages (Flask, waitress and their helpers) | `/usr/local` via `pkg_add` | step 2 | Possibly some helpers (see below) |
 | 8b | `ffmpeg` and its libraries (only if you did `archive/deploy/PHASE3_5.md`) | `/usr/local` via `pkg_add` | phase 3.5 | Possibly some libraries (see below) |
-| 9 | Upload leftovers in your home directory | `~/riffbox-incoming`, `~/install-riffbox.sh`, `~/riffbox.tgz` | step 5 | No |
+| 9 | Upload leftovers in your home directory | `~/riffbox-incoming`, `~/install-riffbox.sh`, `~/staging/riffbox.tgz` | step 5 | No |
 
 Later features may add more (a digest e-mail, if built). This file is updated whenever that happens.
 
 ## Added by the one-file installer (`deploy/install.sh`)
-Besides the list below: the folder `/var/riffbox-restore` (the drop folder for Riffbox data restore, usually empty) and, on a fresh server, three blocks in `/etc/relayd.conf` between `# BEGIN riffbox` and `# END riffbox`
+Besides the list below: the folder `/mnt/data/apps/riffbox/restore` (the drop folder for Riffbox data restore, usually empty) and, on a fresh server, three blocks in `/etc/relayd.conf` between `# BEGIN riffbox` and `# END riffbox`
 (a copy of the original is `/etc/relayd.conf.pre-riffbox`). The service script is written by the installer, not copied from a file.
 
 ## Optional: record a baseline before step 7
@@ -48,7 +50,7 @@ all `relayd.conf`.
 Before removing anything, if you've uploaded recordings you want to keep, copy `/var/riffbox/audio`
 off the server first (FreeFileSync, server to computer, folder `/var/riffbox/audio`; your login user
 can't read it directly, so first run `doas cp -r /var/riffbox/audio ~/riffbox-audio-copy` and
-`doas chown -R YOURUSER ~/riffbox-audio-copy`). Deleting `/var/riffbox` is permanent.
+`doas chown -R YOURUSER ~/riffbox-audio-copy`). Deleting `/mnt/data/apps/riffbox/data` is permanent.
 
 ## Removal, in this order
 
@@ -83,12 +85,12 @@ test OpenBSD's exact behaviour here.)
 ```sh
 doas rm /etc/riffbox.conf
 doas rm -r /usr/local/riffbox
-doas rm -r /var/riffbox
-doas rm -r /var/riffbox-backup        # only if you made it; this is the second copy of your recordings
+doas rm -r /mnt/data/apps/riffbox/data
+doas rm -r /mnt/data/apps/riffbox/backup        # only if you made it; this is the second copy of your recordings
 rm -r ~/riffbox-incoming
-rm -f ~/install-riffbox.sh ~/riffbox.tgz
+rm -f ~/install-riffbox.sh ~/staging/riffbox.tgz
 ```
-(`/var/riffbox` and `/var/riffbox-backup` are your recordings: only run those lines once you have a copy on your own
+(`/mnt/data/apps/riffbox/data` and `/mnt/data/apps/riffbox/backup` are your recordings: only run those lines once you have a copy on your own
 computer, or no longer care. Also remove the nightly backup line from root's crontab with `doas crontab -e`, and
 delete `/tmp/riffbox-export` if it exists.)
 
@@ -126,7 +128,7 @@ CHECK: `pkg_info | grep -iE 'flask|waitress|ffmpeg'` prints nothing, and `rcctl 
 ## Check that nothing is left
 ```sh
 grep -ri riffbox /etc/relayd.conf /etc/rc.conf.local /etc/passwd /etc/group
-ls -d /usr/local/riffbox /var/riffbox /var/riffbox-backup /etc/riffbox.conf /etc/rc.d/riffbox ~/riffbox-incoming 2>&1
+ls -d /usr/local/riffbox /mnt/data/apps/riffbox/data /mnt/data/apps/riffbox/backup /etc/riffbox.conf /etc/rc.d/riffbox ~/riffbox-incoming 2>&1
 rcctl ls all | grep riffbox
 doas crontab -l | grep -i riffbox
 ```

@@ -23,8 +23,15 @@ const NETWORK_ERROR = "Could not reach the server. Check your connection and try
 // A 401 means the session ended: show the login page. Returns true so callers can stop.
 function loggedOut(r) {
   if (r.status !== 401) return false;
-  show("login");
+  goLogin();
   return true;
+}
+// Show this app's own login form, unless the server uses the site-wide login: then go there (and come back here afterwards).
+async function goLogin() {
+  let info = {};
+  try { info = await (await api("auth-info")).json(); } catch (e) { /* offline: the form below */ }
+  if (info.site_login) { location.href = info.site_login + "?next=" + encodeURIComponent(location.pathname + location.search); return; }
+  show("login");
 }
 
 // Send a change request and answer with its JSON body, or null after saying why it failed in the notice (and showing the login page
@@ -54,7 +61,7 @@ async function boot() {
   if (early) early.catch(() => { /* reported by loadList below */ });
   let ok = false;
   try { ok = (await api("session")).ok; } catch (e) { /* offline: fall through to login */ }
-  if (ok) { show("app"); route(); await loadList(early); } else { show("login"); $("#pass").focus(); }
+  if (ok) { show("app"); route(); await loadList(early); } else { await goLogin(); $("#pass").focus(); }
 }
 
 // ---- list + playback -------------------------------------------------------
@@ -850,7 +857,7 @@ async function loadList(early) {
     if (seq === loadSeq) { notify(NETWORK_ERROR); schedulePoll(); }
     return;
   }
-  if (inbox.status === 401 || lib.status === 401) { if (seq === loadSeq) show("login"); return; }
+  if (inbox.status === 401 || lib.status === 401) { if (seq === loadSeq) goLogin(); return; }
   if (!inbox.ok || !lib.ok) { notify("Could not load your recordings (error " + (lib.ok ? inbox.status : lib.status) + ")."); return; }
   const [inboxBody, libBody] = await Promise.all([inbox.json(), lib.json()]);
   if (seq !== loadSeq) return;                // a newer load is already on its way; this answer is stale

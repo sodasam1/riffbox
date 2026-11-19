@@ -17,7 +17,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 SCRYPT = "scrypt:65536:8:2"
 PBKDF2 = "pbkdf2:sha256:600000"
-MIN_LENGTH = 12                 # shorter passphrases are refused when one is chosen (not when verifying an old one)
+MIN_LENGTH = 15                 # NIST SP 800-63B-4: 15 when a password is the only factor. Refused when one is chosen, not when verifying an old one
 
 
 def default_method():
