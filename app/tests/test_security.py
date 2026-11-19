@@ -1,3 +1,5 @@
+import pytest
+
 import riffbox
 from conftest import PASS, TOKEN, make_wav, upload
 
@@ -63,6 +65,28 @@ def test_lockout_expires_after_window(client, monkeypatch):
     assert good(client, "1.1.1.1").status_code == 429
     clock.t += riffbox.LOGIN_WINDOW + 1
     assert good(client, "1.1.1.1").status_code == 200
+
+
+def test_the_limit_and_window_can_be_relaxed_in_the_settings(tmp_path, monkeypatch):
+    clock = with_clock(monkeypatch)
+    app = riffbox.create_app({"TESTING": True, "DATA_DIR": str(tmp_path / "d"), "PASSPHRASE": PASS, "SECRET_KEY": "s", "SESSION_COOKIE_SECURE": False,
+                              "LOGIN_MAX_FAILS": 12, "LOGIN_WINDOW_MINUTES": 2})
+    c = app.test_client()
+    for _ in range(11):
+        assert bad(c, "1.1.1.1").status_code == 401          # five is no longer the limit
+    assert bad(c, "1.1.1.1").status_code == 401              # the 12th wrong one is still answered (and counted)
+    r = good(c, "1.1.1.1")
+    assert r.status_code == 429 and int(r.headers["Retry-After"]) <= 2 * 60 + 1   # now locked, but only for the 2-minute window
+    clock.t += 2 * 60 + 1
+    assert good(c, "1.1.1.1").status_code == 200
+
+
+def test_bad_limit_settings_stop_the_app_at_start_up(monkeypatch, tmp_path):
+    for name, val in (("RIFFBOX_LOGIN_MAX_FAILS", "ten"), ("RIFFBOX_LOGIN_MAX_FAILS", "0"), ("RIFFBOX_LOGIN_WINDOW_MINUTES", "-3")):
+        monkeypatch.setenv(name, val)
+        with pytest.raises(RuntimeError, match=name):
+            riffbox.create_app({"TESTING": True, "DATA_DIR": str(tmp_path / "x"), "PASSPHRASE": PASS, "SECRET_KEY": "s"})
+        monkeypatch.delenv(name)
 
 
 def test_other_clients_are_unaffected(client, monkeypatch):

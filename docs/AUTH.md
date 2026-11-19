@@ -72,7 +72,7 @@ message if the login is not installed yet), add `RIFFBOX_AUTH=both` to `/etc/rif
 Back out at any time by setting it back to `local`. The phone upload token is unaffected in every mode. "Log out everywhere": `keys.py rotate` (see MULTI-APP.md).
 
 ## 7. Safeguards added after the security review (all modes)
-- A stranger can no longer lock you out: the old 30-failures-from-anyone rule made every login answer 429; now it only slows attempts (2 s each, at most 2 waiting at once). The per-client limit (5 per 15 min) is unchanged.
+- A stranger can no longer lock you out: the old 30-failures-from-anyone rule made every login answer 429; now it only slows attempts (2 s each, at most 2 waiting at once). The per-client limit (5 wrong tries per 15 min by default) is unchanged unless you set `RIFFBOX_LOGIN_MAX_FAILS` and `RIFFBOX_LOGIN_WINDOW_MINUTES` in `/etc/riffbox.conf` (then `doas rcctl restart riffbox`); the slow lane for spread-out attacks never locks anyone out and is not affected.
 - `/api/login` reads at most 4 KB (it used to accept up to the app-wide 300 MB before checking anything).
 - Wrong upload tokens are counted: 20 per client per 15 min, then that client is refused.
 - State-changing requests that a browser says came from another origin get 403 (on top of `SameSite=Lax`). Requests with no `Origin` (Shortcut, curl) are unaffected.

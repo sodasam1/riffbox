@@ -89,6 +89,8 @@ reads at start-up (`RIFFBOX_CONFIG` names another file). Real environment variab
 | `RIFFBOX_FFMPEG` | path to `ffmpeg`; empty switches it off (found automatically if installed) |
 | `RIFFBOX_BACKUP_DIR` | the folder behind the "Back up now" button; empty switches the button off |
 | `RIFFBOX_RESTORE_DIR` | the drop folder the Restoring section reads (the installer writes `/mnt/data/apps/riffbox/restore`; built-in default `/var/riffbox-restore`) |
+| `RIFFBOX_LOGIN_MAX_FAILS` | wrong passphrases one client may try within the window before it must wait (default 5) |
+| `RIFFBOX_LOGIN_WINDOW_MINUTES` | the window, and so the longest wait (default 15). A restart of the service clears all counters |
 | `RIFFBOX_INSECURE_COOKIES=1` | local plain-http testing only |
 
 ## Layout

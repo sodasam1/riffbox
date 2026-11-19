@@ -32,7 +32,7 @@ from siteauth.keys import KeyFile
 from siteauth.ratelimit import Limiter
 
 from . import passwords
-from .throttle import LOGIN_SLOW_DELAY, LoginThrottle
+from .throttle import LOGIN_PER_CLIENT_MAX, LOGIN_SLOW_DELAY, LOGIN_WINDOW, LoginThrottle
 
 LOOPBACK = ("127.0.0.1", "::1")
 UNSAFE = ("POST", "PUT", "PATCH", "DELETE")
@@ -45,7 +45,8 @@ LOGIN_BODY_LIMIT = 4096
 class Auth:
     def __init__(self, app, clock):
         self.app = app
-        self.throttle = LoginThrottle(clock)
+        self.throttle = LoginThrottle(clock, per_client_max=int(app.config.get("LOGIN_MAX_FAILS", LOGIN_PER_CLIENT_MAX)),
+                                      window=int(app.config.get("LOGIN_WINDOW_MINUTES", LOGIN_WINDOW // 60)) * 60)
         self.token_limiter = Limiter(clock, per_key_max=TOKEN_FAILS_PER_CLIENT)
         self.mode = app.config.get("AUTH_MODE", "local")
         if self.mode not in MODES:

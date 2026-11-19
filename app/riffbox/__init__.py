@@ -139,6 +139,20 @@ class QuietSession(SecureCookieSessionInterface):
                 response.headers.pop("Vary", None)
 
 
+def _env_int(name, default, minimum=1):
+    """A whole-number setting from the environment; a typo stops the app at start-up instead of silently using the default."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise RuntimeError(f"{name} must be a whole number (got '{raw}')") from None
+    if value < minimum:
+        raise RuntimeError(f"{name} must be at least {minimum} (got {value})")
+    return value
+
+
 def create_app(config=None):
     app = Flask(__name__, static_folder=None)
     app.config.update(
@@ -149,6 +163,9 @@ def create_app(config=None):
         SECRET_KEY=os.environ.get("RIFFBOX_SECRET", ""),
         # Who may sign in: "local" (this app's own passphrase, the default), "both", or "site" (the server-wide login). See auth.py.
         AUTH_MODE=os.environ.get("RIFFBOX_AUTH", "local"),
+        # Wrong-passphrase limit per client: LOGIN_MAX_FAILS failures within LOGIN_WINDOW_MINUTES, then that client waits (default 5 in 15 minutes).
+        LOGIN_MAX_FAILS=_env_int("RIFFBOX_LOGIN_MAX_FAILS", 5),
+        LOGIN_WINDOW_MINUTES=_env_int("RIFFBOX_LOGIN_WINDOW_MINUTES", 15),
         SITE_KEY_FILE=os.environ.get("RIFFBOX_SITE_KEY_FILE", "/etc/site-auth/keys/riffbox.key"),
         SITE_LOGIN_URL=os.environ.get("RIFFBOX_SITE_LOGIN_URL", "/login"),
         MAX_CONTENT_LENGTH=300 * 1024 * 1024,

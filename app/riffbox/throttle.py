@@ -16,14 +16,15 @@ LOGIN_SLOW_WAITERS = 2
 MAX_TRACKED_CLIENTS = 1000          # bounds memory if someone spreads failures over many addresses
 
 
-def _prune(failures, now):
-    while failures and now - failures[0] >= LOGIN_WINDOW:
+def _prune(failures, now, window=LOGIN_WINDOW):
+    while failures and now - failures[0] >= window:
         failures.popleft()
 
 
 class LoginThrottle:
-    def __init__(self, clock):
+    def __init__(self, clock, per_client_max=LOGIN_PER_CLIENT_MAX, window=LOGIN_WINDOW):
         self._clock = clock            # a callable, looked up at each use so tests can swap the clock
+        self._max, self._window = per_client_max, window   # settable per server: RIFFBOX_LOGIN_MAX_FAILS, RIFFBOX_LOGIN_WINDOW_MINUTES
         self._lock = threading.Lock()
         self._by_client = {}           # client key -> deque of failure times
         self._global = deque()
@@ -35,24 +36,24 @@ class LoginThrottle:
         with self._lock:
             if len(self._by_client) > MAX_TRACKED_CLIENTS:
                 for k in list(self._by_client):
-                    _prune(self._by_client[k], now)
+                    _prune(self._by_client[k], now, self._window)
                     if not self._by_client[k]:
                         del self._by_client[k]
             mine = self._by_client.get(key)
             if mine is not None:
-                _prune(mine, now)
+                _prune(mine, now, self._window)
                 if not mine:
                     del self._by_client[key]
             wait = 0
-            if mine and len(mine) >= LOGIN_PER_CLIENT_MAX:
-                wait = LOGIN_WINDOW - (now - mine[0])
+            if mine and len(mine) >= self._max:
+                wait = self._window - (now - mine[0])
             return int(wait) + 1 if wait > 0 else 0
 
     def under_pressure(self):
         """True while failures from all clients together are at or over LOGIN_GLOBAL_MAX (a spread-out guessing attack)."""
         now = self._clock()
         with self._lock:
-            _prune(self._global, now)
+            _prune(self._global, now, self._window)
             return len(self._global) >= LOGIN_GLOBAL_MAX
 
     def try_slow(self):
