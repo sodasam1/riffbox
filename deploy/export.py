@@ -2,7 +2,7 @@
 """Riffbox export: turn the data directory into a folder you can read with nothing but a file manager,
 a text editor and a web browser. Standard library only; it never imports the Riffbox app.
 
-    python3 export.py /mnt/data/riffbox/data /path/to/new-export-folder [--include-trash]
+    python3 export.py /mnt/data/apps/riffbox/data /path/to/new-export-folder [--include-trash]
 
 Makes, inside the new folder: recordings/ (readable audio names with a .md note beside each), index.html,
 index.csv, riffbox.db, manifest-sha256.txt and README.txt (and PROBLEMS.txt only if something was wrong).

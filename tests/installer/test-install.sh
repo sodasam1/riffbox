@@ -15,7 +15,7 @@ unset RIFFBOX_TEST_ANSWER
 R="$W/fresh"; mkdir -p "$R/etc"; cp "$FIX/relayd.pristine.conf" "$R/etc/relayd.conf"; cp "$R/etc/relayd.conf" "$R/orig"
 export RIFFBOX_TEST_ROOT="$R"
 # the data volume: nothing is created, and the installer stops, until it is mounted and holds .volume-ok
-sh "$SCR" --yes > "$R/refuse.out" 2>&1 && bad "fresh: installer ran without the data volume" || { grep -q 'must be mounted' "$R/refuse.out" && [ ! -e "$R/etc/riffbox.conf" ] && [ ! -e "$R/etc/rc.d/riffbox" ] && [ ! -d "$R/mnt/data/riffbox" ] && ok "fresh: refuses to run when /mnt/data is not mounted, and creates nothing" || bad "fresh: mount guard"; }
+sh "$SCR" --yes > "$R/refuse.out" 2>&1 && bad "fresh: installer ran without the data volume" || { grep -q 'must be mounted' "$R/refuse.out" && [ ! -e "$R/etc/riffbox.conf" ] && [ ! -e "$R/etc/rc.d/riffbox" ] && [ ! -d "$R/mnt/data/apps/riffbox" ] && ok "fresh: refuses to run when /mnt/data is not mounted, and creates nothing" || bad "fresh: mount guard"; }
 mkdir -p "$R/mnt/data"; touch "$R/mnt/data/.volume-ok"
 sh "$SCR" --check > "$R/check.out" && cmp -s "$R/orig" "$R/etc/relayd.conf" && [ ! -e "$R/etc/riffbox.conf" ] && [ ! -e "$R/etc/rc.d/riffbox" ] && ok "fresh: --check changes nothing" || bad "fresh: --check wrote something"
 grep -q 'WILL CREATE' "$R/check.out" && grep -q 'WILL CHANGE' "$R/check.out" && grep -q '^Summary:' "$R/check.out" && ok "fresh: --check lists what it would create and change" || bad "fresh: --check summary"
@@ -30,9 +30,9 @@ diff "$R/orig" "$R/etc/relayd.conf" | grep '^<' >/dev/null && bad "fresh: an ori
 awk '/path "\/ideas\/\*"/{a=NR} /quick header "Host"/&&!h{h=NR} END{exit !(a&&h&&a<h)}' "$R/etc/relayd.conf" && ok "fresh: path rules sit before the Host rules" || bad "fresh: rule order"
 [ -f "$R/etc/relayd.conf.pre-riffbox" ] && cmp -s "$R/etc/relayd.conf.pre-riffbox" "$R/orig" && ok "fresh: backup equals original" || bad "fresh: backup"
 grep -q '^RIFFBOX_PASSPHRASE_HASH=' "$R/etc/riffbox.conf" && ! grep -q 'long test passphrase\|^RIFFBOX_PASSPHRASE=' "$R/etc/riffbox.conf" && ok "fresh: passphrase stored only as a hash" || bad "fresh: hash"
-grep -q '^RIFFBOX_BACKUP_DIR=/mnt/data/riffbox/backup$' "$R/etc/riffbox.conf" && ! grep -qi crontab "$R/run1.out" && ok "fresh: backup folder is set for the Back up now button, and no cron job is mentioned or added" || bad "fresh: backup setting / cron"
-grep -q '^RIFFBOX_DATA_DIR=/mnt/data/riffbox/data$' "$R/etc/riffbox.conf" && grep -q '^RIFFBOX_RESTORE_DIR=/mnt/data/riffbox/restore$' "$R/etc/riffbox.conf" && ok "fresh: data, backup and restore folders are all on the volume" || bad "fresh: data/restore settings"
-[ -d "$R/mnt/data/riffbox/data" ] && [ -d "$R/mnt/data/riffbox/backup" ] && [ -d "$R/mnt/data/riffbox/restore" ] && [ ! -d "$R/var/riffbox" ] && ok "fresh: the folders are created on the volume, none on the boot disk" || bad "fresh: folders"
+grep -q '^RIFFBOX_BACKUP_DIR=/mnt/data/apps/riffbox/backup$' "$R/etc/riffbox.conf" && ! grep -qi crontab "$R/run1.out" && ok "fresh: backup folder is set for the Back up now button, and no cron job is mentioned or added" || bad "fresh: backup setting / cron"
+grep -q '^RIFFBOX_DATA_DIR=/mnt/data/apps/riffbox/data$' "$R/etc/riffbox.conf" && grep -q '^RIFFBOX_RESTORE_DIR=/mnt/data/apps/riffbox/restore$' "$R/etc/riffbox.conf" && ok "fresh: data, backup and restore folders are all on the volume" || bad "fresh: data/restore settings"
+[ -d "$R/mnt/data/apps/riffbox/data" ] && [ -d "$R/mnt/data/apps/riffbox/backup" ] && [ -d "$R/mnt/data/apps/riffbox/restore" ] && [ ! -d "$R/var/riffbox" ] && ok "fresh: the folders are created on the volume, none on the boot disk" || bad "fresh: folders"
 grep -q '^rc_pre() {$' "$R/etc/rc.d/riffbox" && grep -q ' on /mnt/data type ' "$R/etc/rc.d/riffbox" && ok "fresh: the service refuses to start unless /mnt/data is mounted and holds .volume-ok" || bad "fresh: rc_pre guard"
 grep -q '^RIFFBOX_UPLOAD_TOKEN=tok123$' "$R/etc/riffbox.conf" && ok "fresh: existing phone token reused" || bad "fresh: token"
 [ "$(stat -c %a "$R/etc/riffbox.conf")" = 640 ] && ok "fresh: riffbox.conf mode 640" || bad "fresh: conf mode"
@@ -76,7 +76,7 @@ cp "$L/orig-riffbox.conf" "$L/etc/riffbox.conf"
 sh "$SCR" > "$L/out5"; cmp -s "$L/etc/riffbox.conf" "$L/orig-riffbox.conf" && grep -q 'Back up now' "$L/out5" && ok "live: a missing backup-folder setting is reported and left alone by default" || bad "live: default changed conf"
 RIFFBOX_TEST_ANSWER=n sh "$SCR" --repair >/dev/null; cmp -s "$L/etc/riffbox.conf" "$L/orig-riffbox.conf" && ok "live: --repair does nothing if you answer no" || bad "live: repaired without consent"
 RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair >/dev/null
-[ "$(grep -c '^RIFFBOX_BACKUP_DIR=/mnt/data/riffbox/backup$' "$L/etc/riffbox.conf")" = 1 ] && grep -q '^RIFFBOX_RESTORE_DIR=/mnt/data/riffbox/restore$' "$L/etc/riffbox.conf" && ! grep -q '^RIFFBOX_DATA_DIR=' "$L/etc/riffbox.conf" && grep -q '^RIFFBOX_SECRET=keep$' "$L/etc/riffbox.conf" && ok "live: --repair with yes adds the one line and keeps the rest" || bad "live: backup line"
+[ "$(grep -c '^RIFFBOX_BACKUP_DIR=/mnt/data/apps/riffbox/backup$' "$L/etc/riffbox.conf")" = 1 ] && grep -q '^RIFFBOX_RESTORE_DIR=/mnt/data/apps/riffbox/restore$' "$L/etc/riffbox.conf" && ! grep -q '^RIFFBOX_DATA_DIR=' "$L/etc/riffbox.conf" && grep -q '^RIFFBOX_SECRET=keep$' "$L/etc/riffbox.conf" && ok "live: --repair with yes adds the one line and keeps the rest" || bad "live: backup line"
 cp "$L/etc/riffbox.conf" "$L/c3"; RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair >/dev/null; cmp -s "$L/c3" "$L/etc/riffbox.conf" && ok "live: a second --repair adds nothing more" || bad "live: duplicated line"
 
 # an old conf that points at the boot disk: reported; the data setting is only changed once the data has been copied
@@ -84,9 +84,9 @@ printf 'RIFFBOX_SECRET=keep\nRIFFBOX_DATA_DIR=/var/riffbox\nRIFFBOX_BACKUP_DIR=/
 sh "$SCR" > "$L/o7"; cmp -s "$L/etc/riffbox.conf" "$L/oldpaths" && grep -q 'belongs on the volume' "$L/o7" && ok "live: a conf that points at the boot disk is reported and left alone by default" || bad "live: old-path conf changed by default"
 RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair > "$L/o8"
 grep -q '^RIFFBOX_DATA_DIR=/var/riffbox$' "$L/etc/riffbox.conf" && grep -q 'copy the data first' "$L/o8" && ok "live: --repair does not repoint the data folder until the data has been copied" || bad "live: data repointed before copy"
-grep -q '^RIFFBOX_BACKUP_DIR=/mnt/data/riffbox/backup$' "$L/etc/riffbox.conf" && grep -q '^RIFFBOX_RESTORE_DIR=/mnt/data/riffbox/restore$' "$L/etc/riffbox.conf" && grep -q '^RIFFBOX_UPLOAD_TOKEN=t$' "$L/etc/riffbox.conf" && ok "live: --repair + yes repoints the backup and restore folders and keeps every other line" || bad "live: backup/restore repoint"
-touch "$L/mnt/data/riffbox/data/riffbox.db"; RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair > "$L/o9"
-grep -q '^RIFFBOX_DATA_DIR=/mnt/data/riffbox/data$' "$L/etc/riffbox.conf" && [ "$(grep -c '^RIFFBOX_DATA_DIR=' "$L/etc/riffbox.conf")" = 1 ] && ok "live: once riffbox.db is on the volume, --repair + yes repoints the data folder (one line, no duplicate)" || bad "live: data repoint"
+grep -q '^RIFFBOX_BACKUP_DIR=/mnt/data/apps/riffbox/backup$' "$L/etc/riffbox.conf" && grep -q '^RIFFBOX_RESTORE_DIR=/mnt/data/apps/riffbox/restore$' "$L/etc/riffbox.conf" && grep -q '^RIFFBOX_UPLOAD_TOKEN=t$' "$L/etc/riffbox.conf" && ok "live: --repair + yes repoints the backup and restore folders and keeps every other line" || bad "live: backup/restore repoint"
+touch "$L/mnt/data/apps/riffbox/data/riffbox.db"; RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair > "$L/o9"
+grep -q '^RIFFBOX_DATA_DIR=/mnt/data/apps/riffbox/data$' "$L/etc/riffbox.conf" && [ "$(grep -c '^RIFFBOX_DATA_DIR=' "$L/etc/riffbox.conf")" = 1 ] && ok "live: once riffbox.db is on the volume, --repair + yes repoints the data folder (one line, no duplicate)" || bad "live: data repoint"
 cp "$L/etc/riffbox.conf" "$L/c4"; RIFFBOX_TEST_ANSWER=y sh "$SCR" --repair >/dev/null; cmp -s "$L/c4" "$L/etc/riffbox.conf" && ok "live: a second --repair changes nothing" || bad "live: repair not idempotent"
 
 # the plain-text passphrase on a live server: reported by default, converted only with --repair and a yes

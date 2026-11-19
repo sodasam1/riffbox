@@ -1,5 +1,5 @@
 # /etc/riffbox.conf   (owner root, group _riffbox, mode 640)
-RIFFBOX_DATA_DIR=/mnt/data/riffbox/data
+RIFFBOX_DATA_DIR=/mnt/data/apps/riffbox/data
 # The app is served at https://sanjaysubramanian.com/ideas/
 RIFFBOX_BASE_PATH=/ideas
 RIFFBOX_STATIC_DIR=/usr/local/riffbox/static
@@ -13,5 +13,5 @@ RIFFBOX_PASSPHRASE_HASH=CHANGE-ME
 # Optional (phase 3.5): lets the server make FLAC play copies of Apple Lossless memos.
 # RIFFBOX_FFMPEG=/usr/local/bin/ffmpeg
 # Optional (phase 8): the folder the "Backup and export" page's "Back up now" button writes to.
-# Create it first:  doas install -d -o _riffbox -g _riffbox -m 700 /mnt/data/riffbox/backup
-# RIFFBOX_BACKUP_DIR=/mnt/data/riffbox/backup
+# Create it first:  doas install -d -o _riffbox -g _riffbox -m 700 /mnt/data/apps/riffbox/backup
+# RIFFBOX_BACKUP_DIR=/mnt/data/apps/riffbox/backup

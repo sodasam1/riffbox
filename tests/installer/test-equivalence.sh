@@ -2,7 +2,7 @@
 # Proves the manifest-based installer (deploy/install.sh + appkit.sh) writes the SAME files as the old hand-written installer
 # (tests/installer/legacy-install.sh, a frozen copy). Compared: relayd.conf, the service script, the conf file (apart from the two
 # random lines), the .pre-riffbox backups and the folders created.
-# Since the data moved to the separate volume, the OLD installer's output is first mapped to the new paths (/var/riffbox -> /mnt/data/riffbox/data,
+# Since the data moved to the separate volume, the OLD installer's output is first mapped to the new paths (/var/riffbox -> /mnt/data/apps/riffbox/data,
 # -backup -> .../backup, -restore -> .../restore), and three deliberate differences are ignored: the service script's rc_pre start guard,
 # the new RIFFBOX_RESTORE_DIR conf line, and the mount point folders. Everything else must still be identical. Usage: RIFFBOX_TEST_PYTHON=python3 sh tests/installer/test-equivalence.sh
 set -eu
@@ -19,7 +19,7 @@ cp tests/installer/legacy-install.sh "$W/old-src/deploy/install.sh"
 OLD="$W/old-src/deploy/install.sh"; NEW="$W/new-src/deploy/install.sh"
 norm() {
   sed -e 's/^RIFFBOX_SECRET=.*/RIFFBOX_SECRET=<random>/' -e 's/^RIFFBOX_PASSPHRASE_HASH=.*/RIFFBOX_PASSPHRASE_HASH=<hash>/' \
-      -e 's#/var/riffbox-backup#/mnt/data/riffbox/backup#g' -e 's#/var/riffbox-restore#/mnt/data/riffbox/restore#g' -e 's#/var/riffbox\([^-/a-z]\|$\)#/mnt/data/riffbox/data\1#g' \
+      -e 's#/var/riffbox-backup#/mnt/data/apps/riffbox/backup#g' -e 's#/var/riffbox-restore#/mnt/data/apps/riffbox/restore#g' -e 's#/var/riffbox\([^-/a-z]\|$\)#/mnt/data/apps/riffbox/data\1#g' \
       -e '/^rc_pre() {$/,/^}$/d' -e '/^RIFFBOX_RESTORE_DIR=/d' "$1" | cat -s
 }
 same() {   # same NAME OLDROOT NEWROOT FILE...
@@ -30,7 +30,7 @@ same() {   # same NAME OLDROOT NEWROOT FILE...
   done
   ok "$n: $* are identical"
 }
-tree() { (cd "$1" && find . -type d | sed -e 's#^\./var/riffbox-backup#./mnt/data/riffbox/backup#' -e 's#^\./var/riffbox-restore#./mnt/data/riffbox/restore#' -e 's#^\./var/riffbox$#./mnt/data/riffbox/data#' | grep -vx -e './mnt' -e './mnt/data' -e './mnt/data/riffbox' -e './var' | sort); }
+tree() { (cd "$1" && find . -type d | sed -e 's#^\./var/riffbox-backup#./mnt/data/apps/riffbox/backup#' -e 's#^\./var/riffbox-restore#./mnt/data/apps/riffbox/restore#' -e 's#^\./var/riffbox$#./mnt/data/apps/riffbox/data#' | grep -vx -e './mnt' -e './mnt/data' -e './mnt/data/apps' -e './mnt/data/apps/riffbox' -e './var' | sort); }
 
 # ---- a fresh Tech Independence server, every question answered yes ---------------------------------------------
 for v in old new; do mkdir -p "$W/$v-fresh/etc"; cp "$FIX/relayd.pristine.conf" "$W/$v-fresh/etc/relayd.conf"; done

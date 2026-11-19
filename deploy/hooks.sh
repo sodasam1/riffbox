@@ -15,11 +15,11 @@ app_create_conf() {
   say "   passphrase stored only as a salted hash ($("$PY" "$SRC/deploy/hash_passphrase.py" --method | cut -d: -f1))" >&2
   cat <<CONFEOF
 # /etc/riffbox.conf (written by deploy/install.sh). Owner root, group _riffbox, mode 640. Real environment variables win over this file.
-RIFFBOX_DATA_DIR=$DATA_ROOT/riffbox/data
+RIFFBOX_DATA_DIR=$DATA_ROOT/apps/riffbox/data
 RIFFBOX_BASE_PATH=/ideas
 RIFFBOX_STATIC_DIR=/usr/local/riffbox/static
-RIFFBOX_BACKUP_DIR=$DATA_ROOT/riffbox/backup
-RIFFBOX_RESTORE_DIR=$DATA_ROOT/riffbox/restore
+RIFFBOX_BACKUP_DIR=$DATA_ROOT/apps/riffbox/backup
+RIFFBOX_RESTORE_DIR=$DATA_ROOT/apps/riffbox/restore
 RIFFBOX_SECRET=$(openssl rand -hex 32)
 RIFFBOX_UPLOAD_TOKEN=$TOK
 RIFFBOX_PASSPHRASE_HASH=$HASH
@@ -36,9 +36,9 @@ app_repair_conf() {
   # The three folders belong on the data volume (manifest DATA_ROOT). An older conf points at the boot disk or lacks the lines.
   for key in RIFFBOX_DATA_DIR RIFFBOX_BACKUP_DIR RIFFBOX_RESTORE_DIR; do
     case "$key" in
-      RIFFBOX_DATA_DIR) want="$DATA_ROOT/riffbox/data" ;;
-      RIFFBOX_BACKUP_DIR) want="$DATA_ROOT/riffbox/backup" ;;
-      RIFFBOX_RESTORE_DIR) want="$DATA_ROOT/riffbox/restore" ;;
+      RIFFBOX_DATA_DIR) want="$DATA_ROOT/apps/riffbox/data" ;;
+      RIFFBOX_BACKUP_DIR) want="$DATA_ROOT/apps/riffbox/backup" ;;
+      RIFFBOX_RESTORE_DIR) want="$DATA_ROOT/apps/riffbox/restore" ;;
     esac
     have=$(grep "^$key=" "$CONF" | tail -1 | cut -d= -f2-)
     [ "$have" = "$want" ] && continue

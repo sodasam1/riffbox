@@ -13,5 +13,5 @@ SVC_HOME=/var/empty
 SRC_MARKER="app/wsgi.py static"
 MARK=riffbox
 HEALTH_PATH=/ideas/health
-DIRS="$DATA_ROOT/riffbox/data,@svc,@svc,750 $DATA_ROOT/riffbox/backup,@svc,@svc,755 $DATA_ROOT/riffbox/restore,@login,@login,755"
+DIRS="$DATA_ROOT/apps/riffbox/data,@svc,@svc,750 $DATA_ROOT/apps/riffbox/backup,@svc,@svc,755 $DATA_ROOT/apps/riffbox/restore,@login,@login,755"
 SITE_AUTH=1
