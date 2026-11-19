@@ -69,7 +69,7 @@ personal-site `docs/MULTI-APP.md`.
 | `site` | only the site login. `POST /api/login` answers 410 and the page sends you to `/login?next=/ideas/`. |
 To move over: install the login service (personal-site `RESTORE.html` B2), re-run `doas sh ~/staging/riffbox/deploy/install.sh` (it registers Riffbox and writes its key; held back with a
 message if the login is not installed yet), add `RIFFBOX_AUTH=both` to `/etc/riffbox.conf`, `doas rcctl restart riffbox`, sign in at `/login`, check `/ideas/`, then set `site`.
-Back out at any time by setting it back to `local`. The phone upload token is unaffected in every mode. "Log out everywhere": `keys.py rotate` (see MULTI-APP.md).
+Back out at any time by setting it back to `local`. Step-by-step with checks and the way back: personal-site `docs/DEPLOY.md` section 6. If the site key is missing when `both` or `site` is chosen, Riffbox now logs an error at start-up (it names the fix) instead of silently accepting nobody. The phone upload token is unaffected in every mode. "Log out everywhere": `keys.py rotate` (see MULTI-APP.md).
 
 ## 7. Safeguards added after the security review (all modes)
 - A stranger can no longer lock you out: the old 30-failures-from-anyone rule made every login answer 429; now it only slows attempts (2 s each, at most 2 waiting at once). The per-client limit (5 wrong tries per 15 min by default) is unchanged unless you set `RIFFBOX_LOGIN_MAX_FAILS` and `RIFFBOX_LOGIN_WINDOW_MINUTES` in `/etc/riffbox.conf` (then `doas rcctl restart riffbox`); the slow lane for spread-out attacks never locks anyone out and is not affected.
