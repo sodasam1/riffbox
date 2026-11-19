@@ -1,7 +1,8 @@
 """Key handling for siteauth. Standard library only, so the installers can run it with nothing but python3.
 
 Files (all under /etc/site-auth, written by root):
-  master            random 64 hex characters; readable only by the login service
+  master            random 64 hex characters; root:_sitelogin mode 640, so only root and the login service can read it
+                    (mode 600 would lock the service out: it runs as _sitelogin, and a root-owned 600 file gives the group nothing)
   generation        a whole number; bump it to log every device out of every app (installer: `rotate`)
   apps.conf         one line per app:  <unixname> <cookie path>      e.g.  riffbox /ideas
   keys/<unixname>.key   that app's own signing key = HMAC-SHA256(master, "<unixname>|<generation>"), readable by that app only
@@ -135,7 +136,7 @@ def main(argv=None):
         for fn, val in (("master", secrets.token_hex(32)), ("generation", "1")):
             fp = os.path.join(a.dir, fn)
             if not os.path.exists(fp):
-                _write(fp, val + "\n", 0o600 if fn == "master" else 0o640, "_sitelogin" if not a.no_chown else None)
+                _write(fp, val + "\n", 0o640, "_sitelogin" if not a.no_chown else None)
                 made.append(fn)
         print("created: " + ", ".join(made) if made else "already initialised")
     elif a.cmd == "rotate":

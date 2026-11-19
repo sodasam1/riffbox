@@ -36,7 +36,7 @@ def main(argv=None):
     except ValueError as exc:
         print(f"refused: {exc}", file=sys.stderr)
         return 1
-    _write(os.path.join(a.dir, "passphrase.hash"), hashed + "\n", 0o600, None if a.no_chown else "_sitelogin")
+    _write(os.path.join(a.dir, "passphrase.hash"), hashed + "\n", 0o640, None if a.no_chown else "_sitelogin")
     print(f"passphrase stored only as a salted hash ({passwords.default_method().split(':')[0]})")
     return 0
 
