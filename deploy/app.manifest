@@ -5,9 +5,13 @@ TITLE=Riffbox
 BASE_PATH=/ideas
 PORT=8100
 PKGS="py3-flask py3-waitress ffmpeg"
-SVC_HOME=/var/riffbox
+# Program files stay on the boot disk (/usr/local/riffbox); ALL data lives on the separate volume, so a rebuilt server is simply pointed at it.
+# The installer refuses to run, and the service refuses to start, unless DATA_ROOT is mounted and holds .volume-ok.
+DATA_ROOT=/mnt/data
+REQUIRE_MOUNT=$DATA_ROOT
+SVC_HOME=/var/empty
 SRC_MARKER="app/wsgi.py static"
 MARK=riffbox
 HEALTH_PATH=/ideas/health
-DIRS="/var/riffbox,@svc,@svc,750 /var/riffbox-backup,@svc,@svc,755 /var/riffbox-restore,@login,@login,755"
+DIRS="$DATA_ROOT/riffbox/data,@svc,@svc,750 $DATA_ROOT/riffbox/backup,@svc,@svc,755 $DATA_ROOT/riffbox/restore,@login,@login,755"
 SITE_AUTH=1

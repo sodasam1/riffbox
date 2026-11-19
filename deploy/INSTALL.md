@@ -4,6 +4,7 @@ Riffbox is an app with its own installer, separate from the site kit. After Tech
 `install.sh`, if you use `/private/` pages), this is the whole procedure. It is the same for a first install, a routine
 update, and a rebuild after the server was wiped.
 
+0. **The data volume must be mounted first.** Riffbox keeps its recordings, database, backups and restore folder on the separate volume at `/mnt/data` (folders `riffbox/{data,backup,restore}`); the program files stay on the boot disk. The installer stops before creating anything unless `/mnt/data` is mounted and holds a `.volume-ok` file, and the service refuses to start without it. Set-up and rebuild steps for the volume: `RESTORE.html` (section B3) in the site kit. On a rebuilt server the service user gets the uid of the folders already on the volume, so the kept data stays readable.
 1. **Upload** the whole `riffbox` folder (it must contain `app/`, `static/` and `deploy/`) to your home folder on the server,
    so it ends up as `~/riffbox`. Use the ZIP from GitHub, not `git clone`, so Windows keeps Unix line endings.
 2. **Look first** (changes nothing):
@@ -23,7 +24,7 @@ update, and a rebuild after the server was wiped.
    - `--repair`: also fix what exists but is wrong (a different service script, wrong folder owner or mode, a different backup line). Each fix is shown and asks first; the old service script is kept as `/etc/rc.d/riffbox.pre-riffbox`.
    - `--app-files-only`: only copy the app code into place and restart. Touches no system file. This is the everyday update command.
    - `--yes`: answer yes to every question (for a rebuild, when you have read `--check`).
-5. **Riffbox data restore** (only after a wipe): upload your backup folder to `/var/riffbox-restore` and use the Restore section
+5. **Riffbox data restore** (only after a wipe): upload your backup folder to `/mnt/data/riffbox/restore` and use the Restore section
    of the app's Backup and export page (branch `in-app-restore`). The installer itself never touches your recordings.
 
 ## If FreeFileSync cannot delete or replace files in `~/riffbox`
@@ -33,7 +34,7 @@ Some file in that folder is owned by root instead of by you. Cause: Python run a
 find ~/riffbox ! -user YOURUSER          # lists what is not yours (should be only these __pycache__ items)
 doas chown -R YOURUSER:YOURUSER ~/riffbox
 ```
-Safe: `~/riffbox` is only the staging copy you upload; the running app lives in `/usr/local/riffbox`. Never run `chown -R` on `/usr/local/riffbox`, `/var/riffbox` or `/etc`.
+Safe: `~/riffbox` is only the staging copy you upload; the running app lives in `/usr/local/riffbox`. Never run `chown -R` on `/usr/local/riffbox`, `/mnt/data/riffbox` or `/etc`.
 
 ## What the installer does, and the same steps by hand
 If the script ever stops working on a future OpenBSD, these are the same steps. `doas` runs a command as root.
@@ -41,8 +42,8 @@ If the script ever stops working on a future OpenBSD, these are the same steps. 
 | # | By hand | Why |
 |---|---|---|
 | 1 | `doas pkg_add py3-flask py3-waitress ffmpeg` | Riffbox's three packages (Python itself is already there because Radicale needs it). |
-| 2 | `doas groupadd _riffbox` then `doas useradd -g _riffbox -L daemon -s /sbin/nologin -d /var/riffbox -c "Riffbox" _riffbox` | An account that cannot log in and owns only Riffbox's files, so an app bug cannot touch the rest of the server. |
-| 3 | `doas install -d -o root -g wheel -m 755 /usr/local/riffbox`; `doas install -d -o _riffbox -g _riffbox -m 750 /var/riffbox`; `doas install -d -o _riffbox -g _riffbox -m 755 /var/riffbox-backup`; `doas install -d -o YOURUSER -g YOURUSER -m 755 /var/riffbox-restore` | Code folder (root-owned), data (private to the app), backups (readable so your sync can pull them), restore drop folder (you can upload into it). |
+| 2 | `doas groupadd _riffbox` then `doas useradd -g _riffbox -L daemon -s /sbin/nologin -d /var/empty -c "Riffbox" _riffbox` (on a rebuild, add `-u UID` / `groupadd -g GID` using the numbers shown by `ls -ldn /mnt/data/riffbox/data`) | An account that cannot log in and owns only Riffbox's files, so an app bug cannot touch the rest of the server. |
+| 3 | `doas install -d -o root -g wheel -m 755 /usr/local/riffbox`; `doas install -d -o _riffbox -g _riffbox -m 750 /mnt/data/riffbox/data`; `doas install -d -o _riffbox -g _riffbox -m 755 /mnt/data/riffbox/backup`; `doas install -d -o YOURUSER -g YOURUSER -m 755 /mnt/data/riffbox/restore` | Code folder (root-owned), data (private to the app), backups (readable so your sync can pull them), restore drop folder (you can upload into it). |
 | 4 | `doas rsync -rlt --delete --chmod=D755,F644 --chown=root:wheel ~/riffbox/app ~/riffbox/static ~/riffbox/deploy /usr/local/riffbox/` | Copies the code into place; `--delete` removes files you removed. Never touches data or secrets. |
 | 5 | Create `/etc/riffbox.conf` (see `riffbox.conf.example`), then `doas chown root:_riffbox /etc/riffbox.conf; doas chmod 640 /etc/riffbox.conf` | Settings and secrets; only root and the app can read it. Get random secrets with `openssl rand -hex 32`. |
 | 6 | Write the rc script (copy the `RCEOF` block in `install.sh`) to `/etc/rc.d/riffbox`, `doas chmod 555` it | How OpenBSD starts the service. |
@@ -51,7 +52,7 @@ If the script ever stops working on a future OpenBSD, these are the same steps. 
 | 9 | `curl -s http://127.0.0.1:8100/ideas/health` | Should print `{"status":"ok"}`. |
 
 ## Practise a restore before you ever need one (on your computer, not the server)
-Pull `/var/riffbox-backup` to your computer, then one command restores it into a throwaway empty library and checks the result:
+Pull `/mnt/data/riffbox/backup` to your computer, then one command restores it into a throwaway empty library and checks the result:
 ```sh
 python deploy/practice_restore.py C:\\path\\to\\riffbox-backup
 ```
@@ -60,10 +61,10 @@ database against the source (titles, tags, notes, marks, tempo, key, dates, Tras
 folder you give it and deletes its practice library afterwards (`--keep` to keep it).
 
 ## Backups (manual for now)
-The installer creates `/var/riffbox-backup` and sets `RIFFBOX_BACKUP_DIR` in a new `/etc/riffbox.conf`. Two ways to make a backup yourself:
+The installer creates `/mnt/data/riffbox/backup` and sets `RIFFBOX_BACKUP_DIR` in a new `/etc/riffbox.conf`. Two ways to make a backup yourself:
 - the **Back up now** button on the app's Backup and export page (needs that setting; on an existing server `install.sh --repair` offers to add the line), or
-- `doas /usr/local/bin/python3 /usr/local/riffbox/deploy/backup.py /var/riffbox /var/riffbox-backup`.
-Then pull `/var/riffbox-backup` to your computer. **A nightly schedule is a planned feature and is deliberately not installed:** see the README's Planned features.
+- `doas /usr/local/bin/python3 /usr/local/riffbox/deploy/backup.py /mnt/data/riffbox/data /mnt/data/riffbox/backup`.
+Then pull `/mnt/data/riffbox/backup` to your computer. **A nightly schedule is a planned feature and is deliberately not installed:** see the README's Planned features.
 
 ## Not verified
 The installer's file edits are tested against your real `relayd.conf` (and the original from Tech Independence), but

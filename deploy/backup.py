@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Riffbox backup: a consistent copy of the database plus every original audio file. Standard library only.
 
-    python3 backup.py /var/riffbox /path/to/backup-folder [--keep 14]
+    python3 backup.py /mnt/data/riffbox/data /path/to/backup-folder [--keep 14]
 
   <backup-folder>/db/riffbox-YYYYMMDD-HHMMSS.db   one per run, checked with SQLite's own integrity check;
                                                   only the newest --keep are kept

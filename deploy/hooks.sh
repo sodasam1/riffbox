@@ -15,10 +15,11 @@ app_create_conf() {
   say "   passphrase stored only as a salted hash ($("$PY" "$SRC/deploy/hash_passphrase.py" --method | cut -d: -f1))" >&2
   cat <<CONFEOF
 # /etc/riffbox.conf (written by deploy/install.sh). Owner root, group _riffbox, mode 640. Real environment variables win over this file.
-RIFFBOX_DATA_DIR=/var/riffbox
+RIFFBOX_DATA_DIR=$DATA_ROOT/riffbox/data
 RIFFBOX_BASE_PATH=/ideas
 RIFFBOX_STATIC_DIR=/usr/local/riffbox/static
-RIFFBOX_BACKUP_DIR=/var/riffbox-backup
+RIFFBOX_BACKUP_DIR=$DATA_ROOT/riffbox/backup
+RIFFBOX_RESTORE_DIR=$DATA_ROOT/riffbox/restore
 RIFFBOX_SECRET=$(openssl rand -hex 32)
 RIFFBOX_UPLOAD_TOKEN=$TOK
 RIFFBOX_PASSPHRASE_HASH=$HASH
@@ -32,10 +33,34 @@ app_repair_conf() {
       "$PY" "$SRC/deploy/hash_passphrase.py" --upgrade-conf "$CONF"; chgd "$CONF (passphrase is now a hash)"; CHANGED=1
     else held "plain-text passphrase left as it is (use --repair to convert it; the app still accepts it for now)"; fi
   fi
-  if ! grep -q '^RIFFBOX_BACKUP_DIR=' "$CONF"; then
-    say "   $CONF has no RIFFBOX_BACKUP_DIR line, so the Back up now button on the Backup and export page is switched off."
-    if [ "$REPAIR" = 1 ] && ask "Add the line RIFFBOX_BACKUP_DIR=/var/riffbox-backup to it?"; then
-      printf 'RIFFBOX_BACKUP_DIR=/var/riffbox-backup\n' >> "$CONF"; chgd "$CONF (backup folder setting added)"; CHANGED=1
-    else held "no backup folder is set (use --repair to add the line); the Back up now button stays off"; fi
-  fi
+  # The three folders belong on the data volume (manifest DATA_ROOT). An older conf points at the boot disk or lacks the lines.
+  for key in RIFFBOX_DATA_DIR RIFFBOX_BACKUP_DIR RIFFBOX_RESTORE_DIR; do
+    case "$key" in
+      RIFFBOX_DATA_DIR) want="$DATA_ROOT/riffbox/data" ;;
+      RIFFBOX_BACKUP_DIR) want="$DATA_ROOT/riffbox/backup" ;;
+      RIFFBOX_RESTORE_DIR) want="$DATA_ROOT/riffbox/restore" ;;
+    esac
+    have=$(grep "^$key=" "$CONF" | tail -1 | cut -d= -f2-)
+    [ "$have" = "$want" ] && continue
+    if [ "$key" = RIFFBOX_BACKUP_DIR ] && [ -z "$have" ]; then
+      say "   $CONF has no RIFFBOX_BACKUP_DIR line, so the Back up now button on the Backup and export page is switched off."
+    else
+      say "   $CONF has $key=${have:-<not set: the app uses its built-in default on the boot disk>}, but Riffbox's data now belongs on the volume: $want"
+    fi
+    if [ "$key" = RIFFBOX_DATA_DIR ] && [ ! -f "$ROOT$want/riffbox.db" ]; then
+      held "$key not changed: copy the data first (stop the app, then: doas rsync -a /var/riffbox/ $want/ ), then run this again with --repair"
+      continue
+    fi
+    if [ ! -d "$ROOT$want" ]; then held "$key not changed: $want does not exist yet"; continue; fi
+    if [ "$REPAIR" = 1 ] && ask "Set $key=$want in $CONF? (files already in the old folder are NOT moved; copy them yourself first)"; then
+      if [ -n "$have" ]; then
+        _t=$(mktemp); awk -v k="$key" -v v="$want" 'BEGIN{FS=OFS="="} $1==k{print k"="v; next} {print}' "$CONF" > "$_t" && cat "$_t" > "$CONF"; rm -f "$_t"
+      else
+        printf '%s=%s\n' "$key" "$want" >> "$CONF"
+      fi
+      chgd "$CONF ($key=$want)"; CHANGED=1
+    else
+      held "$key left as it is (use --repair to change it)"
+    fi
+  done
 }

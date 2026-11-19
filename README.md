@@ -83,12 +83,12 @@ reads at start-up (`RIFFBOX_CONFIG` names another file). Real environment variab
 | `RIFFBOX_PASSPHRASE_HASH` | a salted hash of what you type to log in (made by `deploy/install.sh`; see `docs/AUTH.md`) |
 | `RIFFBOX_PASSPHRASE` | older plain-text form of the same; still accepted with a warning, will be removed |
 | `RIFFBOX_UPLOAD_TOKEN` | lets the phone Shortcut add recordings (and nothing else) |
-| `RIFFBOX_DATA_DIR` | database and audio (default `/var/riffbox`) |
+| `RIFFBOX_DATA_DIR` | database and audio. The installer writes `/mnt/data/riffbox/data` (the data volume); the built-in default, if the line is missing, is `/var/riffbox` on the boot disk |
 | `RIFFBOX_BASE_PATH` | the URL prefix, e.g. `/ideas` (empty at the root) |
 | `RIFFBOX_STATIC_DIR` | where the page files are |
 | `RIFFBOX_FFMPEG` | path to `ffmpeg`; empty switches it off (found automatically if installed) |
 | `RIFFBOX_BACKUP_DIR` | the folder behind the "Back up now" button; empty switches the button off |
-| `RIFFBOX_RESTORE_DIR` | the drop folder the Restoring section reads (default `/var/riffbox-restore`) |
+| `RIFFBOX_RESTORE_DIR` | the drop folder the Restoring section reads (the installer writes `/mnt/data/riffbox/restore`; built-in default `/var/riffbox-restore`) |
 | `RIFFBOX_INSECURE_COOKIES=1` | local plain-http testing only |
 
 ## Layout

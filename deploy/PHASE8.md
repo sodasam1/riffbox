@@ -13,12 +13,12 @@ They never import the app, so they keep working even if Flask is gone.
 
 ## 1. Make the backup folder and try a backup by hand
 ```sh
-df -h /var
+df -h /mnt/data
 ```
 CHECK: the free space is more than the size of `/var/riffbox/audio` (a backup holds a second copy of your originals).
 ```sh
-doas install -d -o _riffbox -g _riffbox -m 700 /var/riffbox-backup
-doas -u _riffbox /usr/local/bin/python3 /usr/local/riffbox/deploy/backup.py /var/riffbox /var/riffbox-backup
+doas install -d -o _riffbox -g _riffbox -m 700 /mnt/data/riffbox/backup
+doas -u _riffbox /usr/local/bin/python3 /usr/local/riffbox/deploy/backup.py /mnt/data/riffbox/data /mnt/data/riffbox/backup
 ```
 CHECK: it prints `database -> riffbox-<date>.db; N new audio file(s) copied` and no WARNING lines. Run it a second
 time: `0 new audio file(s) copied`.
@@ -27,7 +27,7 @@ time: `0 new audio file(s) copied`.
 The app has a **Backup and export** page (link at the top, next to *How this works*). Its *Back up now* button
 and the backup status need to know the folder. Add this line to `/etc/riffbox.conf`, then restart:
 ```
-RIFFBOX_BACKUP_DIR=/var/riffbox-backup
+RIFFBOX_BACKUP_DIR=/mnt/data/riffbox/backup
 ```
 ```sh
 doas rcctl restart riffbox
@@ -39,12 +39,12 @@ For the nightly run, `doas crontab -e` and add one line. The output is thrown aw
 get from cron is a WARNING or an error; the `chown` keeps the files owned by `_riffbox`, so the button can add to the
 same folder (I have not been able to try this cron line on your OpenBSD; check it the morning after):
 ```
-30 3 * * * /usr/local/bin/python3 /usr/local/riffbox/deploy/backup.py /var/riffbox /var/riffbox-backup > /dev/null; chown -R _riffbox:_riffbox /var/riffbox-backup
+30 3 * * * /usr/local/bin/python3 /usr/local/riffbox/deploy/backup.py /mnt/data/riffbox/data /mnt/data/riffbox/backup > /dev/null; chown -R _riffbox:_riffbox /mnt/data/riffbox/backup
 ```
 It keeps the newest 14 database copies (`--keep N` changes that). Audio is only ever added to the backup.
 
 ## 3. A backup on the same server is not enough
-If the VPS is lost, so is the backup. Add `/var/riffbox-backup` (read it with `doas`, or copy it to your home folder
+If the VPS is lost, so is the backup. Add `/mnt/data/riffbox/backup` (read it with `doas`, or copy it to your home folder
 first, as you do for Radicale's `radbak`) as a folder in your FreeFileSync job and pull it to your own computer. Then
 the data exists in two places you control.
 
@@ -70,7 +70,7 @@ riffbox.db* gives just the database. Unzip the file and open `index.html` to loo
 
 **From the command line** (same result, written to a folder instead):
 ```sh
-doas -u _riffbox /usr/local/bin/python3 /usr/local/riffbox/deploy/export.py /var/riffbox /tmp/riffbox-export
+doas -u _riffbox /usr/local/bin/python3 /usr/local/riffbox/deploy/export.py /mnt/data/riffbox/data /tmp/riffbox-export
 ```
 Then fetch `/tmp/riffbox-export` with your SFTP tool and delete it on the server. Add `--include-trash` to include
 deleted recordings. It refuses to write into a folder that already has files in it. If any audio file is missing or

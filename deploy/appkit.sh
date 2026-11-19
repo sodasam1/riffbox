@@ -167,11 +167,36 @@ if [ -n "$missing" ]; then made "packages:$missing"; run pkg_add $missing; else 
 
 # ---- 2. service user, folders --------------------------------------------------------------------
 step "2. Service user and folders"
+# Files on disk belong to a NUMBER (uid), not a name. If this app's data folder already exists (a rebuilt server, with the data volume
+# kept from before), the new service user must get that folder's owner uid/gid, or the app could not read its own data.
+# Only folders owned by the service user are looked at, and only uids from 500 up (never root or a system account).
+svc_uid=""; svc_gid=""; svc_from=""
+for spec in $DIRS; do
+  p=${spec%%,*}; rest=${spec#*,}; o=${rest%%,*}
+  [ "$o" = "@svc" ] && [ -d "$ROOT$p" ] || continue
+  ids=$(ls -ldn "$ROOT$p" | awk '{print $3" "$4}'); set -- $ids
+  if [ "$1" -ge 500 ] 2>/dev/null && [ "${2:-0}" -ge 500 ] 2>/dev/null; then svc_uid=$1; svc_gid=$2; svc_from=$p; break; fi
+done
 if [ -n "$ROOT" ] || ! id "$SVC_USER" >/dev/null 2>&1; then
   made "user and group $SVC_USER"
-  run groupadd "$SVC_USER"
-  run useradd -g "$SVC_USER" -L daemon -s /sbin/nologin -d "$SVC_HOME" -c "$TITLE" "$SVC_USER"
-else left "user $SVC_USER exists"; fi
+  if [ -n "$svc_uid" ]; then
+    if [ -z "$ROOT" ]; then
+      grep -q "^[^:]*:[^:]*:$svc_uid:" /etc/passwd && die "uid $svc_uid (the owner of $svc_from) is already used by another account, so $SVC_USER cannot take over that data. Look at: grep :$svc_uid: /etc/passwd"
+      grep -q "^[^:]*:[^:]*:$svc_gid:" /etc/group && die "gid $svc_gid (the group of $svc_from) is already used by another group. Look at: grep :$svc_gid: /etc/group"
+    fi
+    say "   adopting uid/gid $svc_uid/$svc_gid from the existing data folder $svc_from, so the kept data stays readable"
+    run groupadd -g "$svc_gid" "$SVC_USER"
+    run useradd -u "$svc_uid" -g "$SVC_USER" -L daemon -s /sbin/nologin -d "$SVC_HOME" -c "$TITLE" "$SVC_USER"
+  else
+    run groupadd "$SVC_USER"
+    run useradd -g "$SVC_USER" -L daemon -s /sbin/nologin -d "$SVC_HOME" -c "$TITLE" "$SVC_USER"
+  fi
+else
+  left "user $SVC_USER exists"
+  if [ -z "$ROOT" ] && [ -n "$svc_uid" ] && [ "$(id -u "$SVC_USER")" != "$svc_uid" ]; then
+    held "$SVC_USER is uid $(id -u "$SVC_USER") but $svc_from belongs to uid $svc_uid: the app cannot read its data. Nothing was changed; fix by hand (doas usermod -u $svc_uid $SVC_USER, after stopping the app and checking the data's ownership)"
+  fi
+fi
 ensure_dir "$CODE_DIR" root wheel 755
 # DIRS entries are path,owner,group,mode ; owner/group may be @svc (the service user) or @login (you)
 for spec in $DIRS; do
@@ -212,8 +237,23 @@ daemon_logger="daemon.info"
 rc_bg=YES
 rc_reload=NO
 
+RCPRE
 rc_cmd \$1
 RCEOF
+# With a data volume, the service refuses to start unless the volume is mounted and holds .volume-ok, so a missing mount can never
+# silently fill the boot disk with a fresh empty library. (rc_pre runs before the daemon starts; a non-zero return stops the start.)
+if [ -n "$REQUIRE_MOUNT" ]; then
+  {
+    printf 'rc_pre() {\n'
+    printf '\tmount | grep -q " on %s type " && [ -f "%s/.volume-ok" ] || {\n' "$REQUIRE_MOUNT" "$REQUIRE_MOUNT"
+    printf '\t\techo "%s is not mounted, or %s/.volume-ok is missing: not starting %s" >&2\n' "$REQUIRE_MOUNT" "$REQUIRE_MOUNT" "$UNIXNAME"
+    printf '\t\treturn 1\n\t}\n}\n\n'
+  } > "$TMP.pre"
+  awk -v f="$TMP.pre" '/^RCPRE$/ { while ((getline l < f) > 0) print l; next } { print }' "$TMP" > "$TMP.new"
+else
+  grep -v '^RCPRE$' "$TMP" > "$TMP.new"
+fi
+cat "$TMP.new" > "$TMP"; rm -f "$TMP.new" "$TMP.pre"
 # another app must not already listen on this port
 # (this app's own script and the .pre-* backups this installer keeps are not "another app")
 other=$(grep -l "listen=127.0.0.1:$PORT" "$ROOT"/etc/rc.d/* 2>/dev/null | grep -v "/$UNIXNAME\$" | grep -v '\.pre-' || true)

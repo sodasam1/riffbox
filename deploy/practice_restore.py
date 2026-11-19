@@ -6,7 +6,7 @@ then check the result against the source. Run it on your own computer, never on 
     python deploy/practice_restore.py C:\\path\\to\\backup-folder --serve    also start the app so you can look at it in a browser
     options: --port 8765 (with --serve), --keep (do not delete the practice library afterwards)
 
-The folder is what you pulled from /var/riffbox-backup (it holds db/ and audio/), an unzipped export, or a folder holding one export zip.
+The folder is what you pulled from /mnt/data/riffbox/backup (it holds db/ and audio/), an unzipped export, or a folder holding one export zip.
 Nothing in it is changed. The practice library lives in a temporary folder and is deleted afterwards. Needs Python with Flask installed
 (`pip install flask waitress`). Exit code 0 = every check passed, 1 = a check failed, 2 = nothing usable in the folder.
 The checks: the restore reports no missing or damaged audio; every recording's audio file matches its recorded checksum; and, for a backup or an
