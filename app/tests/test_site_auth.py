@@ -170,3 +170,30 @@ def test_every_route_is_protected_or_on_the_public_list(app):
         if client.get(url).status_code not in (401, 404, 405):
             unprotected.append(rule.endpoint)
     assert unprotected == [], f"routes answering without a login: {unprotected}"
+
+def test_site_mode_refuses_an_old_local_session_but_keeps_the_phone_token(tmp_path, site):
+    """After RIFFBOX_AUTH=site: a session cookie from the old passphrase login stops working, the Shortcut's Bearer token still uploads."""
+    both = build(tmp_path, site, "both").test_client()
+    assert both.post("/api/login", json={"passphrase": PASS}).status_code == 200
+    local_cookie = both.get_cookie("session")
+    assert local_cookie is not None and both.get("/api/session").status_code == 200
+    c = build(tmp_path, site, "site").test_client()
+    c.set_cookie("session", local_cookie.value)
+    assert c.get("/api/session").status_code == 401
+    assert c.get("/api/groups").status_code == 401
+    assert upload(c, make_wav(2.0)).status_code == 201
+
+
+@pytest.mark.parametrize("mode", ["both", "site"])
+def test_a_missing_site_key_is_logged_loudly_at_start(tmp_path, site, mode, caplog):
+    (site / "keys" / "riffbox.key").unlink()
+    with caplog.at_level("ERROR"):
+        build(tmp_path, site, mode)
+    assert "site key" in caplog.text and "RIFFBOX_AUTH=local" in caplog.text
+
+
+def test_local_mode_does_not_look_for_the_site_key(tmp_path, site, caplog):
+    (site / "keys" / "riffbox.key").unlink()
+    with caplog.at_level("ERROR"):
+        build(tmp_path, site, "local")
+    assert "site key" not in caplog.text

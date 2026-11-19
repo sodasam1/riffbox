@@ -56,6 +56,11 @@ class Auth:
         if not app.config.get("PASSPHRASE_HASH") and app.config.get("PASSPHRASE"):
             app.logger.warning("RIFFBOX_PASSPHRASE is stored as plain text. Run deploy/install.sh --repair (or deploy/hash_passphrase.py) "
                                "to replace it with RIFFBOX_PASSPHRASE_HASH; plain-text support will be removed in a later version.")
+        if self.mode != "local" and not self.site_keys.get():
+            # Not fatal (the phone upload token and a later fix still work), but say it loudly: with no key no site cookie can be valid.
+            app.logger.error("RIFFBOX_AUTH=%s but the site key %s is missing or empty: nobody can sign in with the site login. "
+                             "Run deploy/install.sh (it registers Riffbox with the login service), or set RIFFBOX_AUTH=local to go back.",
+                             self.mode, self.site_keys.path)
         app.before_request(self._refuse_cross_origin)
         app.after_request(self._refresh_site_cookie)
 
