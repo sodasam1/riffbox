@@ -2,7 +2,7 @@
 
 **What is new in the app:** *Delete* (in the edit form, pressed twice) moves a recording to a **Trash** tab; *Restore*
 brings it back with all its tags and notes. Nothing is removed from disk. **Deploy:** the routine two moves
-(FreeFileSync, then `doas sh ~/riffbox/deploy/install.sh`). No new package, no config change, no database step (the Trash uses the
+(FreeFileSync, then `doas sh ~/staging/riffbox/deploy/install.sh`). No new package, no config change, no database step (the Trash uses the
 `deleted_at` column that has always been there).
 
 **What is new on the server's disk:** the app now keeps big uploads' temporary files in `/var/riffbox/tmp` instead of

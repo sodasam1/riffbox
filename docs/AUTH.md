@@ -67,7 +67,7 @@ personal-site `docs/MULTI-APP.md`.
 | `local` (default) | exactly as before: Riffbox's own passphrase and cookie. The site cookie is ignored. |
 | `both` | either works. Use while moving over. |
 | `site` | only the site login. `POST /api/login` answers 410 and the page sends you to `/login?next=/ideas/`. |
-To move over: install the login service (personal-site `RESTORE.html` B2), re-run `doas sh ~/riffbox/deploy/install.sh` (it registers Riffbox and writes its key; held back with a
+To move over: install the login service (personal-site `RESTORE.html` B2), re-run `doas sh ~/staging/riffbox/deploy/install.sh` (it registers Riffbox and writes its key; held back with a
 message if the login is not installed yet), add `RIFFBOX_AUTH=both` to `/etc/riffbox.conf`, `doas rcctl restart riffbox`, sign in at `/login`, check `/ideas/`, then set `site`.
 Back out at any time by setting it back to `local`. The phone upload token is unaffected in every mode. "Log out everywhere": `keys.py rotate` (see MULTI-APP.md).
 
