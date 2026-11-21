@@ -251,6 +251,8 @@ const stored = {
   get(k) { try { return localStorage.getItem("riffbox." + k); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem("riffbox." + k, v); } catch (e) { /* storage unavailable */ } },
 };
+// The colours and the accent are also written under the site-wide keys, so music-share and the other apps open in the same look.
+const shareLook = (k, v) => { try { localStorage.setItem("site." + k, v); } catch (e) { /* storage unavailable */ } };
 {
   const s = stored.get("sort"), o = stored.get("order"), p = stored.get("preview");
   if (["recorded", "uploaded", "title", "bpm", "length", "played"].includes(s)) filters.sort = s;
@@ -1237,7 +1239,7 @@ function applyTheme(name) {
 }
 function applyColors(name) {
   if (name === "light" || name === "dark") document.documentElement.dataset.colors = name; else { delete document.documentElement.dataset.colors; name = "auto"; }
-  stored.set("colors", name);
+  stored.set("colors", name); shareLook("colors", name);
   for (const c of COLORS) $("#colors-" + c).setAttribute("aria-pressed", String(c === name));
   colorCache = null;
   drawWave();
@@ -1248,7 +1250,7 @@ for (const t of STYLES) $("#theme-" + t).setAttribute("aria-pressed", String((do
 function applyAccent(name) {
   if (!ACCENTS.includes(name)) name = "orange";
   document.documentElement.dataset.accent = name;
-  stored.set("accent", name);
+  stored.set("accent", name); shareLook("accent", name);
   for (const b of $("#accent-row").children) b.setAttribute("aria-pressed", String(b.dataset.a === name));
   colorCache = null;
   drawWave();

@@ -60,7 +60,7 @@ def test_errors_and_login_still_work_with_compression(client):
 def test_the_page_names_each_file_by_its_fingerprint(client):
     page = client.get("/").get_data(as_text=True)
     found = dict(re.findall(r'(?:src|href)="static/([\w.]+)\?v=([0-9a-f]{12})"', page))
-    assert set(found) == {"theme.js", "style.css", "app.js", "transport.js", "triage.js", "pages.js", "boot.js"}
+    assert set(found) == {"theme.js", "style.css", "app.js", "transport.js", "triage.js", "pages.js", "boot.js", "favicon.svg"}
     for name, v in found.items():
         assert v == webcache.PageFiles(STATIC).read(name)[2]
 
@@ -141,3 +141,14 @@ def test_revalidated_lists_do_not_vary_by_cookie_but_the_login_still_renews(auth
         assert "Cookie" not in r.headers.get("Vary", "") and "Accept-Encoding" in r.headers.get("Vary", "")
         assert r.headers.get("Set-Cookie", "").startswith("session=")                    # the sliding 60-day login is unchanged
     assert "Cookie" in authed.get("/api/session").headers.get("Vary", "")                # everything else behaves as before
+
+
+def test_the_look_is_shared_with_the_other_apps(client):
+    """The header carries the site's mark; theme.js reads the site-wide keys first; choosing colours or an accent writes them (see static/app.js)."""
+    html = client.get("/ideas/").get_data(as_text=True) if client.get("/ideas/").status_code == 200 else client.get("/").get_data(as_text=True)
+    assert 'class="mark"' in html
+    root = Path(__file__).resolve().parents[2] / "static"
+    theme = (root / "theme.js").read_text()
+    assert theme.index("site.accent") < theme.index("riffbox.accent") and theme.index("site.colors") < theme.index("riffbox.colors")
+    app_js = (root / "app.js").read_text()
+    assert 'shareLook("colors", name)' in app_js and 'shareLook("accent", name)' in app_js

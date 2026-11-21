@@ -508,3 +508,9 @@ html[data-cv] #list > li.part { contain-intrinsic-size: auto 50px; }
 html[data-cv] #list > li:has(form.edit), html[data-cv] #list > li.selected, html[data-cv] #list > li.playing { content-visibility: visible; }       /* never hide a row being edited or followed */
 #list .rowsel { display: none; }
 #results.selecting #list .rowsel { display: inline-block; }
+
+/* the site's mark in front of the name, in the accent colour (the same mark as music-share and Version Control) */
+h1 .mark { width: 1.15em; height: 1.15em; vertical-align: -.22em; margin-right: .45rem; }
+h1 .mark-bg { fill: var(--accent); }
+h1 .mark-fg { fill: var(--accent-text); }
+
