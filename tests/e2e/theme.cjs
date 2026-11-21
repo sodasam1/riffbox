@@ -186,7 +186,7 @@ const LONG = "Averyveryveryverylongtitlewithoutanyspacesatalleveryletterrunstoge
 
     // ---- accent colour: swatches in the Menu, applied to primary buttons and the active tab, remembered, right in light and dark
     await page.click("#menu-btn");
-    assert.strictEqual(await page.getAttribute('#accent-row [data-a="orange"]', "aria-pressed"), "true", "orange is the default accent");
+    assert.strictEqual(await page.getAttribute('#accent-row [data-a="blue"]', "aria-pressed"), "true", "blue is the default accent");
     const acc = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim());
     await page.emulateMedia({ colorScheme: "light" });
     await page.click('#accent-row [data-a="blue"]');

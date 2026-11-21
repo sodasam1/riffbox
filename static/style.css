@@ -1,14 +1,14 @@
 :root {
   --bg: #fff; --panel: #f3f3f5; --text: #17171a; --muted: #6b6b76;
-  --line: #d9d9df; --accent: var(--acc-l, #c8400b); --accent-text: #fff; --err: #b42318;
+  --line: #d9d9df; --accent: var(--acc-l, #1d5fd1); --accent-text: #fff; --err: #b42318;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #151517; --panel: #1f1f23; --text: #ececf0; --muted: #9a9aa6;
-    --line: #34343b; --accent: var(--acc-d, #ff7a3d); --accent-text: #151517; --err: #ff8a80;
+    --line: #34343b; --accent: var(--acc-d, #6ea8ff); --accent-text: #151517; --err: #ff8a80;
   }
 }
-/* The accent (orange) is for the active tab and primary buttons only. Everything else uses the theme's neutral text colours: links and
+/* The accent (blue by default, the same on every app of the site) is for the active tab and primary buttons only. Everything else uses the theme's neutral text colours: links and
    row actions in the text colour (underlined), pressed toggles as a dark fill, and the heart in its own red. */
 :root { --link: var(--text); --on: var(--text); --on-text: var(--bg); --heart: #c2185b; --heart-text: #fff; }
 @media (prefers-color-scheme: dark) { :root { --heart: #ff8fb3; --heart-text: #151517; } }
@@ -463,22 +463,22 @@ form.edit .pending-note p { flex: 1 0 100%; margin: 0; }
 /* Palettes: a style's own light and dark values. Automatic ("auto") uses the device's setting; the forced ones follow. */
 html[data-theme="minimal"] {
   --bg: #fff; --panel: #f6f6f6; --text: #111; --muted: #6b6b6b; --line: #e4e4e4;
-  --accent: var(--acc-l, #c8400b); --accent-text: #fff; --err: #b00020; --ok: #111; --ok-text: #fff; --warn: #8a5a00;
+  --accent: var(--acc-l, #1d5fd1); --accent-text: #fff; --err: #b00020; --ok: #111; --ok-text: #fff; --warn: #8a5a00;
 }
 @media (prefers-color-scheme: dark) {
   html[data-theme="minimal"] {
     --bg: #101010; --panel: #1a1a1a; --text: #ececec; --muted: #9a9a9a; --line: #2c2c2c;
-    --accent: var(--acc-d, #ff7a3d); --accent-text: #101010; --err: #ff8a80; --ok: #ececec; --ok-text: #101010; --warn: #e0b050;
+    --accent: var(--acc-d, #6ea8ff); --accent-text: #101010; --err: #ff8a80; --ok: #ececec; --ok-text: #101010; --warn: #e0b050;
   }
 }
 html[data-colors="light"] { color-scheme: light; --bg: #fff; --panel: #f3f3f5; --text: #17171a; --muted: #6b6b76; --line: #d9d9df;
-  --accent: var(--acc-l, #c8400b); --accent-text: #fff; --err: #b42318; --ok: #1a7f37; --ok-text: #fff; --warn: #946010; }
+  --accent: var(--acc-l, #1d5fd1); --accent-text: #fff; --err: #b42318; --ok: #1a7f37; --ok-text: #fff; --warn: #946010; }
 html[data-colors="dark"] { color-scheme: dark; --bg: #151517; --panel: #1f1f23; --text: #ececf0; --muted: #9a9aa6; --line: #34343b;
-  --accent: var(--acc-d, #ff7a3d); --accent-text: #151517; --err: #ff8a80; --ok: #3fb950; --ok-text: #0d1117; --warn: #d29922; }
+  --accent: var(--acc-d, #6ea8ff); --accent-text: #151517; --err: #ff8a80; --ok: #3fb950; --ok-text: #0d1117; --warn: #d29922; }
 html[data-theme="minimal"][data-colors="light"] { color-scheme: light; --bg: #fff; --panel: #f6f6f6; --text: #111; --muted: #6b6b6b; --line: #e4e4e4;
-  --accent: var(--acc-l, #c8400b); --accent-text: #fff; --err: #b00020; --ok: #111; --ok-text: #fff; --warn: #8a5a00; }
+  --accent: var(--acc-l, #1d5fd1); --accent-text: #fff; --err: #b00020; --ok: #111; --ok-text: #fff; --warn: #8a5a00; }
 html[data-theme="minimal"][data-colors="dark"] { color-scheme: dark; --bg: #101010; --panel: #1a1a1a; --text: #ececec; --muted: #9a9a9a; --line: #2c2c2c;
-  --accent: var(--acc-d, #ff7a3d); --accent-text: #101010; --err: #ff8a80; --ok: #ececec; --ok-text: #101010; --warn: #e0b050; }
+  --accent: var(--acc-d, #6ea8ff); --accent-text: #101010; --err: #ff8a80; --ok: #ececec; --ok-text: #101010; --warn: #e0b050; }
 /* Accent colours (Menu > Accent). Each sets its light and dark value; the palettes above pick the one for the current colours. */
 html[data-accent="blue"], #accent-row [data-a="blue"] { --acc-l: #1d5fd1; --acc-d: #6ea8ff; }
 html[data-accent="teal"], #accent-row [data-a="teal"] { --acc-l: #0f766e; --acc-d: #3ecbb9; }

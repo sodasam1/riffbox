@@ -3,7 +3,7 @@
 // The colours and the accent are shared with the other apps on the site (same origin, keys site.colors and site.accent; the older riffbox.* keys are still read).
 // Two independent choices, both made in the Menu:
 //   style  : "minimal" (default) or "original"                    -> <html data-theme="minimal"> (original: no attribute)
-//   accent : orange (default), blue, teal, green, purple, pink, ink     -> <html data-accent="...">
+//   accent : blue (default, the same on every app of the site), orange, teal, green, purple, pink, ink     -> <html data-accent="...">
 //   colors : "auto" (default, follows the device), "light", "dark" -> <html data-colors="light|dark">
 try {
   if (localStorage.getItem("riffbox.theme") !== "original") document.documentElement.dataset.theme = "minimal";

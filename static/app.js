@@ -1248,7 +1248,7 @@ for (const t of STYLES) $("#theme-" + t).addEventListener("click", () => applyTh
 for (const c of COLORS) $("#colors-" + c).addEventListener("click", () => applyColors(c));
 for (const t of STYLES) $("#theme-" + t).setAttribute("aria-pressed", String((document.documentElement.dataset.theme || "original") === t));
 function applyAccent(name) {
-  if (!ACCENTS.includes(name)) name = "orange";
+  if (!ACCENTS.includes(name)) name = "blue";
   document.documentElement.dataset.accent = name;
   stored.set("accent", name); shareLook("accent", name);
   for (const b of $("#accent-row").children) b.setAttribute("aria-pressed", String(b.dataset.a === name));
@@ -1256,7 +1256,7 @@ function applyAccent(name) {
   drawWave();
 }
 for (const b of $("#accent-row").children) b.addEventListener("click", () => applyAccent(b.dataset.a));
-for (const b of $("#accent-row").children) b.setAttribute("aria-pressed", String(b.dataset.a === (document.documentElement.dataset.accent || "orange")));
+for (const b of $("#accent-row").children) b.setAttribute("aria-pressed", String(b.dataset.a === (document.documentElement.dataset.accent || "blue")));
 for (const c of COLORS) $("#colors-" + c).setAttribute("aria-pressed", String((document.documentElement.dataset.colors || "auto") === c));
 
 // ---- The header menu ---------------------------------------------------------------------------------------
